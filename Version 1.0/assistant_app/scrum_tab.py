@@ -197,6 +197,8 @@ class ScrumTab(ttk.Frame):
             on_submit=self._handle_task_submit,
             on_delete=self._handle_task_delete,
             on_add_note=self._handle_add_note,
+            on_update_note=self._handle_update_note,
+            on_delete_note=self._handle_delete_note,
             load_notes=self._load_notes,
             on_cancel=self._close_modal,
         )
@@ -224,6 +226,14 @@ class ScrumTab(ttk.Frame):
 
     def _handle_add_note(self, task_id: int, content: str) -> None:
         self.db.create_scrum_note(task_id, content)
+        self._note_cache.pop(task_id, None)
+
+    def _handle_update_note(self, task_id: int, note_id: int, content: str) -> None:
+        self.db.update_scrum_note(note_id, content)
+        self._note_cache.pop(task_id, None)
+
+    def _handle_delete_note(self, task_id: int, note_id: int) -> None:
+        self.db.delete_scrum_note(note_id)
         self._note_cache.pop(task_id, None)
 
     def _load_notes(self, task_id: int) -> List[ScrumNote]:
@@ -393,6 +403,8 @@ class ScrumTaskDialog(tk.Frame):
         on_submit: Callable[[Dict[str, object], Optional[int]], None],
         on_delete: Callable[[int], None],
         on_add_note: Callable[[int, str], None],
+        on_update_note: Callable[[int, int, str], None],
+        on_delete_note: Callable[[int, int], None],
         load_notes: Callable[[int], List[ScrumNote]],
         on_cancel: Callable[[], None],
     ) -> None:
@@ -403,10 +415,13 @@ class ScrumTaskDialog(tk.Frame):
         self._on_submit = on_submit
         self._on_delete = on_delete
         self._on_add_note = on_add_note
+        self._on_update_note = on_update_note
+        self._on_delete_note = on_delete_note
         self._load_notes_fn = load_notes
         self._on_cancel = on_cancel
         self.statuses = list(statuses)
         self._date_picker: Optional[DatePickerPopup] = None
+        self._notes_map: Dict[int, ScrumNote] = {}
 
         self.place(relx=0.5, rely=0.5, anchor="center")
         container = self._build_form()
@@ -473,15 +488,43 @@ class ScrumTaskDialog(tk.Frame):
         notes_frame.columnconfigure(0, weight=1)
         notes_frame.rowconfigure(1, weight=1)
         ttk.Label(notes_frame, text="Notes").grid(row=0, column=0, sticky="w")
-        self.notes_display = tk.Text(notes_frame, height=6, wrap="word", bg="#ffffff", fg="#1c1d2b", state="disabled")
-        self.notes_display.grid(row=1, column=0, sticky="nsew", pady=(6, 0))
+
+        tree_container = ttk.Frame(notes_frame)
+        tree_container.grid(row=1, column=0, sticky="nsew", pady=(6, 0))
+        tree_container.columnconfigure(0, weight=1)
+        tree_container.rowconfigure(0, weight=1)
+        self.notes_tree = ttk.Treeview(
+            tree_container,
+            columns=("created", "content"),
+            show="headings",
+            selectmode="browse",
+            height=6,
+        )
+        self.notes_tree.heading("created", text="Created")
+        self.notes_tree.heading("content", text="Content")
+        self.notes_tree.column("created", width=150, anchor="w")
+        self.notes_tree.column("content", width=420, anchor="w")
+        self.notes_tree.grid(row=0, column=0, sticky="nsew")
+        notes_scroll = ttk.Scrollbar(tree_container, orient=tk.VERTICAL, command=self.notes_tree.yview)
+        notes_scroll.grid(row=0, column=1, sticky="ns")
+        self.notes_tree.configure(yscrollcommand=notes_scroll.set)
+        self.notes_tree.bind("<<TreeviewSelect>>", lambda _: self._update_note_actions())
+
+        actions_row = ttk.Frame(notes_frame)
+        actions_row.grid(row=2, column=0, sticky="e", pady=(6, 0))
+        self.edit_note_button = ttk.Button(actions_row, text="Edit", command=self._edit_selected_note, state=tk.DISABLED)
+        self.edit_note_button.pack(side=tk.LEFT)
+        self.delete_note_button = ttk.Button(actions_row, text="Delete", command=self._delete_selected_note, state=tk.DISABLED)
+        self.delete_note_button.pack(side=tk.LEFT, padx=(6, 0))
 
         new_note_frame = ttk.Frame(notes_frame)
-        new_note_frame.grid(row=2, column=0, sticky="ew", pady=(8, 0))
+        new_note_frame.grid(row=3, column=0, sticky="ew", pady=(10, 0))
+        new_note_frame.columnconfigure(0, weight=1)
         ttk.Label(new_note_frame, text="Add Note").grid(row=0, column=0, sticky="w")
         self.new_note_text = tk.Text(new_note_frame, height=3, wrap="word", bg="#ffffff", fg="#1c1d2b")
         self.new_note_text.grid(row=1, column=0, sticky="ew", pady=(4, 0))
-        ttk.Button(new_note_frame, text="Add Note", command=self._add_note).grid(row=2, column=0, sticky="e", pady=(6, 0))
+        self.add_note_button = ttk.Button(new_note_frame, text="Add Note", command=self._add_note)
+        self.add_note_button.grid(row=2, column=0, sticky="e", pady=(6, 0))
 
         button_row = ttk.Frame(container)
         button_row.grid(row=11, column=0, columnspan=2, sticky="e", pady=(18, 0))
@@ -491,10 +534,15 @@ class ScrumTaskDialog(tk.Frame):
             ttk.Button(button_row, text="Delete", command=self._delete).pack(side=tk.LEFT)
 
         if self.task is None:
-            self.notes_display.configure(state="disabled")
+            self.notes_tree.configure(selectmode="none")
+            self.edit_note_button.state(["disabled"])
+            self.delete_note_button.state(["disabled"])
             self.new_note_text.configure(state="disabled")
+            self.add_note_button.state(["disabled"])
         else:
+            self.notes_tree.configure(selectmode="browse")
             self._refresh_notes()
+            self._update_note_actions()
         self.title_entry.focus_set()
 
     def _build_form(self) -> ttk.Frame:
@@ -604,12 +652,18 @@ class ScrumTaskDialog(tk.Frame):
         if self.task is None:
             return
         notes = self._load_notes_fn(self.task.id)
-        self.notes_display.configure(state="normal")
-        self.notes_display.delete("1.0", tk.END)
+        self._notes_map = {note.id: note for note in notes}
+        for item in self.notes_tree.get_children():
+            self.notes_tree.delete(item)
         for note in notes:
             timestamp = note.created_at.strftime("%Y-%m-%d %H:%M")
-            self.notes_display.insert(tk.END, f"[{timestamp}]\n{note.content}\n\n")
-        self.notes_display.configure(state="disabled")
+            preview = self._note_preview(note.content)
+            self.notes_tree.insert("", "end", iid=str(note.id), values=(timestamp, preview))
+        if notes and not self.notes_tree.selection():
+            first_iid = str(notes[0].id)
+            self.notes_tree.selection_set(first_iid)
+            self.notes_tree.focus(first_iid)
+        self._update_note_actions()
 
     def _add_note(self) -> None:
         if self.task is None:
@@ -621,6 +675,103 @@ class ScrumTaskDialog(tk.Frame):
         self._on_add_note(self.task.id, content)
         self.new_note_text.delete("1.0", tk.END)
         self._refresh_notes()
+        self._update_note_actions()
+
+    def _selected_note_id(self) -> Optional[int]:
+        selection = self.notes_tree.selection()
+        if not selection:
+            return None
+        try:
+            return int(selection[0])
+        except (TypeError, ValueError):
+            return None
+
+    def _update_note_actions(self) -> None:
+        if self.task is None:
+            self.edit_note_button.state(["disabled"])
+            self.delete_note_button.state(["disabled"])
+            return
+        has_selection = bool(self.notes_tree.selection())
+        if has_selection:
+            self.edit_note_button.state(["!disabled"])
+            self.delete_note_button.state(["!disabled"])
+        else:
+            self.edit_note_button.state(["disabled"])
+            self.delete_note_button.state(["disabled"])
+
+    def _edit_selected_note(self) -> None:
+        if self.task is None:
+            return
+        note_id = self._selected_note_id()
+        if note_id is None:
+            return
+        note = self._notes_map.get(note_id)
+        if note is None:
+            return
+        updated = self._prompt_note_edit(note.content)
+        if updated is None:
+            return
+        cleaned = updated.strip()
+        if not cleaned:
+            messagebox.showinfo("Notes", "Note content cannot be empty.", parent=self)
+            return
+        self._on_update_note(self.task.id, note_id, cleaned)
+        self._refresh_notes()
+
+    def _delete_selected_note(self) -> None:
+        if self.task is None:
+            return
+        note_id = self._selected_note_id()
+        if note_id is None:
+            return
+        if not messagebox.askyesno("Delete Note", "Delete this note?", parent=self):
+            return
+        self._on_delete_note(self.task.id, note_id)
+        self._refresh_notes()
+
+    def _note_preview(self, content: str) -> str:
+        cleaned = " ".join(content.split())
+        if not cleaned:
+            return "(empty)"
+        if len(cleaned) > 140:
+            return f"{cleaned[:137]}..."
+        return cleaned
+
+    def _prompt_note_edit(self, content: str) -> Optional[str]:
+        dialog = tk.Toplevel(self)
+        dialog.title("Edit Note")
+        dialog.transient(self.winfo_toplevel())
+        dialog.grab_set()
+        dialog.configure(bg="#1d1e2c")
+        dialog.resizable(False, False)
+        dialog.columnconfigure(0, weight=1)
+
+        ttk.Label(dialog, text="Note Content").grid(row=0, column=0, sticky="w", padx=12, pady=(12, 4))
+        text_widget = tk.Text(dialog, width=60, height=8, wrap="word", bg="#ffffff", fg="#1c1d2b")
+        text_widget.grid(row=1, column=0, padx=12, pady=(0, 12))
+        text_widget.insert("1.0", content)
+        text_widget.focus_set()
+
+        result: List[Optional[str]] = [None]
+
+        def confirm() -> None:
+            result[0] = text_widget.get("1.0", tk.END)
+            dialog.destroy()
+
+        def cancel() -> None:
+            dialog.destroy()
+
+        text_widget.bind("<Control-Return>", lambda _: confirm())
+        dialog.bind("<Escape>", lambda _: cancel())
+
+        button_row = ttk.Frame(dialog)
+        button_row.grid(row=2, column=0, sticky="e", padx=12, pady=(0, 12))
+        ttk.Button(button_row, text="Cancel", command=cancel).pack(side=tk.RIGHT, padx=(0, 6))
+        ttk.Button(button_row, text="Save", command=confirm).pack(side=tk.RIGHT)
+
+        dialog.protocol("WM_DELETE_WINDOW", cancel)
+        dialog.wait_window()
+        return result[0]
 
     def _open_date_picker(self) -> None:
         current = None
