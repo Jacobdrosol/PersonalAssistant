@@ -1,0 +1,34 @@
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments & local runtime stuff
+.venv/
+env/
+venv/
+. direnv/
+*.env
+*.env.*
+
+# Databases & stateful files
+assistant_app/*.db
+assistant_app/*.sqlite*
+assistant_app/*.log
+
+# Data produced at runtime (keep folder, drop contents)
+data/*
+!data/.gitkeep
+
+# Logs / temp output
+*.log
+*.tmp
+*.bak
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
