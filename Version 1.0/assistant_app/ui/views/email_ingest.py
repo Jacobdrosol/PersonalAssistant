@@ -268,12 +268,16 @@ class EmailIngestView(ttk.Frame):
         config.next_shard_label = self.shard_label_var.get().strip() or None
         config.include_subfolders = self.include_subfolders_var.get()
         config.summarize_after_ingest = self.summarize_var.get()
-        config.include_folders = self._selected_folders()
+        if self.folder_list.size() == 0:
+            # No folder list has been loaded yet; keep whatever was previously saved.
+            selected_folders: Optional[List[str]] = None
+        else:
+            selection_indices = self.folder_list.curselection()
+            selected = [self.available_folders[i] for i in selection_indices]
+            selected_folders = selected if selection_indices else []
+        if selected_folders is not None:
+            config.include_folders = selected_folders
         return config
-
-    def _selected_folders(self) -> List[str]:
-        indices = self.folder_list.curselection()
-        return [self.available_folders[i] for i in indices]
 
     # ------------------------------------------------------------------ Outlook folders
     def refresh_folders(self) -> None:
