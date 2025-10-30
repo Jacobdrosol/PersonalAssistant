@@ -7,13 +7,17 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 Add-Type -AssemblyName System.Drawing
-Add-Type -Namespace Win32 -Name NativeMethods -MemberDefinition @"
+Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
-public static class NativeMethods
+
+namespace PersonalAssistant.Native
 {
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern bool DestroyIcon(IntPtr hIcon);
+    public static class IconUtilities
+    {
+        [DllImport(""user32.dll"", SetLastError = true)]
+        public static extern bool DestroyIcon(IntPtr hIcon);
+    }
 }
 "@
 
@@ -45,7 +49,7 @@ function New-PersonalAssistantIcon {
     $stream.Close()
     $icon.Dispose()
     $bitmap.Dispose()
-    [Win32.NativeMethods]::DestroyIcon($iconHandle) | Out-Null
+    [PersonalAssistant.Native.IconUtilities]::DestroyIcon($iconHandle) | Out-Null
 }
 
 function Get-VersionFromModule {
