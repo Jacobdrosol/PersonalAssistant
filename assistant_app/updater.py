@@ -162,14 +162,14 @@ set "EXE=%s"
 set "NEW=%s"
 set "PID=%d"
 :wait
-tasklist /FI "PID eq %%PID%%" | find "%%PID%%" >nul
-if %%ERRORLEVEL%%==0 (
+tasklist /FI "PID eq %PID%" | find "%PID%" >nul
+if %ERRORLEVEL%==0 (
     timeout /T 1 /NOBREAK >nul
     goto wait
 )
-copy /Y "%%NEW%%" "%%EXE%%"
-if exist "%%NEW%%" del /F /Q "%%NEW%%"
-start "" "%%EXE%%"
+copy /Y "%NEW%" "%EXE%"
+if exist "%NEW%" del /F /Q "%NEW%"
+start "" "%EXE%"
 exit /B 0
 """ % (quoted_exe, quoted_new, os.getpid())
     script_path = Path(tempfile.mkdtemp(prefix="pa-update-script-")) / "apply-update.bat"
