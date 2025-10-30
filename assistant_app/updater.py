@@ -176,7 +176,7 @@ exit /B 0
     script_path.write_text(script_content, encoding="utf-8")
     try:
         subprocess.Popen(
-            ["cmd", "/c", "start", "", str(script_path)],
+            ["cmd", "/c", str(script_path)],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             creationflags=subprocess.DETACHED_PROCESS if hasattr(subprocess, "DETACHED_PROCESS") else 0,
