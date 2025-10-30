@@ -8,16 +8,12 @@ $ErrorActionPreference = "Stop"
 
 Add-Type -AssemblyName System.Drawing
 Add-Type -TypeDefinition @"
-using System;
 using System.Runtime.InteropServices;
 
-namespace PersonalAssistant.Native
+public static class PAIconUtilities
 {
-    public static class IconUtilities
-    {
-        [DllImport(""user32.dll"", SetLastError = true)]
-        public static extern bool DestroyIcon(IntPtr hIcon);
-    }
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool DestroyIcon(System.IntPtr hIcon);
 }
 "@
 
@@ -49,7 +45,7 @@ function New-PersonalAssistantIcon {
     $stream.Close()
     $icon.Dispose()
     $bitmap.Dispose()
-    [PersonalAssistant.Native.IconUtilities]::DestroyIcon($iconHandle) | Out-Null
+    [PAIconUtilities]::DestroyIcon($iconHandle) | Out-Null
 }
 
 function Get-VersionFromModule {
@@ -126,3 +122,5 @@ Compress-Archive -Path (Join-Path $packageDir '*') -DestinationPath $zipPath -Fo
 Write-Host "Build complete. Outputs:" -ForegroundColor Green
 Write-Host " - $exePath" -ForegroundColor Green
 Write-Host " - $zipPath" -ForegroundColor Green
+
+
