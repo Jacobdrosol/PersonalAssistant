@@ -6,6 +6,48 @@ Param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+Add-Type -AssemblyName System.Drawing
+Add-Type -Namespace Win32 -Name NativeMethods -MemberDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public static class NativeMethods
+{
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool DestroyIcon(IntPtr hIcon);
+}
+"@
+
+function New-PersonalAssistantIcon {
+    param([string]$Path)
+
+    $bitmap = New-Object System.Drawing.Bitmap 128, 128
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $background = [System.Drawing.Color]::FromArgb(0x20, 0x28, 0x3A)
+    $graphics.Clear($background)
+
+    $silhouetteColor = [System.Drawing.Color]::FromArgb(0xFF, 0xF4, 0xF6, 0xFA)
+    $brush = New-Object System.Drawing.SolidBrush($silhouetteColor)
+
+    # Head
+    $graphics.FillEllipse($brush, 44, 18, 40, 40)
+    # Shoulders / torso
+    $graphics.FillEllipse($brush, 24, 52, 80, 60)
+    $graphics.FillRectangle($brush, 34, 70, 60, 46)
+
+    $brush.Dispose()
+    $graphics.Dispose()
+
+    $iconHandle = $bitmap.GetHicon()
+    $icon = [System.Drawing.Icon]::FromHandle($iconHandle)
+    $stream = New-Object System.IO.FileStream($Path, [System.IO.FileMode]::Create)
+    $icon.Save($stream)
+    $stream.Close()
+    $icon.Dispose()
+    $bitmap.Dispose()
+    [Win32.NativeMethods]::DestroyIcon($iconHandle) | Out-Null
+}
+
 function Get-VersionFromModule {
     param([string]$Python)
     $cmd = @(
@@ -24,6 +66,15 @@ if (-not $Version) {
 
 Write-Host "Building Personal Assistant version $Version" -ForegroundColor Cyan
 
+$assetsDir = Join-Path (Get-Location) "assets"
+if (-not (Test-Path $assetsDir)) {
+    New-Item -ItemType Directory -Path $assetsDir | Out-Null
+}
+$iconPath = Join-Path $assetsDir "personal_assistant.ico"
+if (-not (Test-Path $iconPath)) {
+    New-PersonalAssistantIcon -Path $iconPath
+}
+
 & $Python -m pip install --upgrade pip
 & $Python -m pip install -r requirements.txt pyinstaller
 
@@ -37,7 +88,9 @@ $pyInstallerArgs = @(
     "--name", "PersonalAssistant",
     "--noconsole",
     "--onefile",
-    "--clean"
+    "--clean",
+    "--icon", $iconPath,
+    "--add-data", "$iconPath;."
 )
 
 & $Python -m PyInstaller @pyInstallerArgs
@@ -54,9 +107,11 @@ if (Test-Path $packageDir) {
 New-Item -ItemType Directory -Path $packageDir | Out-Null
 
 Copy-Item $exePath -Destination (Join-Path $packageDir "PersonalAssistant.exe") -Force
+Copy-Item $iconPath -Destination (Join-Path $packageDir "personal_assistant.ico") -Force
 Copy-Item "packaging/Install-PersonalAssistant.ps1" -Destination (Join-Path $packageDir "Install-PersonalAssistant.ps1") -Force
 Copy-Item "packaging/Install-PersonalAssistant.bat" -Destination (Join-Path $packageDir "Install-PersonalAssistant.bat") -Force
 Copy-Item "packaging/README.txt" -Destination (Join-Path $packageDir "README.txt") -Force
+Copy-Item $iconPath -Destination (Join-Path $distDir "personal_assistant.ico") -Force
 
 $zipPath = Join-Path $distDir "PersonalAssistant-package.zip"
 if (Test-Path $zipPath) {

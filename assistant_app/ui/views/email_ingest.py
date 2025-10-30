@@ -20,6 +20,8 @@ from ...plugins import (
 
 
 class EmailIngestView(ttk.Frame):
+    _PIN_CODE = "12345"
+
     def __init__(self, master: tk.Misc, manager: EmailIngestManager):
         super().__init__(master, padding=(16, 16))
         self.manager = manager
@@ -30,11 +32,17 @@ class EmailIngestView(ttk.Frame):
         self._runner: Optional[threading.Thread] = None
         self._cancel_requested = False
         self._config_error_shown = False
+        self._locked = True
+        self._lock_overlay: Optional[tk.Frame] = None
+        self._pin_entry: Optional[ttk.Entry] = None
+        self._lock_error_var = tk.StringVar(value="")
+        self._pin_var = tk.StringVar(value="")
         self._build_ui()
         self._show_brief_summary("No summary yet", "")
         self.after(200, self._drain_log_queue)
         self._refresh_dependency_status()
         self.refresh_configs()
+        self.after(0, self._show_lock_overlay)
 
     # ------------------------------------------------------------------ UI setup
     def _build_ui(self) -> None:
@@ -523,6 +531,87 @@ class EmailIngestView(ttk.Frame):
 
     def _async(self, func: Callable[[], None]) -> None:
         self.after(0, func)
+
+    # ------------------------------------------------------------------ Lock overlay
+    def _show_lock_overlay(self) -> None:
+        if not self._locked or self._lock_overlay is not None:
+            return
+        overlay = tk.Frame(self, bg="#111219")
+        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+        self._lock_overlay = overlay
+        card = ttk.Frame(overlay, padding=24)
+        card.place(relx=0.5, rely=0.5, anchor="center")
+        ttk.Label(
+            card,
+            text="The email ingest tab is still under construction!",
+            style="SidebarHeading.TLabel",
+            wraplength=420,
+            justify="center",
+        ).pack(anchor="center")
+        ttk.Label(
+            card,
+            text=(
+                "We are currently working to offer users the ability to ingest their Outlook email using a "
+                "specialized shard system that takes each email, converts it into raw data, and then summarizes "
+                "the emails so you can stay efficient and up to date."
+            ),
+            wraplength=420,
+            justify="center",
+        ).pack(anchor="center", pady=(12, 20))
+        ttk.Label(card, text="Enter PIN to unlock:", justify="center").pack(anchor="center")
+        self._pin_var.set("")
+        validate = (self.register(self._validate_pin), "%P")
+        entry = ttk.Entry(
+            card,
+            show="*",
+            textvariable=self._pin_var,
+            justify="center",
+            width=12,
+            validate="key",
+            validatecommand=validate,
+        )
+        entry.pack(anchor="center", pady=(6, 0))
+        entry.bind("<Return>", self._attempt_unlock)
+        entry.focus_set()
+        self._pin_entry = entry
+        ttk.Button(card, text="Unlock", command=self._attempt_unlock).pack(anchor="center", pady=(10, 0))
+        ttk.Label(card, textvariable=self._lock_error_var, foreground="#F36C6C").pack(anchor="center", pady=(8, 0))
+
+    def _validate_pin(self, proposed: str) -> bool:
+        if not proposed:
+            return True
+        if not proposed.isdigit():
+            return False
+        return len(proposed) <= len(self._PIN_CODE)
+
+    def _attempt_unlock(self, event: Optional[tk.Event] = None) -> Optional[str]:
+        value = self._pin_var.get()
+        if value == self._PIN_CODE:
+            self._unlock()
+            return "break"
+        self._lock_error_var.set("Incorrect PIN. Try again.")
+        self._pin_var.set("")
+        if self._pin_entry is not None:
+            self._pin_entry.focus_set()
+        return "break"
+
+    def _unlock(self) -> None:
+        self._locked = False
+        if self._lock_overlay is not None:
+            self._lock_overlay.destroy()
+            self._lock_overlay = None
+        self._lock_error_var.set("")
+
+    def is_locked(self) -> bool:
+        return self._locked
+
+    def focus_lock_entry(self) -> None:
+        if self._pin_entry is not None:
+            self._pin_entry.focus_set()
+
+    def notify_locked(self) -> None:
+        messagebox.showinfo("Email Ingest", "Enter the PIN to unlock this tab.", parent=self)
+        self.focus_lock_entry()
 
 
 

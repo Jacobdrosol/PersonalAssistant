@@ -19,6 +19,8 @@ if (-not (Test-Path $installRoot)) {
 $packageDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $localExe = Join-Path $packageDir $AssetName
 $targetExe = Join-Path $installRoot $AssetName
+$iconSource = Join-Path $packageDir 'personal_assistant.ico'
+$iconTarget = Join-Path $installRoot 'personal_assistant.ico'
 $downloadRequired = -not (Test-Path $localExe)
 
 if (-not $downloadRequired) {
@@ -39,6 +41,10 @@ if (-not $downloadRequired) {
     Invoke-WebRequest -Uri $downloadUrl -Headers @{ 'User-Agent' = 'PersonalAssistantBootstrap/1.0' } -OutFile $targetExe -UseBasicParsing
 }
 
+if (Test-Path $iconSource) {
+    Copy-Item $iconSource $iconTarget -Force
+}
+
 Write-Info "Creating desktop shortcut..."
 $desktop = [Environment]::GetFolderPath('Desktop')
 $shortcutPath = Join-Path $desktop 'Personal Assistant.lnk'
@@ -47,7 +53,11 @@ $shortcut = $wsh.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = $targetExe
 $shortcut.WorkingDirectory = $installRoot
 $shortcut.WindowStyle = 1
-$shortcut.IconLocation = "$targetExe,0"
+if (Test-Path $iconTarget) {
+    $shortcut.IconLocation = "$iconTarget,0"
+} else {
+    $shortcut.IconLocation = "$targetExe,0"
+}
 $shortcut.Save()
 
 Write-Info "Launching Personal Assistant"

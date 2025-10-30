@@ -66,3 +66,12 @@ def get_update_asset_name() -> str:
     Can be overridden with PA_UPDATE_ASSET_NAME.
     """
     return os.getenv("PA_UPDATE_ASSET_NAME", f"{APP_ID}.exe")
+
+
+def get_desktop_path() -> Path:
+    if sys.platform.startswith("win"):
+        desktop = os.getenv("USERPROFILE")
+        if desktop:
+            return Path(desktop) / "Desktop"
+        return Path.home() / "Desktop"
+    return Path.home() / "Desktop"

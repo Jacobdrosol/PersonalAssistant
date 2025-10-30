@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import sys
 import threading
 from pathlib import Path
 from typing import Callable, List, Optional
@@ -16,12 +17,15 @@ from .ui.views.email_ingest import EmailIngestView
 from .system_notifications import SystemNotifier
 from .notifications import NotificationManager, NotificationPayload
 from .environment import APP_NAME, ensure_user_data_dir, legacy_project_root
+from .settings_store import AppSettings, load_settings, save_settings
+from .settings_tab import SettingsTab
+from .shortcuts import create_desktop_shortcut, remove_desktop_shortcut, shortcut_exists
 from .version import __version__
 from . import updater
 
 
 class PersonalAssistantApp(tk.Tk):
-    def __init__(self, db_path: Path, data_root: Path) -> None:
+    def __init__(self, db_path: Path, data_root: Path, settings: AppSettings, settings_path: Path) -> None:
         super().__init__()
         self.title(APP_NAME)
         self.geometry("1280x820")
@@ -30,13 +34,27 @@ class PersonalAssistantApp(tk.Tk):
 
         self.project_root = Path(__file__).resolve().parent.parent
         self.data_root = data_root
+        self.settings = settings
+        self.settings_path = settings_path
+        self._icon_path = self._ensure_icon_file()
         self.email_manager = EmailIngestManager(self.data_root)
         self.db = Database(db_path)
         self.system_notifier = SystemNotifier()
         self._configure_styles()
+        self._apply_window_icon()
 
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(fill=tk.BOTH, expand=True)
+
+        initial_shortcut_enabled = self.settings.desktop_shortcut and self._should_manage_shortcut()
+        self.settings_panel = ttk.Frame(self, style="TFrame")
+        self.settings_tab = SettingsTab(
+            self.settings_panel,
+            shortcut_enabled=initial_shortcut_enabled and shortcut_exists(),
+            on_desktop_shortcut_toggle=self._handle_desktop_shortcut_toggle,
+        )
+        self.settings_tab.pack(fill=tk.BOTH, expand=True)
+        self.settings_panel.pack_forget()
 
         self.calendar_tab = CalendarTab(self.notebook, self.db)
         self.scrum_tab = ScrumTab(self.notebook, self.db)
@@ -48,10 +66,26 @@ class PersonalAssistantApp(tk.Tk):
         self.notebook.add(self.scrum_tab, text="Tasks Board")
         self.notebook.add(self.email_tab, text="Email Ingest")
 
+        self._last_notebook_tab = self.notebook.select()
+        self._settings_visible = False
+        self.notebook.bind("<<NotebookTabChanged>>", self._record_last_notebook_tab)
+
+        self.settings_button = ttk.Button(
+            self.notebook,
+            text="Settings",
+            style="SettingsTabInactive.TButton",
+            command=self._toggle_settings_view,
+            cursor="hand2",
+        )
+        self.notebook.bind("<Configure>", self._position_settings_button)
+        self.after(50, self._position_settings_button)
+        self._sync_settings_button_state()
+
         self.notifications: List[NotificationWindow] = []
         self.notification_manager = NotificationManager(self.db, self._handle_notification)
         self.after(1000, self.notification_manager.start)
         self.after(2000, self._check_for_updates_async)
+        self.after(250, self._ensure_desktop_shortcut)
 
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
@@ -86,6 +120,30 @@ class PersonalAssistantApp(tk.Tk):
         style.map(
             "TButton",
             background=[("pressed", "#3a3d55"), ("active", "#3a3d55")],
+        )
+        style.configure(
+            "SettingsTabInactive.TButton",
+            background="#1d1f2f",
+            foreground=text_secondary,
+            padding=(16, 4, 16, 4),
+            relief="raised",
+            borderwidth=1,
+        )
+        style.map(
+            "SettingsTabInactive.TButton",
+            background=[("pressed", "#2b2c42"), ("active", "#2b2c42")],
+        )
+        style.configure(
+            "SettingsTabActive.TButton",
+            background="#2b2c42",
+            foreground=text_primary,
+            padding=(16, 10, 16, 10),
+            relief="sunken",
+            borderwidth=1,
+        )
+        style.map(
+            "SettingsTabActive.TButton",
+            background=[("active", "#2b2c42")],
         )
         style.configure(
             "Treeview",
@@ -157,6 +215,140 @@ class PersonalAssistantApp(tk.Tk):
         )
         self.after(100, self.on_close)
 
+    def _ensure_icon_file(self) -> Optional[Path]:
+        icon_path = self.data_root / "personal_assistant.ico"
+        if icon_path.exists():
+            return icon_path
+        candidates: List[Path] = []
+        if hasattr(sys, "_MEIPASS"):
+            candidates.append(Path(sys._MEIPASS) / "personal_assistant.ico")
+        executable_dir = Path(sys.executable).resolve().parent
+        candidates.append(executable_dir / "personal_assistant.ico")
+        candidates.append(self.project_root / "assets" / "personal_assistant.ico")
+        for candidate in candidates:
+            if candidate.exists():
+                try:
+                    icon_path.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(candidate, icon_path)
+                    return icon_path
+                except Exception:
+                    continue
+        return icon_path if icon_path.exists() else None
+
+    def _apply_window_icon(self) -> None:
+        icon = self._icon_path
+        if icon and icon.exists():
+            try:
+                self.iconbitmap(str(icon))
+            except Exception:
+                pass
+
+    def _should_manage_shortcut(self) -> bool:
+        return sys.platform.startswith("win") and bool(getattr(sys, "frozen", False))
+
+    def _ensure_desktop_shortcut(self) -> None:
+        if not self._should_manage_shortcut():
+            self.settings.desktop_shortcut = False
+            self.settings_tab.update_shortcut_state(False)
+            save_settings(self.settings_path, self.settings)
+            return
+        desired = self.settings.desktop_shortcut
+        exists = shortcut_exists()
+        if desired and not exists:
+            if not self._create_desktop_shortcut():
+                self.settings.desktop_shortcut = False
+        elif not desired and exists:
+            if not remove_desktop_shortcut():
+                messagebox.showerror(
+                    "Desktop Shortcut",
+                    "Unable to remove the desktop shortcut.",
+                    parent=self,
+                )
+                self.settings.desktop_shortcut = True
+        current = shortcut_exists()
+        self.settings_tab.update_shortcut_state(current)
+        save_settings(self.settings_path, self.settings)
+
+    def _update_settings_tab_position(self, event: Optional[tk.Event] = None) -> None:
+        if not hasattr(self, "_settings_tab_id"):
+            return
+        try:
+            tabs = self.notebook.tabs()
+        except tk.TclError:
+            return
+        if self._settings_tab_id not in tabs:
+            return
+        try:
+            self.notebook.tab(self._settings_tab_id, padding=self._settings_tab_base_padding)
+            self.notebook.update_idletasks()
+            total_width = 0
+            for tab_id in tabs:
+                try:
+                    bbox = self.notebook.bbox(tab_id)
+                except tk.TclError:
+                    return
+                if not bbox:
+                    return
+                total_width += bbox[2]
+            extra = max(self.notebook.winfo_width() - total_width, 0)
+            pad = (self._settings_tab_base_padding[0] + extra, *self._settings_tab_base_padding[1:])
+            self.notebook.tab(self._settings_tab_id, padding=pad)
+        except tk.TclError:
+            pass
+
+    def _create_desktop_shortcut(self) -> bool:
+        if not self._should_manage_shortcut():
+            return False
+        icon = self._icon_path or self._ensure_icon_file()
+        if icon is not None and icon.exists():
+            self._icon_path = icon
+            self._apply_window_icon()
+        if icon is None or not icon.exists():
+            messagebox.showerror(
+                "Desktop Shortcut",
+                "Unable to locate the application icon for the shortcut.",
+                parent=self,
+            )
+            return False
+        executable = Path(sys.executable).resolve()
+        success = create_desktop_shortcut(executable, icon)
+        if not success:
+            messagebox.showerror(
+                "Desktop Shortcut",
+                "Unable to create the desktop shortcut.",
+                parent=self,
+            )
+        return success
+
+    def _handle_desktop_shortcut_toggle(self, enabled: bool) -> None:
+        if not self._should_manage_shortcut():
+            messagebox.showinfo(
+                "Desktop Shortcut",
+                "Desktop shortcuts are only available in the packaged application.",
+                parent=self,
+            )
+            self.settings_tab.update_shortcut_state(False)
+            self.settings.desktop_shortcut = False
+            save_settings(self.settings_path, self.settings)
+            return
+        if enabled:
+            success = self._create_desktop_shortcut()
+            if success:
+                self.settings.desktop_shortcut = True
+        else:
+            success = remove_desktop_shortcut()
+            if not success:
+                messagebox.showerror(
+                    "Desktop Shortcut",
+                    "Unable to remove the desktop shortcut.",
+                    parent=self,
+                )
+            else:
+                self.settings.desktop_shortcut = False
+        current = shortcut_exists()
+        self.settings_tab.update_shortcut_state(current)
+        save_settings(self.settings_path, self.settings)
+
     def _register_email_shortcuts(self) -> None:
         bindings = {
             "<Control-n>": self._shortcut_email_new,
@@ -173,24 +365,36 @@ class PersonalAssistantApp(tk.Tk):
 
     def _shortcut_email_new(self, event: tk.Event) -> Optional[str]:
         if self._email_tab_active():
+            if self.email_tab.is_locked():
+                self.email_tab.notify_locked()
+                return "break"
             self.email_tab.create_new_config()
             return "break"
         return None
 
     def _shortcut_email_save(self, event: tk.Event) -> Optional[str]:
         if self._email_tab_active():
+            if self.email_tab.is_locked():
+                self.email_tab.notify_locked()
+                return "break"
             self.email_tab.save_config()
             return "break"
         return None
 
     def _shortcut_email_run(self, event: tk.Event) -> Optional[str]:
         if self._email_tab_active():
+            if self.email_tab.is_locked():
+                self.email_tab.notify_locked()
+                return "break"
             self.email_tab.run_now()
             return "break"
         return None
 
     def _shortcut_email_open(self, event: tk.Event) -> Optional[str]:
         if self._email_tab_active():
+            if self.email_tab.is_locked():
+                self.email_tab.notify_locked()
+                return "break"
             self.email_tab.open_shard_folder()
             return "break"
         return None
@@ -223,6 +427,52 @@ class PersonalAssistantApp(tk.Tk):
             y = screen_height - (index + 1) * (window_height + 10) - padding
             window.geometry(f"{window_width}x{window_height}+{x}+{y}")
 
+    def _position_settings_button(self, event: Optional[tk.Event] = None) -> None:
+        if not hasattr(self, "settings_button"):
+            return
+        try:
+            self.settings_button.place(relx=1.0, x=-4, y=2, anchor="ne")
+            self.settings_button.lift()
+        except tk.TclError:
+            pass
+
+    def _record_last_notebook_tab(self, event: Optional[tk.Event] = None) -> None:
+        if self._settings_visible:
+            return
+        self._last_notebook_tab = self.notebook.select()
+        self._sync_settings_button_state()
+
+    def _toggle_settings_view(self) -> None:
+        if self._settings_visible:
+            self._hide_settings_view()
+        else:
+            self._show_settings_view()
+
+    def _show_settings_view(self) -> None:
+        self._last_notebook_tab = self.notebook.select()
+        self.notebook.pack_forget()
+        self.settings_panel.pack(fill=tk.BOTH, expand=True)
+        self._settings_visible = True
+        self._sync_settings_button_state()
+
+    def _hide_settings_view(self) -> None:
+        self.settings_panel.pack_forget()
+        self.notebook.pack(fill=tk.BOTH, expand=True)
+        if self._last_notebook_tab:
+            try:
+                self.notebook.select(self._last_notebook_tab)
+            except tk.TclError:
+                pass
+        self._settings_visible = False
+        self._sync_settings_button_state()
+        self._position_settings_button()
+
+    def _sync_settings_button_state(self) -> None:
+        if not hasattr(self, "settings_button"):
+            return
+        style_name = "SettingsTabActive.TButton" if self._settings_visible else "SettingsTabInactive.TButton"
+        self.settings_button.configure(style=style_name)
+
     def remove_notification(self, window: "NotificationWindow") -> None:
         if window in self.notifications:
             self.notifications.remove(window)
@@ -231,6 +481,7 @@ class PersonalAssistantApp(tk.Tk):
     def on_close(self) -> None:
         self.notification_manager.stop()
         self.db.close()
+        save_settings(self.settings_path, self.settings)
         self.destroy()
 
 class UpdateProgressWindow(tk.Toplevel):
@@ -417,12 +668,15 @@ def _rewrite_email_run_paths(base_dir: Path) -> None:
 def main() -> None:
     data_root = ensure_user_data_dir()
     _migrate_legacy_data(data_root)
+    settings_path = data_root / "settings.json"
+    settings = load_settings(settings_path)
     db_path = data_root / "assistant.db"
-    app = PersonalAssistantApp(db_path, data_root)
+    app = PersonalAssistantApp(db_path, data_root, settings, settings_path)
     app.mainloop()
 
 
 __all__ = ["main", "PersonalAssistantApp"]
+
 
 
 
