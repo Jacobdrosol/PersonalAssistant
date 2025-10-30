@@ -1,0 +1,1232 @@
+[2025-08-06 08:58] RE: RU-DEV EOM 15JUL25  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+RU-DEV financial EOM testing transactions for round 2 have been performed . another end of month jobstream(s) run first this morning, 8/1/25 . a zip file for the most recent end-of-month reports ran . thank you .
+
+[2025-08-06 09:03] Call for Submissions - Updates on GenAI Initiatives  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=D1B52F2EE2574110B2632B91FB43374B-1F4D2660-A3
+Good Morning GenAI Champions, we are reaching out to learn more about the work you are doing with GenAI and would like to feature your accomplishments in future sessions . if you are interested in sharing your work please take a moment to complete this survey: Updates on GenAI Initiatives .
+
+[2025-08-06 09:28] RU Gift Acks  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=78508E6B699840E3A3DC1BE73CA533D9-BASS, HALEY
+we don't have any underlying information linked to the X25GAK promotion code . it should have offer information for Print+Digital - 1 year at $10.00 . if you could confirm this, I can get this set up in Core and we can proceed with our selections .
+
+[2025-08-06 09:54] RE: RU Gift Acks  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B0BCFF5FFB634B98A1472D1D9ED07C53-ALLEN, JESS
+Jess Jessica Allen | Client Manager | CDS Global, Inc . we don't have any underlying information linked to the X25GAK promotion code . if you could confirm this, I can get this set up in Core and we can proceed with our selections .
+
+[2025-08-06 10:41] RE: RU Gift Acks  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B0BCFF5FFB634B98A1472D1D9ED07C53-ALLEN, JESS
+I’ve attached a copy of the print program. The offer is static, and everyone in the select gets it . I am hearing that it should have offer information for Print+Digital - 1 year at $10.00 . if you could confirm this, I can get this set up in Core and we can proceed with our selections.
+
+[2025-08-06 11:56] Core: TMP and STP Instance Accounting Period Maintenance  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+all – Daryl as moved the accounting period month to the 202507 in TMP, and STP instances for: BP, NG, RU, and TF . testing areas may be maintained also but will most likely be updated as end of month process testing is performed .
+
+[2025-08-06 12:01] Re: Core: TMP and STP Instance Accounting Period Maintenance  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=6C27FDCEC6FE45C5A217E34E2635B7DA-COREY D REI
+a point person creates an automated jobstream to include these two processes to run the 1st of each month in TMP and all STP instances . there is not a need to run full end of month jobstreams but rather only an INV410 and ARP400 process .
+
+[2025-08-06 13:59] FW: QA Agency Memos  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+abby Kessler (she/her) Product Manager 1901 Bell Ave Des Moines, IA 50315 T: 515-699-3699 akessler@cds-global.com> Sent: Wednesday, August 6, 2025 1:40 PM .
+
+[2025-08-06 14:43] RE: Core: TMP and STP Instance Accounting Period Maintenance  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+we need to create a jobstream, add it to all applicable instances . then have it scheduled to run in automation the 1st of each month . Corey Dean | CDS Global | Technical Client Consultant | cell: 515-661-1001 ________________________________ .
+
+[2025-08-06 15:13] RE: Core: TMP and STP Instance Accounting Period Maintenance  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=AA36727841EE46A889D8C644C43EC540-KLOPFENSTEI
+I created EOMSYNC Jobstream in TMP and scheduled it to run at 12:02AM the 1st of each month . we need to create a jobstream, add it to all applicable instances and then have it scheduled to run in automation . you will need to ask an AA to do as we should not be editing anything with template .
+
+[2025-08-06 15:42] Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B81A56ACEA4F4151BC1A0352843F99BE-ISAIAH A BR
+Please send all the email proofs for batch/event triggered emails to Jacob . Jacob will then forward the proofs to the necessary recipients . can we also get Jacob’s email added to the testing email inbox for the event triggered email? thanks! Isaiah Brown Director – Engage Front End Web Development Tel (515) 362-3465 ibrown@cds-global.com .
+
+[2025-08-06 15:48] Re: Core: TMP and STP Instance Accounting Period Maintenance  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=6C27FDCEC6FE45C5A217E34E2635B7DA-COREY D REI
+a jobstream of the same name (EOMSYNC) has been created in the following instances . it's scheduled to run on the 1st of each month in queue 9 at 12:02AM . Corey Dean has been unable to set up in D3 or TJ (down east) as I was not able to access either instance .
+
+[2025-08-06 15:58] RE: Core: TMP and STP Instance Accounting Period Maintenance  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=AA36727841EE46A889D8C644C43EC540-KLOPFENSTEI
+cds-global.com has created a jobstream of the same name (EOMSYNC) in the following instances and have scheduled each to run on the 1st of each month in queue 9 at 12:02AM BP-STP HI-sTP I2-STP I2-STP NG-STTP NA-STOP SD-STAT AJ-STPT Q1-STST RU-STEP W5-STT I was unable to set up in D3
+
+[2025-08-07 08:26] RU - pp samples   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=EE3988D7B6284D6AB0D5E6BE3A74FDE1-BELOKOPITOV
+each program has a pdf for the records I got in the file . there are block of text called QC flows - highlighted here . I will provide the last 4 when I have files, please get with me to review the report if you need it . json NUBGA001 coming adding offer that is hard coded .
+
+[2025-08-07 10:00] The New Republic- first selections post go live  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=C901B062BD894668B3344FD7C0F496BF-SEISER, MEG
+the next eLinks select on 09/02; 1 week post go-live . mailed renewals will select on 9/09; 2 weeks post go live . are these safe dates or should jess/i discuss with the client on rescheduling?
+
+[2025-08-07 10:08] RE: The New Republic- first selections post go live  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+the new Republic- first selections post go live . the next eLinks select on 09/02; 1 week post go-live and mailed renewals will select . are these safe dates or should jess/I discuss with the client on rescheduling?
+
+[2025-08-07 10:16] Re: The New Republic- first selections post go live  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=FB4B7848667548B4A2C5EFF7868C00CB-MILTON D CO
+the new Republic- first selections post go live Good morning . the next eLinks select on 09/02; 1 week post go-live and mailed renewals will select . are these safe dates or should jess/i discuss with the client on rescheduling?
+
+[2025-08-07 10:19] RE: The New Republic- first selections post go live  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B0BCFF5FFB634B98A1472D1D9ED07C53-ALLEN, JESS
+Jess Jessica Allen | Client Manager | CDS Global, Inc . i was under the impression that we were following the existing auto renewal schedule we currently have for the client . but after post conversion The same schedule you shared with Eileen yesterday . get Outlook for iOS http://aka.ms/o0ukef> ________________________________ .
+
+[2025-08-07 10:35] RE: RU - pp samples   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=6BD1891770D34302A775B8C8A1B0BBDF-WHITE, EILE
+I'm out Friday and I wanted to make sure you have all I can provide right now . each program has a pdf for the records I got in the file . there are block of text called QC flows - highlighted here . they don't print in production but help in the QC process .
+
+[2025-08-07 10:49] RE: RU - pp samples   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3B473BE1676B4060999F8FD2C245F767-DANIELLE L
+we have been keeping track of files created by instance and selection type in this spreadsheet . we currently have a blocker on the single renewals because of Geo Pricing . I think there were some changes so they need to run again, correct? if so, please confirm you will give us the “Core Group Approval” .
+
+[2025-08-07 10:56] Re: RU - pp samples   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=EE3988D7B6284D6AB0D5E6BE3A74FDE1-BELOKOPITOV
+we used old file approvals for RN and GR to get the print program ready . the approval I'm looking for is go live - production ready all efforts all cats . we have been keeping track of files created by instance and selection type in this spreadsheet . it looks like the gift acks were approved, but there were some changes .
+
+[2025-08-07 10:59] RE: CDS0357 - NCOA/CASS Process  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3777DC737ED54D56A3E6CA8D942B7BA9-VERCHER, CY
+NOCA-A2_TF contains 31.911 records . Ignore one of the A2 files. I accidently ran it twice . Cynthia From: Klopfenstein, Jake Jake.Klopfenstein@cds-global.com> .
+
+[2025-08-07 11:40] RE: RU- Global Care, issue table blanks  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=C901B062BD894668B3344FD7C0F496BF-SEISER, MEG
+RU- Global Care, issue table blanks I am not finding any accounts in the list from Jacob that are triggering a valid missed issue option available to select . for these example accounts, when clicking on the Missing/Damaged Issues, it is showing blank for the available issues drop down .
+
+[2025-08-07 11:42] RE: TNR Engage Items   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=C901B062BD894668B3344FD7C0F496BF-SEISER, MEG
+neither jess nor I will be providing the test account records . these will be coming from the Core Setup Team . I assume Jacob D. will provide you more testing accounts under the separate message but adding him here for confirmation . it is unfortunate that sandbox does not mirror production in the same way our Engage admin side mirrors production .
+
+[2025-08-07 11:48] RE: RU - pp samples   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3B473BE1676B4060999F8FD2C245F767-DANIELLE L
+derifield, Jacob mailto:Jacob.Derifield@cds-global.com> Sent: Thursday, August 7, 2025 10:56 AM . the approval I'm looking for is go live - production ready all efforts all cats .
+
+[2025-08-07 12:02] RE: The New Republic- first selections post go live  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=C901B062BD894668B3344FD7C0F496BF-SEISER, MEG
+Derifield, Jacob mailto:Jacob.Derifield@cds-global.com> can we expect a meeting invite? Please keep in mind Milton will be back on 08/12 . the new Republic- first selections post go live I think we need to get together to discuss .
+
+[2025-08-07 12:12] RE: The New Republic- first selections post go live  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+jess Jessica Allen | Client Manager | CDS Global, Inc From: Cordova, Milton MCordova@cds-global.com> . s this the Core schedule we provided to you to review or is this a different schedule?
+
+[2025-08-07 12:51] RE: The New Republic- first selections post go live  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B0BCFF5FFB634B98A1472D1D9ED07C53-ALLEN, JESS
+Jess Jessica Allen | Client Manager | CDS Global, Inc . I don't recall being given a Core selection schedule to review . 'i don’t remember being given the Core schedule we provided to you to review or is this a different schedule?'
+
+[2025-08-07 12:56] RU Cutover Runbook - Please Review  (Go-Live 8/25/25)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=D20557F6156D4D299709DF08DF9BDFA9-HAWTHORNE,
+there are 3 tabs – Preparation, Go Live, and Post Live . if any changes are needed, please let me know . it would be great to have the duration of your items – to fill in column I . you can send them to me and I can fill them in .
+
+[2025-08-07 13:01] RE: CDS0357 - NCOA/CASS Process  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E6D68548300F4233A4205AE03923B5D2-CONNIE M MA
+we are having issues with the file names . this is what we discussed: cdsset_ncoa-A1_(instance)_(###)_date/time stamp . csv. (instance),-prd-noa . you added another word & underscore for non-actives .
+
+[2025-08-07 13:27] RE: CDS0357 - NCOA/CASS Process  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3777DC737ED54D56A3E6CA8D942B7BA9-VERCHER, CY
+the job steam name is also pulling in the select set name and the job stream name so the NCOA will be in the file name multiple times . I will change the noca_non to NCOA-NON . this is what we discussed: cdsset_ncoa-A1_(instance)_(###)_date/time stamp .
+
+[2025-08-07 13:51] RE: CDS0357 - NCOA/CASS Process  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E6D68548300F4233A4205AE03923B5D2-CONNIE M MA
+I think this should work. it just needs to be consistent across all file names . the file name is also pulling in the select set name and the job stream name . I will change the noca_non to NCOA-NON . cds-global.com: 'i'm not sure if the job steam name is generic across the board'
+
+[2025-08-07 13:56] Automatic reply: The New Republic- first selections post go live  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B0BCFF5FFB634B98A1472D1D9ED07C53-ALLEN, JESS
+for urgent items please contact meg seiser - MSeiser@cds-global.com . if you have any questions, please email meg.seiser.sg. for more information. I am out of the office the remainder of the day .
+
+[2025-08-07 13:56] Automatic reply: The New Republic- first selections post go live  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=FB4B7848667548B4A2C5EFF7868C00CB-MILTON D CO
+I am out of the office until 8/12/2025 . if you have an emergency, please reach out to my cell 515-343-9908 or email Shelbe Parr sparr@cds-global.com or shelbe . sparr .
+
+[2025-08-07 13:59] RE: The New Republic- first selections post go live  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+please schedule a meeting so it can be reviewed together . if you'd like, please schedule the meeting next week . the new Republic- first selections post go live . core selection master details template The new Republic .xlsx . I believe I sent this before, but it's the schedule again .
+
+[2025-08-07 14:06] Transition of RU Production  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3B473BE1676B4060999F8FD2C245F767-DANIELLE L
+RU production will be stepping back from the project . if there’s anything I can assist with during the transition or beyond, please don’t hesitate to reach out . the next phase of the work will take place on saturday . it will take a few weeks to complete .
+
+[2025-08-07 14:31] RE: RU- Global Care, issue table blanks  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=C901B062BD894668B3344FD7C0F496BF-SEISER, MEG
+Brenda is testing the Global Care configuration and the samples you previously provided are not populating the missed issues . I’ll defer to Brenda as to what criteria needs to be considered when pulling sample accounts from Core . if you want me to elevate this error or provide information if it is located in CORE?
+
+[2025-08-07 14:34] RE: The New Republic- first selections post go live  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=C901B062BD894668B3344FD7C0F496BF-SEISER, MEG
+Derifield, Jacob Jacob.Derifield@cds-global.com> Sent: Thursday, August 7, 2025 1:59 PM . Allen, Jessica Jessica.Allen@c-globals> . daryl Vautour daryl.vautour@advantagecs.com .
+
+[2025-08-07 14:37] RE: RU Cutover Runbook - Please Review  (Go-Live 8/25/25)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8CC4B7F9636F486098363B36915765A0-KESSLER, AB
+#6 is the Transaction Queue? if so, only orders are in it. there are no payments . akessler (she/her) product manager, 1901 Bell Ave Des Moines, IA 50315 . there is no payments. he/she is not a spokesman for cds-global .
+
+[2025-08-07 14:44] RE: RU Cutover Runbook - Please Review  (Go-Live 8/25/25)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=7EBB49E1082A48A19A2B8F9E6B095BD6-CHRISTA A B
+please tell us what you want them to be as onboarding received this information from this group to create this runbook . we will rely on you to advise as we are happy to comply with the specific instruction on what needs to be done by whom in order to get the online orders held during migration released into production .
+
+[2025-08-07 15:49] Re: RU- Global Care, issue table blanks  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=212E8D59BC2747549BCE0A30DEC8DA76-BRENDA L BL
+when testing on the RU-ACC, I am not seeing any missed issues populating . I have the CC2 instance configured to allow for missed issues . however the replacement issue parameter is set to 1 per the client instructions . maybe it is simply non-sensical to have a drop down list if the max allowed is 1 lol .
+
+[2025-08-08 09:32] RE: RU- Global Care, issue table blanks  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=C901B062BD894668B3344FD7C0F496BF-SEISER, MEG
+meg from: seiser, Meg MSeiser@cds-global.com> . derifield, Jacob Jacob.Derifield@drifield.com . donahoo, Laura Laura.Donahuo@dds.global .com > .
+
+[2025-08-08 09:34] Re: RU- Global Care, issue table blanks  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0B5BB1BEFAED49BBAB42A8CB81DD74A5-2836CB1C-5E
+Rob Nutt Technical Client Consultant CDS Global 1901 Bell Avenue Des Moines, IA 50315 . he has the CC2 instance configured to allow for missed issues . the replacement issue parameter is set to 1 per the client instructions . I am guessing either we don't have missed issues loaded on RU-ACC at all, or possibly the CORE policies differ in how many replacements they can request?
+
+[2025-08-08 09:41] RE: RU- Global Care, issue table blanks  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=F0E1D5E9A046461F9FA6D42923A65657-MARYBELLE P
+RU does not run back issues, so if a subscriber needs a replacement issue, this is going through the product system . thanks, Marybelle 515-471-5943 Sweetgrass, as the hair of Mother Earth, is traditionally braided to show loving care for her well-being .
+
+[2025-08-08 09:42] RE: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B0BCFF5FFB634B98A1472D1D9ED07C53-ALLEN, JESS
+email proofs for batch/event triggered emails to Jacob . Jacob will then forward the proofs to the necessary recipients . can we also get Jacob’s email added to the testing email inbox for the event triggered email? thanks, jess Jessica Allen | Client Manager | CDS Global, Inc .
+
+[2025-08-08 09:44] Automatic reply: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=A2584B27DEEA4F8FBBA802BCB503AC58-MORRISON, W
+I will be out of the office until my return on august 11th . in the event of an emergency, please contact my manager at mfrancisco@cds-global.com . -William Morrison will be able to attend to your messages upon my return .
+
+[2025-08-08 09:48] RE: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=69B3E84EF57A42AB88128B72A9E070FB-RICHT, LORI
+we have had people out of the office for 2 weeks, but he is back today so going to send all batch emails on Monday for review . Lori – are the email proofs ready to send to Jacob? Jacob – after you’ve received and reviewed for accuracy, should these be sent to the client for approval?
+
+[2025-08-08 09:49] RE: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B0BCFF5FFB634B98A1472D1D9ED07C53-ALLEN, JESS
+jess Jessica Allen | Client Manager | CDS Global, Inc . he has had people out of the office for 2 weeks, but he is back today so going to send all batch emails on Monday for review . allen, Jessica Jessica.Allen@cds-global.com> .
+
+[2025-08-08 09:56] RE: RU- Global Care, issue table blanks  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=F0E1D5E9A046461F9FA6D42923A65657-MARYBELLE P
+Marybelle 515-471-5943 Sweetgrass, as the hair of Mother Earth, is traditionally braided to show loving care for her well-being . she is plaited of three strands, given away as signs of kindness and gratitude . if a subscriber needs a replacement issue, this is going through the product system .
+
+[2025-08-08 11:55] Re: RU- Global Care, issue table blanks  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=212E8D59BC2747549BCE0A30DEC8DA76-BRENDA L BL
+issue table blanks RU won't have back issues . if a subscriber needs a replacement, this will go through the PRO system . CIR orders do not allow for true one off missed/damaged issues (P=PRO does). X should not be used ever, because neither CIR or PRO processes can pull this Source into the jobs.
+
+[2025-08-08 13:05] RE: RU- Global Care, issue table blanks  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=C901B062BD894668B3344FD7C0F496BF-SEISER, MEG
+RU-ACC and RUPROD instances have been disabled . u.s.-based global care has been able to disable the option . the option has been disabled and will be disabled under the "Available Actions" the option will be available in the upcoming months . click here for more information .
+
+[2025-08-08 14:03] Re: RU- Global Care, issue table blanks  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=212E8D59BC2747549BCE0A30DEC8DA76-BRENDA L BL
+meg, could you provide accounts for RU production, including renewals and gift renewals, unpaid, paid, agency? or, I will take what I can get? Brenda, After the option’s been disabled, what other items are outstanding to have Global Care ready for go-live?
+
+[2025-08-08 14:57] Re: RU- Global Care, issue table blanks  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=212E8D59BC2747549BCE0A30DEC8DA76-BRENDA L BL
+RU- Global Care, issue table blanks I'm just leaving, can send them over this weekend so you can have them at start of the day Monday . if we run selections to close to each other, you won't get great counts . I'll send all of those at the same time while working on some deals for our SMC campaign if you want to look into those selections as well .
+
+[2025-08-08 15:15] RE: RU- Global Care, issue table blanks  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=C901B062BD894668B3344FD7C0F496BF-SEISER, MEG
+meg from derifield, Jacob Jacob.Derifield@cds-global.com> . seiser, Meg MSeiser@scd's.global . thanks and have a great weekend, everyone!
+
+[2025-08-08 17:05] CORE Test Status Update - TOP 5 - 8/8 update  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=2943BA5D03694197B84E79D970E52103-RUFFOLO, MI
+test spreadsheet coverage is 60.26% (up from 60.16%) * Passing tests remained at 53% . we have 0 failed test (-1), 25 blocked tests (+3), 242 waiting to be tested (-1) ATK * Go-Live Date: 9/15/25 * Test spreadsheet coverage remains at 86% .
+
+[2025-08-11 07:12] RE: RU Cutover Runbook - Please Review  (Go-Live 8/25/25)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8CC4B7F9636F486098363B36915765A0-KESSLER, AB
+abby Kessler (she/her) Product Manager 1901 Bell Ave Des Moines, IA 50315 T: 515-699-3699 akessler@cds-global.com . he/she was a product manager at the time of the incident .
+
+[2025-08-11 07:55] RE: RU Client Readiness  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+RU Client Readiness Hi Shawna, Here’s where I see us for RU . grouped items by “Ready/pending schedule,” “Working/needs decision” and “Open in spreadsheet” so we can quickly spot potential go/no-go issues .
+
+[2025-08-11 08:06] Re: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=A2584B27DEEA4F8FBBA802BCB503AC58-MORRISON, W
+Morning all- Jacob.Derifield@cds-global.com has been added to the coreMarigoldTest distribution group . the volume of emails can be significant at heavy testing times and can clutter an inbox quickly . I would recommend setting up an outlook folder and a corresponding rule to move all emails from CoreMariGoldTest into that folder .
+
+[2025-08-11 08:34] RE: RU Cutover Runbook - Please Review  (Go-Live 8/25/25)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=D20557F6156D4D299709DF08DF9BDFA9-HAWTHORNE,
+#6 has been removed from cds-global.com . thank you for your feedback . dr kristi, a dna and ruffolo have been able to comment on #6 . she has been re-elected as a new member of the ddc .
+
+[2025-08-11 09:55] Re: RU Cutover Runbook - Please Review  (Go-Live 8/25/25)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=72F89B944CE54C669FE7C0DB4A1B1D0F-KERRI R WAG
+Kristi, from the Preparation tab, Linda is no longer over Operations . there isn't a mention of anything with Customer Service, Training, Agency etc on the Prep tab or the Go Live tab . if these should all be focused on the client services group who is verifying others are ready?
+
+[2025-08-11 10:33] RE: RU Cutover Runbook - Please Review  (Go-Live 8/25/25)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=D20557F6156D4D299709DF08DF9BDFA9-HAWTHORNE,
+hi Kerri thanks for the feedback. See responses below . dlc US global onboarding Onboarding@CDS-Global.com> . click here for all the latest cds-global responses from the u.s. and europe .
+
+[2025-08-11 10:34] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3777DC737ED54D56A3E6CA8D942B7BA9-VERCHER, CY
+do we have an eta on when this will be completed? we would like to test again before the go live date of 8/25 . I have sent the test file to Doc Tech to work on, however, it is on the list to look at . there are a lot of steps for a new client .
+
+[2025-08-11 10:40] Re: RU Cutover Runbook - Please Review  (Go-Live 8/25/25)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=72F89B944CE54C669FE7C0DB4A1B1D0F-KERRI R WAG
+Kerri Kerri Wagner | Contact Center Product Consultant | contact center product consultant . ________________________________ Kristi: 'see my notes/questions in green' Kerri kerri, Kerri, agi Agi.Scott, cds-global.co.uk .
+
+[2025-08-11 10:41] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E6D68548300F4233A4205AE03923B5D2-CONNIE M MA
+Vercher, Cynthia CVercher@cds-global.com> Sent: Monday, August 11, 2025 10:34 AM . Derifield, Jacob Jacob.Derifield@c-globals> . eta on when this will be completed? we would like to test again before go live date of 8/25 .
+
+[2025-08-11 10:53] Re: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E8D87CB196B844639C72014DEC9EF765-ERBER, BREN
+vercher, Cynthia CVercher@cds-global.com> Sent: Monday, August 11, 2025 10:40 AM . Derifield, Jacob Jacob.Derifield@drifield_global_com>; Erber, Brenda BErber .
+
+[2025-08-11 11:00] FW: CDS0352 -  Refund Check TEST file - 1st for NUB  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E6D68548300F4233A4205AE03923B5D2-CONNIE M MA
+is this approved? except for the foreign record that we are finishing up on and the starting check number . can you send this on to whoever else needs to see it, I wasn't on that other email string just the one you where you sent me the file . ________________________________ from: Erber, Brenda BErber@cds-global.com> > Subject: CDS0352 - Refund Check TEST file - 1st for NUB Record 6 may
+
+[2025-08-11 11:10] RE: CDS0352 -  Refund Check TEST file - 1st for NUB  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3777DC737ED54D56A3E6CA8D942B7BA9-VERCHER, CY
+cds-global.com 'should this have a Boone address?' ________________________ ______________ from: Erber, Brenda BErber@cdds.global . 'i was on that other email string just the one you where you sent me the file so I wasn't sure who else it was supposed to go to'
+
+[2025-08-11 12:48] RE: CDS0352 -  Refund Check TEST file - 1st for NUB  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+Vercher, Cynthia CVercher@cds-global.com . mailto:CMadison@dc-globals.com> . Boozell, Shawna SBoozell@dds.global .com >  , Carra, Vickie VCarra@dr-globales.com .
+
+[2025-08-11 12:53] RE: CDS0352 -  Refund Check TEST file - 1st for NUB  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E6D68548300F4233A4205AE03923B5D2-CONNIE M MA
+vercher, Cynthia CVercher@cds-global.com> . derifield, Jacob Jacob.Derifield@dc-globals.com > . . Carra, Vickie VCarra@dds.global_com> >> .
+
+[2025-08-11 12:57] Re: CDS0352 -  Refund Check TEST file - 1st for NUB  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=2B9F80AE2945492BB7AA255064BE73DA-DUNN, DAVID
+David Dunn Manager Enterprise Reporting Solutions 1901 Bell Ave Des Moines, IA 50315 T: 515-247-7609 M: 515-971-6079 ddunn@cds-global.com> ________________________________ . 'this seems like this is not a responsibility of Core?'
+
+[2025-08-11 14:05] RE: CDS0352 -  Refund Check TEST file - 1st for NUB  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E6D68548300F4233A4205AE03923B5D2-CONNIE M MA
+David Dunn: is there anyone on your team that can be used as each brand comes up to verify the bank account and the client account number? remember, some of our data was corrupt coming to our team, and I’d love a second check . I think you need someone from the sites that actually issue the refund checks .
+
+[2025-08-11 15:18] RE: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B0BCFF5FFB634B98A1472D1D9ED07C53-ALLEN, JESS
+email test for RU Morning all- Jacob.Derifield has been added to coreMarigoldTest . the volume of emails can be significant at heavy testing times and can clutter an inbox quickly . I would recommend setting up an outlook folder and a corresponding rule to move all emails from CoreMariGoldTest into that folder .
+
+[2025-08-11 15:27] RE: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=69B3E84EF57A42AB88128B72A9E070FB-RICHT, LORI
+jess Jessica Allen | Client Manager | CDS Global, Inc From: Morrison, Will Will.Morrison@cds-global.com> . the confirmation emails the last couple of days got resolved so should be going back and sending the batch emails . let me know once the proofs have been sent, once you have had a chance to review, and if they pass/fail/if we have a blocker .
+
+[2025-08-11 16:26] RE: RU Cutover Runbook - Please Review  (Go-Live 8/25/25)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=D20557F6156D4D299709DF08DF9BDFA9-HAWTHORNE,
+Hi Kerri I have added to your comments/ questions from: Wagner, Kristi . Kristi, KHawthorne@cds-global.com> . jfk, agi Agi.Scott, dr.scott, and dnc .
+
+[2025-08-11 16:41] Re: RU Cutover Runbook - Please Review  (Go-Live 8/25/25)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=AA2499B3EA4042E49E97CB272BE467D0-DOMINIC TOA
+Dominic Toasland | senior onboarding consultant – international group | CDS Global . I think the following items need to be re-sequenced so they happen after tasks 21 and 22 (financial reconciliation review and client sign-off) .
+
+[2025-08-11 16:54] RE: RU Cutover Runbook - Please Review  (Go-Live 8/25/25)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=D20557F6156D4D299709DF08DF9BDFA9-HAWTHORNE,
+Hi Dom thanks for the feedback . we can all discuss this re-sequencing tomorrow with the group . if you have any questions, please contact us at cdsglobal.co.uk . click here for all the latest from the group's comments .
+
+[2025-08-12 07:30] FW: CDS0352 -  Refund Check TEST file - 1st for NUB  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=C40BD06C2A964B7390D1D0F83B3A4C5B-FREDRICK, J
+the program produces the files you use to print the refund checks somewhere stores or looks up the routing number and account number for each client . please read the email string below, who could verify the routing and account information on these as clients convert? the entire email maybe it should go to someone in the sites .
+
+[2025-08-12 08:13] RE: CDS0352 -  Refund Check TEST file - 1st for NUB  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=C40BD06C2A964B7390D1D0F83B3A4C5B-FREDRICK, J
+FW: CDS0352 - Refund Check TEST file - 1st for NUB Mel . program produces the files you use to print the refund checks somewhere stores or looks up the routing number and account number for each client . vcarra, Dunn, David DDunn@cds-global.com .
+
+[2025-08-12 08:24] Re: RU- Global Care, issue table blanks  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=212E8D59BC2747549BCE0A30DEC8DA76-BRENDA L BL
+this morning is just fine, and good timing, for other items I wanted to test today . I just wanted to confirm so I can reschedule that automation for this morning . if you need them by today, or, are you able to wait until tomorrow so we can verify automation?
+
+[2025-08-12 09:13] FW: question on chains  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=78611E9222D74AF4A1FEBE2CBC08AC13-KLYN, CURTI
+the chains AND sequences need descriptions so that we can pull them to show . can the ones built for RU and TF have been populated? can the chains and sequences have descriptions? can we also make sure they have descriptions . if the description could be added that would be AMAZING .
+
+[2025-08-12 09:17] Re: question on chains  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=78508E6B699840E3A3DC1BE73CA533D9-BASS, HALEY
+RU has already added sequence descriptions for all BP chains . can the ones built for RU and TF have been populated? can the chains AND sequences have descriptions so that we can pull them to show? if the description on the sequence could be added that would be AMAZING!
+
+[2025-08-12 10:23] RE: RU- Global Care, issue table blanks  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3777DC737ED54D56A3E6CA8D942B7BA9-VERCHER, CY
+RU have back issues set up for replacements and purchase . if NUB did run back issues, we can only pull in true C=CIR orders . neither CIR or PRO processes can pull this Source into the jobs . the hair of Mother Earth is traditionally braided to show loving care for her well-being .
+
+[2025-08-12 13:42] RE: RU - Core migration  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+client Tech Consultant point of contact for RU is Jacob.Derifield@cds-global.com . he's included on this email string so he is aware . his email address is: jacob.Dierifield.com. I’ve included him on this string .
+
+[2025-08-12 15:15] RE: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=69B3E84EF57A42AB88128B72A9E070FB-RICHT, LORI
+single renewal links Currently, there are three different emails for the following categories . if does not fall into either of the above categories I don’t have any cats from the first 2 bullets in any Marigold files . can I get a file with SS, CU? will there no longer be an “expire issue” tag sent to Marigold?
+
+[2025-08-12 15:19] Re: RU - Core migration  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=EE3988D7B6284D6AB0D5E6BE3A74FDE1-BELOKOPITOV
+SFDC viewer is where problem jobs at the lettershop builds the watch list from . RU - Core migration Client Tech Consultant point of contact for RU is Jacob . his email address is: Jacob.Derifield@cds-global.com .
+
+[2025-08-12 16:43] RE: RU - Core migration  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+we can add individuals to SFDC Viewer, but I am curious to what field will be most appropriate . would this be the Client Production Associate field or do we need to ask Abby to create a new field? do you know if the Core folks are being added to the watch list?
+
+[2025-08-12 17:08] Re: RU - Core migration  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=EE3988D7B6284D6AB0D5E6BE3A74FDE1-BELOKOPITOV
+we should try and use something that is already pulling into the snow watch list already if possible . I don’t know that we had thought about that . we can add individuals to SFDC Viewer, however, I am curious to what field will be most appropriate .
+
+[2025-08-12 17:27] RE: RU - Core migration  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+the Client Production Associate field pulls in so we can populate the Client Technical Consultant on Core’s name into this field . Lori On Aug 12, 2025, at 4:43 PM, Boozell, Shawna SBoozell@cds-global.com> > wrote: Lori. That is a good question .
+
+[2025-08-12 17:28] Re: RU - Core migration  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=EE3988D7B6284D6AB0D5E6BE3A74FDE1-BELOKOPITOV
+thank you Lori On Aug 12, 2025, at 5:27 PM, Boozell, Shawna SBoozell@cds-global.com> wrote: Makes sense. If I recall correctly, the Client Production Associate field pulls in so we can populate the Client Technical Consultant on Core’s name into this field .
+
+[2025-08-12 18:06] RE: RU - Core migration  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+Boozell, Shawna SBoozell@cds-global.com> > wrote: Makes sense. if I recall correctly, the Client Production Associate field pulls in so we can populate the Client Technical Consultant on Core’s name into this field .
+
+[2025-08-13 00:01] [EXTERNAL] file  -  jacobdrosol@hotmail.com
+[EXTERNAL] file contains a resemblance to the original . the file was compiled by the edward etiquette exec . it is the first time the file has been re-evaluated by ecstasy .
+
+[2025-08-13 08:11] Gift Bill or Gift Renewal  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=EE3988D7B6284D6AB0D5E6BE3A74FDE1-BELOKOPITOV
+RU Donor - US Donee - CAN Donor, CAN Lori Belokopitovs Director | Document Technologies | Wilton Client Services 1419 West 5th Street Wilton, IA 52778 T: 563-785-7042 M: 563-299-0842 .
+
+[2025-08-13 08:23] CORE Stand-up 8/13  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+RU files sent from Core, issue with no offers in the file, ServiceLayer is researching . Daily goal 8/11 * Receive definitive decision on how we handle Diners Club, Optima and Other Card Types . Status: Mike & Caeley shared a list from our weekly meeting .
+
+[2025-08-13 08:38] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3777DC737ED54D56A3E6CA8D942B7BA9-VERCHER, CY
+vercher, Cynthia CVercher@cds-global.com . we would like to test again before the go live date of 8/25 . I have sent the test file to Doc Tech to work on, but it is on the list to look at .
+
+[2025-08-13 08:39] RE: CDSFiles Internal folder path  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=F0E1D5E9A046461F9FA6D42923A65657-MARYBELLE P
+I see the Cycle End reports in the CORE Test folder . many of these reports will not assist the LAM’s in balancing as there is minimal information on them . the email notices will go to email list: CDS_MM_Label_Distribution@hearst.com .
+
+[2025-08-13 08:44] RE: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=69B3E84EF57A42AB88128B72A9E070FB-RICHT, LORI
+I attached batch emails let me know if I missed anything or you have any questions . I have all batch emails done except for single renewal links . if does not fall into either of the above categories I don’t have any cats from the first 2 bullets in any Marigold files .
+
+[2025-08-13 08:56] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E6D68548300F4233A4205AE03923B5D2-CONNIE M MA
+we fixed the foreign record and it is in Doc Tech . we would like to test again before the go live date of 8/25 . Cynthia From: vercher, Cynthia CVercher@cds-global.com> . eta on when this will be completed?
+
+[2025-08-13 09:40] RE: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B0BCFF5FFB634B98A1472D1D9ED07C53-ALLEN, JESS
+jess Jessica Allen | Client Manager | CDS Global, Inc . he was sent batch emails to derifield, Jacob Jacob.Derifield@cds-global.com> . Allen, Jessica Jessica.Allen@cs- global.com .
+
+[2025-08-13 10:12] RE: CDS0352 -  Refund Check TEST file - 1st for NUB  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=1A83A7D7F4B64A94AA453C94FEDEA7C6-MELANEE K S
+I would think this would need to be doc tech if it is someone from here . melanee Shirlaw Accounting Manager Mailing Services 1419 West Fifth Street Wilton, IA 52778 T: 563-785-7072 mshirlaw@cds-global.com .
+
+[2025-08-13 10:14] Re: CDS0352 -  Refund Check TEST file - 1st for NUB  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E8D87CB196B844639C72014DEC9EF765-ERBER, BREN
+melanee Shirlaw Accounting Manager Mailing Services 1419 West Fifth Street Wilton, IA 52778 T: 563-785-7072 mshirlaw@cds-global.com> Sent: Tuesday, August 12, 2025 7:31 AM . I would think this would need to be doc tech if it is someone from here .
+
+[2025-08-13 10:19] Re: CDS0352 -  Refund Check TEST file - 1st for NUB  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E8D87CB196B844639C72014DEC9EF765-ERBER, BREN
+doc tech doesn't have a way to verify those numbers . they are coming from outside our dept . Lori can chime in if needed . cds-global.com has updated the return address on this - 1st for NUB .
+
+[2025-08-13 10:25] Re: CDS0352 -  Refund Check TEST file - 1st for NUB  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=EE3988D7B6284D6AB0D5E6BE3A74FDE1-BELOKOPITOV
+connie Madison has this table and would be able to verify those numbers with Jay . doc tech doesn't have a way to verify the numbers . Lori can chime in if needed . she can also check the account details for each refund .
+
+[2025-08-13 10:27] RE: CDSFiles Internal folder path  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=BE19727AC5A843A484629519ED238236-FILES, CDS
+many of the cycle end reports will not assist the LAM’s in balancing as there is minimal information on them . the email notices will go to Email List: CDS_MM_Label_Distribution@hearst.com . Marybelle 515-471-5943 Sweetgrass, the hair of Mother Earth, is traditionally braided to show loving care for her well-being .
+
+[2025-08-13 10:29] Re: CDSFiles Internal folder path  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=7275C6AB4F76406C9A22B0AD95AA15A2-MCDANNEL, S
+Is there away to tell the Mainfile/supp/arrear pulls from other selections? we don't want to see everything . a lot of emails, if not thousands, could be hundreds of emails . I'm not sure if there's a problem with the mainfile .
+
+[2025-08-13 10:35] RE: CDS0352 -  Refund Check TEST file - 1st for NUB  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3777DC737ED54D56A3E6CA8D942B7BA9-VERCHER, CY
+i want to ensure everything is set up so I can send another test file . she has this table and would be able to verify those numbers with Jay . i'm hoping to send a test file to the cds-global.com team .
+
+[2025-08-13 10:38] RE: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=6BD1891770D34302A775B8C8A1B0BBDF-WHITE, EILE
+we are going live with this client in 7 business days so hopefully there is a well vetted process in place . we fully understand this is the first client to go live on Core . please update me about the process or happy to set up a meeting if necessary .
+
+[2025-08-13 10:41] Re: CDS0352 -  Refund Check TEST file - 1st for NUB  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=EE3988D7B6284D6AB0D5E6BE3A74FDE1-BELOKOPITOV
+Lori Belokopitovs director |Document Technologies | Wilton Client Services ________________________ . you need to work with Connie to test another file . 'i want to ensure everything is set up so I can send another test file,' she said .
+
+[2025-08-13 10:41] RE: CDSFiles Internal folder path  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+carey? I will update the workflow rule to only send : CIR411, CIR440, CIR441 and cycle_End . do you really want an email for each file? That could be hundreds of emails, if not thousands. I’ll handle the email in my workflow.
+
+[2025-08-13 10:44] RE: CDSFiles Internal folder path  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=BE19727AC5A843A484629519ED238236-FILES, CDS
+correction: /CDSFiles/CDS/Core/clientcode>/Cycle_End Thanks, Dallas From: Templeton, Carey cjtempleton@cds-global.com> Sent: Wednesday, August 13, 2025 10:42 AM .
+
+[2025-08-13 10:45] RE: CDSFiles Internal folder path  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+carey cjtempleton@cds-global.com>; Harris, Marybelle MPHarris mparris@ds.global>; DL CDS Global Core AVENGERS coreavengers@cdas-globals> . correction: /CDSFiles/CDS/Core/clientcode>/Cycle_End Thanks, Dallas From: Templeton, Carey .
+
+[2025-08-13 10:53] RE: CDSFiles Internal folder path  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+Cycle End and Back Issues reports will go the same client folder in CDSFiles . if we want back Issues to go to a separate folder, we need to get a track it submitted to Dallas to create a new site code and folder? we don't want to see everything .
+
+[2025-08-13 10:54] RE: CDSFiles Internal folder path  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=04286B8411AE4205A66AAB7619BB9E2C-BLACK, KARE
+Karen Black Sr. Account Analyst Label and Distribution 1901 Bell Ave Des Moines, IA 50315 M: 515-707-4287 . if we want Back Issues to go to a separate folder, we need to get a track it submitted to Dallas to create a new site code and folder?
+
+[2025-08-13 10:59] RE: CDSFiles Internal folder path  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+arrears run and look like supps(back issues) so we won’t know the difference . unless we know an 'arrear' only is running we won't know if the difference is true . she is a member of the cds-global.com team .
+
+[2025-08-13 11:01] RE: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=2943BA5D03694197B84E79D970E52103-RUFFOLO, MI
+Isaiah's team can request a setup/configuration by the test team (Jacob) when testing is done it can be verified by either the dev team or Isaiah’s team – depending on the test (i.e. trigger based email vs batch email) but I am fine if between dev and test team leads, they determine who will update test status .
+
+[2025-08-13 11:39] RE: CDSFiles Internal folder path  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=F0E1D5E9A046461F9FA6D42923A65657-MARYBELLE P
+the arrears run through the same process as the supplementals – CIR230 back issues process . the only difference will be the Subscribers will have a Circulation Status of G=Gracing instead of R=Regular . Marybelle 515-471-5943 Sweetgrass is traditionally braided to show loving care for her well-being .
+
+[2025-08-13 11:40] RE: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=6BD1891770D34302A775B8C8A1B0BBDF-WHITE, EILE
+I have talked to Nikki as well regarding TFCCS . will chat later Eileen White Vice President Client Services 1901 Bell Avenue Des Moines, IA 50315 . there is no one person who can do this and it requires coordination between the dev team (Isaiah) and the test team (Jacob)
+
+[2025-08-13 11:41] RE: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=6BD1891770D34302A775B8C8A1B0BBDF-WHITE, EILE
+I confirmed with Nikki this is not on the Project Plan . we will figure out the best process . there is no one person who can do this and it requires coordination between the dev team (Isaiah) and the test team (Jacob) when testing is done it can be verified by either Jabob’s team or Isaiah's team – depending on the test .
+
+[2025-08-13 11:46] RE: CDS0352 -  Refund Check TEST file - 1st for NUB  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=1A83A7D7F4B64A94AA453C94FEDEA7C6-MELANEE K S
+melanee Shirlaw Accounting Manager Mailing Services, 1419 West Fifth Street Wilton, IA 52778 . I want to ensure everything is set up so I can send another test file . if you are stopping the test files before they get to us, your people do not need them .
+
+[2025-08-13 11:49] CDS0352 -  Refund Check TEST file - 1st for NUB  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E8D87CB196B844639C72014DEC9EF765-ERBER, BREN
+the VOID stamp is on them on purpose so they can't be used . the print program is still in development also . are you stopping the test files before they get to us, so my people do not need to look for them? I'm not sure if they're going to be sent to you/lettershop .
+
+[2025-08-13 12:23] RE: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B81A56ACEA4F4151BC1A0352843F99BE-ISAIAH A BR
+global Care has tested all the below care transactions on the RU sandboxing site and will be working on the production testing today . @Klyn, Curt mailto:Curt.Klynd@cds-global.com> has been performing E2E (production) testing via Global Care to ensure Payment Capture is working .
+
+[2025-08-13 12:57] RE: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+I have activated all the email types associated with the event based triggered emails listed below . the emails are the only emails we need to provide . we initially were told to set up all email types for RU Hello . if you have any questions, please contact me at cds-global.com .
+
+[2025-08-13 13:25] RE: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=2943BA5D03694197B84E79D970E52103-RUFFOLO, MI
+if this does not work, please let me know ASASP, otherwise I will reschedule it at 1:45pm . @allen, Jessica mailto:Curt.Klyn@cds-global.com> has been performing E2E (production) testing via Global Care to ensure Payment Capture is working and payments are actually being settled .
+
+[2025-08-13 13:28] RE: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B0BCFF5FFB634B98A1472D1D9ED07C53-ALLEN, JESS
+I can’t join at 4 pm. I can confirm that we want to set up all the triggered emails . I have been asked to move the 2pm meeting to 4pm due to schedule conflicts . please let me know ASASP, otherwise I will reschedule it at 1:45pm .
+
+[2025-08-13 13:29] RE: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=78611E9222D74AF4A1FEBE2CBC08AC13-KLYN, CURTI
+I cannot meet at 2 either Curt Klyn | CDS Global | Executive Director | m: 515.210.4881 . I can confirm that we want to set up all the triggered emails . RU I can’t join at 4 pm . the email test is for RU .
+
+[2025-08-13 13:30] RE: CDSFiles Internal folder path  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+the only difference will be the Subscribers will have a Circulation Status of G=Gracing instead of R=Regular . sweetgrass, as the hair of Mother Earth, is traditionally braided to show loving care for her well-being . the hair is plaited of three strands, given away as signs of kindness and gratitude .
+
+[2025-08-13 14:03] RE: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B81A56ACEA4F4151BC1A0352843F99BE-ISAIAH A BR
+Isaiah Brown Director – Engage Front End Web Development Tel (515) 362-3465 . ibrown@cds-global.com> Sent: Wednesday, August 13, 2025 1:28 PM . I can confirm we want to set up all the triggered emails .
+
+[2025-08-13 14:12] Re: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=FB4B7848667548B4A2C5EFF7868C00CB-MILTON D CO
+Isaiah, you are correct the client is going to have CDS federate with Blink SSO post Core conversion . no need for a CORE SSO email. in the mean time new Republic customers will use guest log in in Global Care . Isaiah Brown Director – Engage Front End Web Development Tel (515) 362-3465 ibrown@cds-global.com.
+
+[2025-08-13 14:13] RE: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B81A56ACEA4F4151BC1A0352843F99BE-ISAIAH A BR
+Isaiah Brown Director – Engage Front End Web Development Tel (515) 362-3465 ibrown@cds-global.com . you are correct the client is going to have CDS federate with Blink SSO post Core conversion .
+
+[2025-08-13 14:16] Re: RU- Global Care, issue table blanks  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=212E8D59BC2747549BCE0A30DEC8DA76-BRENDA L BL
+I am unable to log in with any of these single renewals, single bills, cold donors . can you please check these are still available accounts on RU-PRD? thanks, Jacob Derifield, Jacob BBlazek@cds-global.com> .
+
+[2025-08-13 15:00] RE: CDSFiles Internal folder path  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=F0E1D5E9A046461F9FA6D42923A65657-MARYBELLE P
+Marybelle 515-471-5943 Sweetgrass, as the hair of Mother Earth, is traditionally braided to show loving care for her well-being . she is plaited of three strands, given away as signs of kindness and gratitude . if you decide we should separate those from the cycle end, those will have to go through to the Back Issues folder .
+
+[2025-08-13 15:10] RE: Email test for RU  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+workflow rule code Workflow Event Type Workflow Rule Description SUB-SUS-ACT-EML SUBSCRIPTION-SUSPENSION-ENDED Subscription suspension reactivation . Subscription cancellation email PAY-CFM-EMl PAYMENT-APPLICATION-POSTED Payment confirmation email UNDELIV EML CURRENT-ADDRESS-CHANGED Change of email or physical address email confirmation email ADR-CHG-EM L ORDER-TRACKING-ADD
+
+[2025-08-13 15:15] Re: RU- Global Care, issue table blanks  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=212E8D59BC2747549BCE0A30DEC8DA76-BRENDA L BL
+the new Republic Customer Service https://newrepublic.ba-cloud.buysub.com/login?redirect=%2F> I got account lookup failures on the Global Care login page for all of them . I am not able to log in with any of these single renewals, single bills, cold donors .
+
+[2025-08-13 15:35] Re: RU- Global Care, issue table blanks  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=212E8D59BC2747549BCE0A30DEC8DA76-BRENDA L BL
+Curt is testing with an account 1000037 zip 90028 that works on RU-PRD, if this helps . the top link worked for the accounts coming out of the sandbox and the bottom worked for RU . I got account lookup failures on the Global Care login page for all of them .
+
+[2025-08-13 15:39] Re: RU- Global Care, issue table blanks  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=212E8D59BC2747549BCE0A30DEC8DA76-BRENDA L BL
+a client has both a sandbox and prod production in addition to a prod . a producer would need production accounts for the ru-acc instance . the client's accounts had a brief blockage but then we were able to place payments through .
+
+[2025-08-13 15:39] RE: CDSFiles Internal folder path  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=04286B8411AE4205A66AAB7619BB9E2C-BLACK, KARE
+Karen Black Sr. Account Analyst Label and Distribution 1901 Bell Ave Des Moines, IA 50315 M: 515-707-4287 kblack@cds-global.com . she is traditionally braided to show loving care for her well-being . the hair is plaited of three strands, given away as signs of kindness and gratitude .
+
+[2025-08-13 15:43] Re: RU- Global Care, issue table blanks  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=212E8D59BC2747549BCE0A30DEC8DA76-BRENDA L BL
+newrepublic.com is not going to be submitting transactions all the way through, so I only check that it is displaying all of the options it should for the kind of account it is, and if not, figure out why . but since these instances don't mirror each other for settings, and each has to be configured separately, I am planning on testing (when a client has both a sandbox and prod) production .
+
+[2025-08-13 15:57] RE: CDSFiles Internal folder path  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+Files won’t be going to cdsfiles . Files will still have Main_Issue or Back_Iissuue in the name . if they clearly state back issue in file name, we should have one when TF goes live .
+
+[2025-08-13 15:58] RE: CDSFiles Internal folder path  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=04286B8411AE4205A66AAB7619BB9E2C-BLACK, KARE
+Karen Black Sr. Account Analyst Label and Distribution 1901 Bell Ave Des Moines, IA 50315 M: 515-707-4287 kblack@cds-global.com . black, Karen KBlack@sr. accounts-analyst.com> .
+
+[2025-08-13 16:02] RE: CDSFiles Internal folder path  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=F0E1D5E9A046461F9FA6D42923A65657-MARYBELLE P
+Marybelle 515-471-5943 Sweetgrass, as the hair of Mother Earth, is traditionally braided to show loving care for her well-being . the hair is plaited of three strands and is given away as signs of kindness and gratitude .
+
+[2025-08-13 16:28] RE: CDSFiles Internal folder path  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=F0E1D5E9A046461F9FA6D42923A65657-MARYBELLE P
+each name has the magazine abbreviation, a time stamp, and all reports, except the CIR443, have the Distribution ID (1242) in the name . the reports are the same except you will have a CIR230 report instead of a . CIR411 report associated with them .
+
+[2025-08-14 07:51] RU - pdf approvals for Wilton  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=EE3988D7B6284D6AB0D5E6BE3A74FDE1-BELOKOPITOV
+any Core RU job in production will require someone to provide final approval . Tara - will review the program for content - verify letter, messages overall placement are what was released . Jacob will review choices - time/money and check a person to verify all looks good and they are getting the correct choices .
+
+[2025-08-14 08:27] Back up for link letter mailed renewals  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=04286B8411AE4205A66AAB7619BB9E2C-BLACK, KARE
+if you have a job that contains subscribers please notify her with the job run ID . she will also change the member in the Core/Out folder from X to M and move to In folder and let it run . Karen Black Sr. Account Analyst Label and Distribution 1901 Bell Ave Des Moines, IA 50315 M: 515-707-4287 .
+
+[2025-08-14 09:01] In Conversation With Jesse Tyler Ferguson – Wed., August 20 @ 12 PM ET/9 AM PT  -  myhearst@updates.hearst.com
+aHR0cDovL3VwZGF0ZXMuaGVhcnN0LmNvbQ/67e454ed245f8b00e8020149B56622ed6 to attend .
+
+[2025-08-14 09:24] RE: CDS0352 -  Refund Check TEST file - 1st for NUB  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=C40BD06C2A964B7390D1D0F83B3A4C5B-FREDRICK, J
+the VOID stamp is on them on purpose so they can't be used . the print program is still in development also . if you are doing this setup of the checks, is there a second person checking those for accuracy? the files are just coming to me, we haven't sent any to you/lettershop yet .
+
+[2025-08-14 09:28] RE: CDS0352 -  Refund Check TEST file - 1st for NUB  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E6D68548300F4233A4205AE03923B5D2-CONNIE M MA
+if you have the table of the ABA routing numbers and account numbers, is there a second person checking those for accuracy? . we are not using the same tables set up for SERV & SERVpf . if we start up a new client on CORE, we need a third check of this banking information .
+
+[2025-08-14 10:03] RE: CDS0352 -  Refund Check TEST file - 1st for NUB  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=1A83A7D7F4B64A94AA453C94FEDEA7C6-MELANEE K S
+melanee Shirlaw Accounting Manager Mailing Services 1419 West Fifth Street Wilton, IA 52778 T: 563-785-7072 mshirlaw@cds-global.com . any time we start up a new client on CORE, we need second check of this banking information since we are not using the same tables set up for SERV & SERVpf .
+
+[2025-08-14 10:11] Re: CDS0352 -  Refund Check TEST file - 1st for NUB  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=2B9F80AE2945492BB7AA255064BE73DA-DUNN, DAVID
+accounts and routing numbers are available on the Banking BRD . I assume this is still being completed and submitted by the client through client services . melanee Shirlaw Accounting Manager Mailing Services 1419 West Fifth Street Wilton, IA 52778 T: 563-785-7072 .
+
+[2025-08-14 11:09] RE: CDS0352 -  Refund Check TEST file - 1st for NUB  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E6D68548300F4233A4205AE03923B5D2-CONNIE M MA
+denise & her supervisors have access to view them on SERV & SERVpf to compare against our new database . the account and routing numbers are available on the Banking BRD . I assume this is still being completed and submitted by the client through client services . ________________________ from: Madison, Connie CMadison@cds-global.com .
+
+[2025-08-14 11:20] FW: NUB Production for 8/19  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B0BCFF5FFB634B98A1472D1D9ED07C53-ALLEN, JESS
+Danielle said reruns don’t happen unless we’re out of premiums . 2533- Single bills, e-bills, and smart keys - Won’t run due to low stock . period cancel on bill periods 2511-2514 .
+
+[2025-08-14 11:37] RE: CDS0352 -  Refund Check TEST file - 1st for NUB  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=C40BD06C2A964B7390D1D0F83B3A4C5B-FREDRICK, J
+connie from: Dunn, David DDunn@cds-global.com> . Madison, Connie CMadison@scd's global.com > Sent: Thursday, August 14, 2025 10:12 AM to: . Shirlaw, Melanee MShirlaw@sd'' .
+
+[2025-08-14 12:17] RE: RU Cutover Runbook - Please Review  (Go-Live 8/25/25)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=7EBB49E1082A48A19A2B8F9E6B095BD6-CHRISTA A B
+Christa Bright Director, Onboarding & Migration from: Wagner, Kerri KWagner@cds-global.com> Please review (Go-Live 8/25/25) Christa, if it's possible for you to make the below changes we (customer service &ops) will figure out our steps internally .
+
+[2025-08-14 12:47] RE: NUB Production for 8/19  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+reruns don’t happen unless we’re out of premiums . we won’t be running premiums next week since we're low on stock. Period cancel on bill periods 2511-2514. Jess Jessica Allen | Client Manager | CDS Global, Inc From: Reimers, Danielle .
+
+[2025-08-14 13:26] Re: RU Cutover Runbook - Please Review  (Go-Live 8/25/25)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=9DF067A2505E40C0847146B795D6E4FB-STOGDILL, S
+Christa Bright Director, Onboarding & Migration From: Wagner, Kerri KWagner@cds-global.com> Date: Thursday, August 14, 2025 at 12:17 PM . Is this request possible for each of you if I add to the additional details?
+
+[2025-08-14 13:31] RE: RU Cutover Runbook - Please Review  (Go-Live 8/25/25)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B0BCFF5FFB634B98A1472D1D9ED07C53-ALLEN, JESS
+Jess Jessica Allen | Client Manager | CDS Global, Inc From: Bright, Christa CBright@cds-global.com> . toasland, Dom Dominic.Toaslander@dsglobal .co.uk> mailto:KWagner@dcs-mondal.org> - please add the email address to the additional details.
+
+[2025-08-14 13:36] Re: RU Cutover Runbook - Please Review  (Go-Live 8/25/25)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=9B1ADC749EA24C1FAA32CB5C50A0863E-4A7A15FE-8D
+Jess Jessica Allen | Client Manager | CDS Global, Inc From: Stogdill, Scott SStogdil@cds-global.com> Sent: Thursday, August 14, 2025 1:26 PM to: Bright, Christa CBright@cdas-globals.co.uk .
+
+[2025-08-14 14:35] RE: NUB Production for 8/19  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+we need this to be 8/17, with files arriving to the Lettershop the morning of the 8/18 . Christa is having the RU migration scheduled changed and most likely redistributed by Corporate Policy . I am do not foresee any concerns with next week, 8/19, being the last day for selections .
+
+[2025-08-14 16:13] RE: RU Cutover Runbook - Please Review  (Go-Live 8/25/25)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=7EBB49E1082A48A19A2B8F9E6B095BD6-CHRISTA A B
+Christa Bright Director, Onboarding & Migration From: Coady, Caeley .Coadi@cds-global.com . Sent: Thursday, August 14, 2025 1:37 PM . Allen, Jessica Jessica.Allen, agi Agi.Scott, toasland .
+
+[2025-08-14 16:31] RU event triggered emails (possible errors)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B81A56ACEA4F4151BC1A0352843F99BE-ISAIAH A BR
+please check for any errors within the payload sent over to Marigold . the only data I’m seeing for is for donation emails and orders . Isaiah Brown Director – Engage Front End Web Development Tel (515) 362-3465 ibrown@cds-global.com .
+
+[2025-08-14 16:56] RE: RU event triggered emails (possible errors)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=7721F426786A49BF98BBEA79C2BDBC26-87F3E0C3-D5
+Isaiah Brown Director – Engage Front End Web Development Tel (515) 362-3465 ibrown@cds-global.com . please check for any errors within the payload sent over to Marigold . only data I’m seeing for is for donation emails and orders .
+
+[2025-08-14 17:04] Re: RU event triggered emails (possible errors)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B81A56ACEA4F4151BC1A0352843F99BE-ISAIAH A BR
+Outlook for iOS https://aka.ms/o0ukef> ________________________________ . RU event triggered emails (possible errors) Yes, I can check into this and get back to you on tomorrow . Please check for any errors within the payload sent over to Marigold .
+
+[2025-08-15 07:15] Klyn, Curt shared "RU Payment test cases" with you  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=78611E9222D74AF4A1FEBE2CBC08AC13-KLYN, CURTI
+Klyn, Curt invited you to view a file Here's the document . this invite will only work for you and people with existing access . RU Payment test cases This invite is generated through Hearst's use of Microsoft 365 and may contain content that is controlled by him .
+
+[2025-08-15 07:27] RE: RU event triggered emails (possible errors)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=69B3E84EF57A42AB88128B72A9E070FB-RICHT, LORI
+undeliverable_Suspend_Campaign ID_10525 Sub_Reactivation_campaignID_10247 Stop_Charge_Expiration_Campal ID_10246 Shipping_CampAign ID.10245 Payment_Update_Campanign ID...10244 .
+
+[2025-08-15 08:03] FW: [Test email from RU-ACC] RU-ACC EOD Error  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+RU-ACC EOD Error YOUR JOBSTREAM FAILED AMB410 in jobstream EOD ended with error . I am sharing this with you as I know you two were working on the aMB410 yesterday in RU and find this a little ironic .
+
+[2025-08-15 08:14] Automatic reply: [Test email from RU-ACC] RU-ACC EOD Error  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+I will be out of the office on friday, august 15th and the full week of August 18th -22nd . my access and availability will be limited during this time . if you need immediate assistance in my absence, please contact Curt Klyn (cds-global.com) or please reach out via my cell 515-201-3354 .
+
+[2025-08-15 08:31] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E6D68548300F4233A4205AE03923B5D2-CONNIE M MA
+if we get more foreign, that would help us out testing . when we go LIVE, this is not completely automated, we will still check the check numbers for QC purposes . we would like to test again before the go live date of 8pm on tuesday .
+
+[2025-08-15 08:37] [EXTERNAL] RE: [Test email from RU-ACC] RU-ACC EOD Error  -  Tim.Zapawa@advantagecs.com
+the error has been cleared and the log file does not say much . this email communication and any attachments may contain confidential and legally privileged information for the exclusive use of the designated recipients named above . if you are not the intended recipient, please contact the sender by reply mail and destroy all copies of the original message .
+
+[2025-08-15 08:41] RE: [EXTERNAL] RE: [Test email from RU-ACC] RU-ACC EOD Error  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+I believe either instance is available to test another AMB410 . the error has been cleared and the log file does not say much . if you are not the intended recipient, please contact the sender by reply mail . any unauthorized review, use, storage, disclosure or distribution is prohibited .
+
+[2025-08-15 08:46] RU Go Live Plan  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=7EBB49E1082A48A19A2B8F9E6B095BD6-CHRISTA A B
+this message is intended to provide you with the resources for which you (or your team) will use for the ‘final items’ that need to be completed . we will move ahead of schedule if at all possible . there is work that will be completed at night and over the weekend of 8/23 and 8/24 .
+
+[2025-08-15 09:14] RE: [Test email from RU-ACC] RU-ACC EOD Error  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+the AMB410 was running as a stand-alone after EOD and EOM at like 12:30am . it's not running in that instance either but it’s not part of EOD in that either . I'm doing some investigation into it now, restarting the process to see if it was a one off error .
+
+[2025-08-15 09:18] [EXTERNAL] RE: [Test email from RU-ACC] RU-ACC EOD Error  -  Tim.Zapawa@advantagecs.com
+the multi-streaming software development for AMB410 runs in about 10mins now for ATK . we thought it would make sense to include it in the EOD jobstream . this email communication may contain confidential and legally privileged information for the exclusive use of the designated recipients named above .
+
+[2025-08-15 09:25] RE: [EXTERNAL] RE: [Test email from RU-ACC] RU-ACC EOD Error  -  Tim.Zapawa@advantagecs.com
+I verified that it errors in the RU-ACC area . we'll get working on it asap . this email communication and any attachment may contain confidential and legally privileged information for the exclusive use of the designated recipients named above . any unauthorized review, use, storage, disclosure or distribution is prohibited .
+
+[2025-08-15 09:28] RE: [EXTERNAL] RE: [Test email from RU-ACC] RU-ACC EOD Error  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+Tim. Shawna -----Original Message----- Sent: Friday, August 15, 2025 9:26 AM . Derifield, Jacob Jacob.Derifield@cds-global.com> . if you are not the intended recipient, please contact the sender by reply mail .
+
+[2025-08-15 09:29] RE: NUB Production for 8/19  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B0BCFF5FFB634B98A1472D1D9ED07C53-ALLEN, JESS
+the update on delayed go-live will tell the CPA to resume production as usual until further notice . we need this to be 8/17, with files arriving to the Lettershop the morning of the 8/18 (at latest) Christa is having the RU migration scheduled changed and most likely redistributed by Corporate Policy .
+
+[2025-08-15 09:31] RE: NUB Production for 8/19  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+jess Jessica Allen - Client Manager | CDS Global, Inc - sented to cds-global.com . he said: 'it's a good thing to be able to make a difference' he added: "i'm not a big fan of a tv show, but i don't know what to do"
+
+[2025-08-15 09:31] RE: [EXTERNAL] RE: [Test email from RU-ACC] RU-ACC EOD Error  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+I think it makes sense to me to do it and then when we get to that instance we can move it out if needed, just trying to make sure the standard is carried across all instances . we finished the multi-streaming software development for AMB410, so it runs in about 10mins now for ATK .
+
+[2025-08-15 09:32] RE: [EXTERNAL] RE: [Test email from RU-ACC] RU-ACC EOD Error  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+Tim is researching RU at the moment, as it is erroring . I think it makes sense to me to do it and then when we get to that instance we can move it out if needed, just trying to make sure the standard is carried across all instances . RU-ACC EOD Error Oh, that is great news, thank you Tim .
+
+[2025-08-15 09:33] RE: RU Go Live Plan  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=12579DDC45144F3EBA7ADD55ACD43B36-NELSON, BAR
+all- it was announced today that we are pausing the go-live for new Republic at the client’s request . we do not have a new date yet as we will need to fit it into our existing schedule but will target the October/November time frame . thanks everyone for your hard work and patience as we work through the details .
+
+[2025-08-15 09:33] RE: [EXTERNAL] RE: [Test email from RU-ACC] RU-ACC EOD Error  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+RU-ACC EOD Error Carey, yes, let’s keep it consistent as much as possible . Tim is researching RU at the moment, as it is erroring . u.s. embassy in california says it is a 'failure' to the uk .
+
+[2025-08-15 10:10] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3777DC737ED54D56A3E6CA8D942B7BA9-VERCHER, CY
+all the records in the files are US. I will create some refundsfor CAN/FOR and send you a new file on Monday because we have the 3 day hold policy . when we go LIVE, this is not completely automated, we will still check the check numbers for QC purposes .
+
+[2025-08-15 10:12] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E6D68548300F4233A4205AE03923B5D2-CONNIE M MA
+I ran the refund job and it created 20+ files . operations have been doing a lot of training this week on RU . I will create some refundsfor CAN/FOR and send you a new file on Monday because we have the 3 day hold policy .
+
+[2025-08-15 12:40] RU-ACC and RU-PRD Digital File Transfer  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=F0E1D5E9A046461F9FA6D42923A65657-MARYBELLE P
+a digital csv file was created that needs to be moved from CORE to Client folders on CDSFiles: Digital output file name: cdsset_digital activation_000000005485_20250814234252903 . please keep a copy on CORE with sent tacked onto the front of the file name .
+
+[2025-08-15 12:51] RE: RU-ACC and RU-PRD Digital File Transfer  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=905F54EC956D4EF19C281FFFAFE9A586-AILES, DALL
+a digital csv file was created that needs to be moved from CORE to Client folders on CDSFiles: digital output file name: cdsset_digital activation_000000005485_20250814234252903 . ---Robin Wall Kimmerer, the hair of Mother Earth, is traditionally braided to show loving care for her well-being .
+
+[2025-08-15 12:55] RE: RU-ACC and RU-PRD Digital File Transfer  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=F0E1D5E9A046461F9FA6D42923A65657-MARYBELLE P
+Marybelle 515-471-5943 Sweetgrass, as the hair of Mother Earth, is traditionally braided to show loving care for her well-being . braids, plaited of three strands, are given away as signs of kindness and gratitude . we’ve never done an ad-hoc transfer request directly out of a core folder before .
+
+[2025-08-15 13:24] RE: RU event triggered emails (possible errors)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=7721F426786A49BF98BBEA79C2BDBC26-87F3E0C3-D5
+I’ve spent some time trying to match these HTTP requests going out of core to WSG transactions . I’d think Carey should give the sign off on these on Monday when she returns . Get Outlook for iOS https://aka.ms/o0ukef> ________________________________ .
+
+[2025-08-15 13:31] RE: RU event triggered emails (possible errors)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B81A56ACEA4F4151BC1A0352843F99BE-ISAIAH A BR
+Isaiah Brown Director – Engage Front End Web Development Tel (515) 362-3465 ibrown@cds-global.com . Brown, Isaiah IBrown, bass, Haley hbass, Templeton, Carey cjtempleton, and Richt, Lori LRicht .
+
+[2025-08-16 10:46] CORE Test Status Update - TOP 5 - 8/15 update  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=2943BA5D03694197B84E79D970E52103-RUFFOLO, MI
+test spreadsheet coverage is 91.08% (up from 60.26%) . 3 failed test (-3), 13 blocked tests (-12), 38 waiting to be tested (-204) ATK * Go-Live Date: 9/15/25 * Test spreadsheet coverage remains at 98.8% .
+
+[2025-08-18 08:32] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3777DC737ED54D56A3E6CA8D942B7BA9-VERCHER, CY
+I ran the refund job and it created 20+ files for RU . all the records in the files are US, CAN and FOR refunds . I will create some refundsfor RU (New Republic) Refunds Sounds good. we aren’t in a huge hurry .
+
+[2025-08-18 10:07] FW: NRD Inventory   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3777DC737ED54D56A3E6CA8D942B7BA9-VERCHER, CY
+the PF inventory file was given to ACS to upload . ACS was able to upload the inventory file to a PF database . the inventory was posted on april 18, 2025 at 8:31 AM . click here for all the latest PF news .
+
+[2025-08-18 12:44] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E6D68548300F4233A4205AE03923B5D2-CONNIE M MA
+there are two records that don’t have the item number assigned per our business rules . "Module": "ATM", "Productreturnreasoncode": null, "Itemnumber," "RU-NUD" RU (new Republic) Refunds Hi Connie, Here are the refund files for RU .
+
+[2025-08-18 12:46] RE: RU-ACC and RU-PRD Digital File Transfer  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+workflow rule in RU-ACC is moving the digital activation file using site code 15 . it should also send an email to You, Rob, and Jessica Allen . the workflow rule is being triggered once the CDSSET process completes using NUBUCYCL as the jobstream .
+
+[2025-08-18 14:43] FW: CDS Warehouse Codes  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3777DC737ED54D56A3E6CA8D942B7BA9-VERCHER, CY
+new clients can use CDW or CDS, it doesn’t matter to WMS . most of the older clients are using CDS because they were at bell ave before E Washington opened . when they migrated to E wash, we never update the WH codes in PF to CDW .
+
+[2025-08-18 14:56] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3777DC737ED54D56A3E6CA8D942B7BA9-VERCHER, CY
+you can use the same log and IMB MID since it is one title . two records don’t have the item number assigned per our business rules . if it isn’t using one of our valid product ids, then it should be blank .
+
+[2025-08-18 15:21] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E6D68548300F4233A4205AE03923B5D2-CONNIE M MA
+we use the first three positions of the Itemnumber> tag . you are now asking us to create a translation table for The new Republic only . when you start making exceptions, it will cause issues in the future . the same log and IMB MID since it is one title .
+
+[2025-08-18 15:43] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3777DC737ED54D56A3E6CA8D942B7BA9-VERCHER, CY
+the RU-NUD is a valid item number (access service), module of ATM . it automatically populates as a line item with every digital order . you are now asking us to create a translation table for The New Republic only . when you start making exceptions, it will cause issues in the future .
+
+[2025-08-18 15:56] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E6D68548300F4233A4205AE03923B5D2-CONNIE M MA
+RU-NUD is a valid item number (access service), module of ATM . it automatically populates as a line item with every digital order . the file needs to be fixed or we need new business rules . you are now asking us to create a translation table for The new Republic only .
+
+[2025-08-19 09:15] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3777DC737ED54D56A3E6CA8D942B7BA9-VERCHER, CY
+RU-NUD is a valid item number (access service), module of ATM . it automatically populates as a line item with every digital order . if the module is ATM, can you have the item number blanked out if it's ATM?
+
+[2025-08-19 09:21] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E6D68548300F4233A4205AE03923B5D2-CONNIE M MA
+RU- is not valid for us. we want to create a standard across all clients . if this field is blank, then we use the default that has been set up . this seems to be only an issue with the digital module (ATM) RU (new Republic) Refunds No, because that item is a component of the package .
+
+[2025-08-19 09:27] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3777DC737ED54D56A3E6CA8D942B7BA9-VERCHER, CY
+all clients that have packages will have agreement access that will be the instance name + dash, RU- . can you just resort to the default if it does not have a 3-position match . if this field is blank, then we use the default that has been set up .
+
+[2025-08-19 09:37] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E6D68548300F4233A4205AE03923B5D2-CONNIE M MA
+we can also default anything that is digital gets the default . this would be used for all clients that have packages will have agreement access that will be the instance name + dash, RU- . can you just resort to the default when it does not have a 3-position match .
+
+[2025-08-19 09:50] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3777DC737ED54D56A3E6CA8D942B7BA9-VERCHER, CY
+ATM - Agreement Access AMB – Agreement PRO - Products CIR – Circulation DNT - Donation Cynthia From: Madison, Connie CMadison@cds-global.com: Vercher, Cynthia CVercher; Derifield, Jacob Jacob.Derifield .
+
+[2025-08-19 09:57] RE: RU event triggered emails (possible errors)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B81A56ACEA4F4151BC1A0352843F99BE-ISAIAH A BR
+Isaiah Brown Director – Engage Front End Web Development Tel (515) 362-3465 ibrown@cds-global.com . all changes are going through as ORDER CONFIRM types . Carey should give the sign off on these on Monday when she returns .
+
+[2025-08-19 10:01] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E6D68548300F4233A4205AE03923B5D2-CONNIE M MA
+ATM - Agreement Access We will ignore the item number & assign default AMB . Agreement We will not assign default PRO - Products These should start with the valid product id DNT- Donation Cynthia From: Madison, Connie CMadison@cds-global.com> .
+
+[2025-08-19 10:15] RE: RU event triggered emails (possible errors)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+Isaiah Brown Director – Engage Front End Web Development Tel (515) 362-3465 . ibrown@cds-global.com mailto:Andrew.Skalicky@c-globals.com> . we can meet today to go over what Andrew is seeing .
+
+[2025-08-19 10:16] RE: RU event triggered emails (possible errors)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B81A56ACEA4F4151BC1A0352843F99BE-ISAIAH A BR
+Isaiah Brown Director – Engage Front End Web Development Tel (515) 362-3465 . ibrown@cds-global.com . I haven’t had a chance to dig into this with Andrew, We can meet today to go over what he is seeing .
+
+[2025-08-19 10:54] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3777DC737ED54D56A3E6CA8D942B7BA9-VERCHER, CY
+the first one is an overpayment on a Donation Order . I will test a couple more accounts with Donations . this module: ATM - Agreement Access We will ignore the item number & assign default AMB – Agreement These should start with the valid product id DNT- Donation .
+
+[2025-08-19 11:08] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E6D68548300F4233A4205AE03923B5D2-CONNIE M MA
+we actually have not been given the DNT module, so we will also default that to the default product id . please note, it needs to have the module in the file, not ‘null’ . the first one is an overpayment on a Donation Order .
+
+[2025-08-19 11:37] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3777DC737ED54D56A3E6CA8D942B7BA9-VERCHER, CY
+we can potentially have a customer over paid a Donation with a check . we actually have not been given the DNT module, so we will also default that to the default product id . please note, it needs to have the module in the file, not ‘null’ .
+
+[2025-08-19 14:29] RE: RU event triggered emails (possible errors)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+we will dig into our conditions/payload and let you know what we find . Andrew did find a concern with the order confirmation email triggering when a payment was applied on an existing order . we also need to take a deeper dive into the Agreement Resume after Suspend .
+
+[2025-08-19 14:59] RE: RU event triggered emails (possible errors)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B81A56ACEA4F4151BC1A0352843F99BE-ISAIAH A BR
+Isaiah Brown Director – Engage Front End Web Development Tel (515) 362-3465 . he found all WSG transaction except for Change of Email . Andrew did find a concern with the order confirmation email triggering when a payment was applied on an existing order, so we will be investigating more into this one tomorrow .
+
+[2025-08-19 15:40] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3777DC737ED54D56A3E6CA8D942B7BA9-VERCHER, CY
+if customer makes an overpayment on an account, it may be passed as a NULL because there is not an order or module associated with it . can you default this as well? donations will be set to prepaid only . but, never say never, we can potentially have a customer over paid a Donation with a check .
+
+[2025-08-19 16:02] RE: RU event triggered emails (possible errors)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+Isaiah Brown Director – Engage Front End Web Development Tel (515) 362-3465 ibrown@cds-global.com . Hey Ike, Is there anything we need to look into on our end now that Andrew found the transactions or does something need to be updated within the workflow .
+
+[2025-08-20 09:41] RE: CDS0352 - RU (New Republic) Refunds  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=E6D68548300F4233A4205AE03923B5D2-CONNIE M MA
+we will add the additional defaults . we can potentially have a customer over paid a Donation with a check . but, never say never, we can have an overpayer overpaid a donation . if you have an account, it may be passed as a NULL because there is not an order or module .
+
+[2025-08-20 11:33] RE: RU event triggered emails (possible errors)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+Ike, the only emails that triggered correctly are listed below . the workflow rules worked correctly: ORDER-CFM-EML - Order Confirmation AGR-GIFT-RCP-EMl . CC-HARD-DECL - Hard Decline Carey From: Templeton, Carey .
+
+[2025-08-20 12:23] RE: RU event triggered emails (possible errors)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B81A56ACEA4F4151BC1A0352843F99BE-ISAIAH A BR
+Isaiah Brown Director – Engage Front End Web Development Tel (515) 362-3465 ibrown@cds-global.com . he has an email out to ACS asking for assistance, more to come . the only emails that triggered correctly are listed below .
+
+[2025-08-21 14:09] [JIRA] (CMT-573) Review RU Renewals  -  jira@cds-global.atlassian.net
+Timothy Zapawa 1 made an update _________________________ . Core MT / CMT-573 . View work item to view attachments over 100 KB . Download the Jira Cloud app for android . download it for android or iOS .
+
+[2025-08-21 16:50] FW: [CDS Request 265817]  Task: CLIRPTKG EOM Jobstream Update  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+Corey noted on the track that you had updated the EOM jobstream CLIRPTKG in TMP . did you update all instances(ACC& STP area types and TF-E2E) or just TMP? Did you update the component update spreadsheet in core team sharepoint to reflect this update? If not, I've attached the link below so you can .
+
+[2025-08-21 17:19] RE: [CDS Request 265817]  Task: CLIRPTKG EOM Jobstream Update  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+I’d like to put it back on one of the AA’s to complete across all instances . if this would have been specific to RU, we wouldn’t need to have an AA complete it and then just update that spreadsheet . I was not aware that I was supposed to update TMP because there was a trackit open .
+
+[2025-08-22 10:56] [JIRA] (CMT-573) Review RU Renewals  -  jira@cds-global.atlassian.net
+Levi Hyssong made 2 updates, added a new comment . review Comments https://secure.gravatar.com/avatar/c2bfff0efb3815b114ae03fc94a2dadd2?d=https%3A%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net/assets/arrow-right.eade7935
+
+[2025-08-22 12:31] Re: Documentation Regarding Global Care Renewal Pricing  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=C13414519F2343B2BAAB27267E83DF57-CEDCCDF5-86
+Scott Wanhala Sr Product Owner scott.wanhala@cds-global.com . the following document is the notes I pool together regarding how global rates are being processed in CORE . I am not aware what fields you are pulling in via API calls to Global Care from CORE right now .
+
+[2025-08-25 16:21] Data Quality Tests  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=1F0D981B41AE4E938C91E43FE31F10E9-97A8D961-6E
+in Data Quality Tests.xlsx, check the Clients Needed column in the spreadsheet . if a test is in an instance and shouldn’t be, let me know and I’ll remove it . this tab also shows you the hyper linked SQL query .
+
+[2025-08-25 18:13] RE: Data Quality Tests  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=C8820C8B9FBE43458604505DB047FBF8-DEARDEN, SU
+Sue Dearden |Senior Account Analyst| Client Services | CDS Global From: Adair, Rachael . Dearden, Sue SDearden@cds-global.com> . I’m finalizing the data-quality SQL queries and need your input: * In Data Quality Tests.xlsx .
+
+[2025-08-26 15:48] RE: RU Auto Renew Prices for Membership Tiers  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3B473BE1676B4060999F8FD2C245F767-DANIELLE L
+the client updated pricing for their membership tiers, and we need to add the initial auto-renewal price to the content order page . if you have any questions, please contact us at info@cds-global.com or call us at (888) 963-8383 .
+
+[2025-08-28 13:05] [JIRA] (CMT-573) Review RU Renewals  -  jira@cds-global.atlassian.net
+Core MT https://cds-global.atlassian.net/browse/CMT-573> . View attachments over 100 KB Get Jira notifications on your phone . download the JiRa Cloud app for android or iOS .
+
+[2025-08-28 14:29] RE: RU Auto Renew Prices for Membership Tiers  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B0BCFF5FFB634B98A1472D1D9ED07C53-ALLEN, JESS
+jess Jessica Allen | Client Manager | CDS Global, Inc From: Gorla, Danielle DGorla@cds-global.com> Sent: Tuesday, August 26, 2025 3:48 PM to: Allen, Jessica Jessica.Allen@cs- global.com . the client updated pricing for their membership tiers and we need to add the initial auto-renewal price to the content order page .
+
+[2025-08-28 15:03] Fw: RU Expire Reactivation Updates to Master  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=6C27FDCEC6FE45C5A217E34E2635B7DA-COREY D REI
+jess, Jacob D. is now the contact for RU on Core and you can begin sending him RU related items . if you need help parsing through this, please let me know . there were several updates Gerald made to the master for the RU Expire Reactivation Selections .
+
+[2025-08-29 08:05] RE: Data Quality Tests  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=1F0D981B41AE4E938C91E43FE31F10E9-97A8D961-6E
+I am listing the prompts below, my questions are highlighted in red . all known codes (probably will need to be hard-coded into the select as it’s hard to select off of response rule + select data) could someone clarify what kind of codes are meant here? Soft descriptor setup problems for amazon What is meant by “problems” in this context?
+
+[2025-08-29 08:39] [JIRA] (CMT-573) Review RU Renewals  -  jira@cds-global.atlassian.net
+Haley Bass added a new comment . Core MT / CMT-573 https://cds-global.atlassian.net/browse/CMT 573> review RU Renewals . a $0.00 unit price was needed in those choices which led me to make those updates .
+
+[2025-08-29 08:57] [JIRA] (CMT-573) Review RU Renewals  -  jira@cds-global.atlassian.net
+Core MT / CMT-573 https://cds-global.atlassian.net/browse/CMT 573> review RU Renewals . a $0.00 unit price was needed in those choices which led me to make those updates .
+
+[2025-08-29 09:15] [JIRA] (CMT-573) Review RU Renewals  -  jira@cds-global.atlassian.net
+Levi Hyssong added a new comment . the subscription choice detail records are problematic and needed to be removed . it wasn’t set up to override the price in any way, but are not necessary . download the Jira Cloud app for Android .
+
+[2025-08-29 09:19] [JIRA] (CMT-573) Review RU Renewals  -  jira@cds-global.atlassian.net
+Core MT / CMT-573 https://cds-global.atlassian.net/browse/CMT 573> Review RU Renewals . if the agreement doesn't need a $0.00 unit price populated then it shouldn't be to keep consistency .
+
+[2025-08-29 12:13] [JIRA] (CMT-573) Review RU Renewals  -  jira@cds-global.atlassian.net
+RU Renewals https://cds-global.atlassian.net/browse/CMT-573> . haley bass added a new comment . _________________________________ ______________ .
+
+[2025-08-29 13:15] [JIRA] (CMT-573) Review RU Renewals  -  jira@cds-global.atlassian.net
+Levi Hyssong and Haley Bass added 2 new comments . no renewal comparison done because the provided list no longer matched the converted data . if this is to be done, we need a new list to compare the Advantage results to . I remember that now, I remember it now .
+
+[2025-09-02 10:11] RE: RU Auto Renew Prices for Membership Tiers  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B0BCFF5FFB634B98A1472D1D9ED07C53-ALLEN, JESS
+the membership tiers auto-renew prices are: Representative Senator president Please let me know if you need any additional information . jess Jessica Allen | Client Manager | CDS Global, Inc From: Derifield, Jacob Jacob.Derifield@cds-global.com> .
+
+[2025-09-02 15:05] RE: RU Auto Renew Prices for Membership Tiers  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B0BCFF5FFB634B98A1472D1D9ED07C53-ALLEN, JESS
+Jess Jessica Allen | Client Manager | CDS Global, Inc . I need to know what prices the membership tiers auto-renew at on new orders . will send it out shortly Thank you, Jacob Derifield _________________________ .
+
+[2025-09-02 15:58] RE: Data Quality Tests  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=1F0D981B41AE4E938C91E43FE31F10E9-97A8D961-6E
+if you have a moment, please fill out What Client Needs This column on the assignment tab . I had previously asked for it to be on the assignments tab and it got far too messing and confusing . sorry for asking you all to do it again! ! .
+
+[2025-09-03 12:26] RE: RU Auto Renew Prices for Membership Tiers  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B0BCFF5FFB634B98A1472D1D9ED07C53-ALLEN, JESS
+the new tiers are on the same auto-renewal price as what they were supposed to be on before we went from 4 to 3 . if we need to get on a call, let’s do that as soon as you can . I tried to break it down and provide the best information I could .
+
+[2025-09-03 12:53] Re: RU Auto Renew Prices for Membership Tiers  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=78508E6B699840E3A3DC1BE73CA533D9-BASS, HALEY
+Serv rates are going to be the auto renewal rates on the new membership tiers . we need to discuss with Gerald the Senator auto renewal rate . Serv Rate: 1 Year: US $24.99 Senator $29.99 . senator $29.99 President $49.99 - Auto Renew US $69.99, CAN $99.99, ROW $119.99 Haley Bass Technical Client Consultant .
+
+[2025-09-03 14:48] RE: RU Auto Renew Prices for Membership Tiers  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B0BCFF5FFB634B98A1472D1D9ED07C53-ALLEN, JESS
+senator IMEM2499 on Serv at price $24.99 is auto renewing its first year at $29.97 . senator doesn’t look right, though. we can talk to him about that . we need to discuss with Gerald the Senator auto renewal rate . a recap of what we just discussed via a team's call .
+
+[2025-09-03 14:52] Re: RU Auto Renew Prices for Membership Tiers  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=78508E6B699840E3A3DC1BE73CA533D9-BASS, HALEY
+senator IMEM2499 on Serv at price $24.99 is auto renewing its first year at $29.97 . senator doesn’t look right, though. we can talk to him about that . here are the current Serv rates that we think are going to be the auto renewal rates on the new membership tiers.
+
+[2025-09-04 08:13] December Self Evaluation  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=314F64EA14FE4ABBA093CEFFCC503F02-KIM S ARMST
+your DECEMBER self-performance evaluation is due OCTOBER 1st . Please note this is not required, but highly encouraged . if you have any questions, please contact your manager or your Workforce Representative, Nicki Sorenson, Beth Lampe or Jeneen Ferguson .
+
+[2025-09-04 11:17] NUB-single bills   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=F8B57133EC8B40DA84F5E8EF0EC92719-NEVZETA COS
+Nevzeta Cosic Client Production Associate 3 Client Services 1901 Bell Ave. Des Moines, 50315 T: 515 247.7604 ncosic@cds-global.com mailto:ncoscosic.com>.
+
+[2025-09-05 07:48] Automatic reply: Daily progress update  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=78611E9222D74AF4A1FEBE2CBC08AC13-KLYN, CURTI
+all, I will be out of the office September 4th at 2 pm returning to the office . I will answer your email upon my return or sooner . thanks, Curtis, for letting me know if you haven't contacted me . i'm not sure if it's time to get back to work .
+
+[2025-09-05 07:57] RE: Daily progress update  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+please clarify or elaborate more on ‘create a more robust system to post dry runs and ensure data quality’ . Weekly output discussion meeting, discussed updating different outputs for marigold and lettershop . a larger count on system c than there is on CORE causing issues with Single Bills .
+
+[2025-09-05 08:23] RE: Daily progress update  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+if this allows us to have more accurate counts this is something we should be sharing and implementing as a best practice across the board . for the first bullet point, I'm creating select sets similar to Corey's so that I can get a more accurate count of Dry runs one day ahead each time allowing Nevzeta to see less discrepancy between counts .
+
+[2025-09-05 09:00] RE: NUB-single bills   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=04286B8411AE4205A66AAB7619BB9E2C-BLACK, KARE
+customer number 2613 has 2 unpaid agreements which create 2 bills . the agreement numbers are 209680 and 209682 . there are few like this which is why mailout count is larger . cds-global.com has a 'single bill' .
+
+[2025-09-05 09:15] Re: NUB-single bills   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=EE3988D7B6284D6AB0D5E6BE3A74FDE1-BELOKOPITOV
+customer number 2613 has 2 unpaid agreements which create 2 bills . the agreement numbers are 209680 and 209682 . there are few like this which is why mailout count is larger . ncosic@cds-global.com> is a new record in mailout .
+
+[2025-09-05 09:18] RE: NUB-single bills   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=04286B8411AE4205A66AAB7619BB9E2C-BLACK, KARE
+the count on the Core reports show 216 and we created more bills because each needs to be separate on back end . the agreement numbers are 209680 and 2096 . they have 2 unpaid agreements which create 2 bills . a new record in mailout for each agreement, we have too?
+
+[2025-09-05 09:18] RE: NUB-single bills   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=F8B57133EC8B40DA84F5E8EF0EC92719-NEVZETA COS
+cds-global.com has 2 unpaid agreements which create 2 bills . the agreement numbers are 209680 and 209682 . there are some like this which is why mailout count is larger . kblack is an account analyst label and distribution of 1901 Bell Ave Des Moines .
+
+[2025-09-05 09:20] Re: NUB-single bills   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=EE3988D7B6284D6AB0D5E6BE3A74FDE1-BELOKOPITOV
+if you get a number of unpaid agreements and a record count both Lori Belokopitovs director |Document Technologies | Wilton Client Services ________________________ . the record count is based on the number of agreements recorded in Core .
+
+[2025-09-05 09:21] RE: NUB-single bills   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=04286B8411AE4205A66AAB7619BB9E2C-BLACK, KARE
+core counted it as 1 and we created 2. Karen Black Sr. Account Analyst Label and Distribution 1901 Bell Ave Des Moines, IA 50315 M: 515-707-4287 kblack@cds-global.com . the agreement number total in Core is ________________________ .
+
+[2025-09-05 09:22] RE: NUB-single bills   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=04286B8411AE4205A66AAB7619BB9E2C-BLACK, KARE
+Karen Black Sr. Account Analyst Label and Distribution 1901 Bell Ave Des Moines, IA 50315 M: 515-707-4287 kblack@cds-global.com . asks: are we building a new record in mailout for each agreement, we have too?
+
+[2025-09-05 10:23] RE: Data Quality Tests  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=1F0D981B41AE4E938C91E43FE31F10E9-97A8D961-6E
+CC REQUEST OUTBOUND Credit cards in Request Outbound status with no Date Last Processed, and the transaction is beyond some threshold of age . Currently set as 1 day old . I’m finalizing the data-quality SQL queries and need your input .
+
+[2025-09-05 11:35] [JIRA] (CMT-573) Review RU Renewals  -  jira@cds-global.atlassian.net
+Core MT https://cds-global.atlassian.net/browse/CMT-573> . View work item to view attachments over 100 KB . Download the Jira Cloud app for android or iOS .
+
+[2025-09-05 11:47] [JIRA] (CMT-532) Large drop down menus will auto scroll  -  jira@cds-global.atlassian.net
+Shawna Boozell 1 made an update, added a new comment . he has been out on paternity leave, with a return set for 9/8 . have bumped this ticket to 9/12 to allow time to review upon his return . this is assigned to Jake K .
+
+[2025-09-05 12:13] RE: Daily progress update  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+if you will please communicate with the team that would be great, please test first to ensure it works . I would have to leave that on Corey, the process I had was no good . he's implementing what he was doing and it was very intuitive . but I want to make sure I can get "his way of doing things" to mesh with my client .
+
+[2025-09-05 12:19] End of month jobstream - AMB423 & AMB432  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+client accounting has asked that we be sure to include the report processes to the end of month jobstream for applicable clients . these reports are to be added to the CLIRPTKG jobstream . please do this at your earliest convenience respective to each client’s business needs and to all applicable instances .
+
+[2025-09-05 12:55] RE: End of month jobstream - AMB423 & AMB432  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=35B09906C9AF45B0854905E36BF8E3C5-MEALEY, BRE
+the AMB432 looks like it can be run wide open and also with a select set . a client accounting has asked that we be sure to include the reports to the end of month jobstream CLIRPTKG . please do this at your earliest convenience respective to each client’s business needs .
+
+[2025-09-05 12:58] RE: End of month jobstream - AMB423 & AMB432  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=35B09906C9AF45B0854905E36BF8E3C5-MEALEY, BRE
+Brent Mealey (He, Him) Sr. Technical Client Consultant 1901 Bell Ave Des Moines, IA 50315 T: 5154715912 bmealey@cds-global.com . the AMB432 looks like that one is run per access item or with a select set .
+
+[2025-09-05 12:58] RE: End of month jobstream - AMB423 & AMB432  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+Brent Mealey (He, Him) Sr. Technical Client Consultant 1901 Bell Ave Des Moines, IA 50315 T: 5154715912 bmealey@cds-global.com> . mealey, Brent, sr. technical client consultant .
+
+[2025-09-05 15:17] Re: End of month jobstream - AMB423 & AMB432  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+client accounting has confirmed the AMB423 should be set to ARP-PREV and left open . both reports are used for internal & external too . I ask as I've assigned you another task relating to EOM and want to avoid others working on the same task .
+
+[2025-09-05 15:21] RE: End of month jobstream - AMB423 & AMB432  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=35B09906C9AF45B0854905E36BF8E3C5-MEALEY, BRE
+Brent Mealey (He, Him) Sr. Technical Client Consultant 1901 Bell Ave Des Moines, IA 50315 T: 5154715912 bmealey@cds-global.com . client accounting has confirmed the AMB423 should be set to ARP-PREV and left open .
+
+[2025-09-05 15:24] Re: End of month jobstream - AMB423 & AMB432  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+Brent mealey (he, Him) Sr. Technical Client Consultant 1901 Bell Ave Des Moines, IA 50315 T: 5154715912 bmealey@cds-global.com> . he was tagged in his last response .
+
+[2025-09-05 15:26] RE: End of month jobstream - AMB423 & AMB432  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=7721F426786A49BF98BBEA79C2BDBC26-87F3E0C3-D5
+I have yet to make it to any of the team specific instances . if it’d be more beneficial for whoever would schedule wf rules for each instance, then I can pass up those instances, otherwise, I can update all . I think Andrew is tackling this task as a larger task, as there are other changes that are also needing to be made after this email was sent .
+
+[2025-09-05 16:56] Re: End of month jobstream - AMB423 & AMB432  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=6C27FDCEC6FE45C5A217E34E2635B7DA-COREY D REI
+client accounting has confirmed the AMB423 should be set to ARP-PREV and left open . both of these reports are used for internal & external too . please advise if you are handling this for all client instances or other team members should be doing their titles .
+
+[2025-09-08 05:00] [Test email from BP-ACC] BP-ACC CIR - GIFT-NON-GIFT CHAIN NOT ASSIGNED  -  CDSGLOBAL@CDS-GLOBAL.COM
+your Automated Test has completed: Test ID: CIR - GIFT-NON-GIFT CHAIN NOT ASSIGNED Test Counts: 0 . 0 Tests are performed by a computer based on a test ID .
+
+[2025-09-08 07:37] Re: CORE Update - 9/5/25  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0FF4C3191605417EB3FDD797AF17C952-COFFMAN, JI
+Jill Jill M Reha Technical Client Consultant jill.reha@cds-global.com . can you remind me what the challenge/concern is with ISO? Thank you . a meeting to discuss data quality test for jobstreams to be reviewed .
+
+[2025-09-08 07:54] RE: [Test email from BP-ACC] BP-ACC CIR - GIFT-NON-GIFT CHAIN NOT ASSIGNED  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=3B473BE1676B4060999F8FD2C245F767-DANIELLE L
+test email is still only referencing the CIR Chains, not the AMB chains . is it possible to list counts from both CIR and AMB in the body of the email? BP-ACC CIR - GIFT-NON-GIFT CHAIN NOT ASSIGNED Test Counts: 0 .
+
+[2025-09-08 07:54] RU-Auto Link.  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=F8B57133EC8B40DA84F5E8EF0EC92719-NEVZETA COS
+we have same counts for Auto link since you change something last week 572 . now I am not sure if you should change or adjust criteria . ncosic@cds-global.com is a client production associate 3 Client Services . we have count of 1 .
+
+[2025-09-08 08:58] Core Client Services Team Standup Updates 9/8  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+ATK - 11 (8 ALL + 3 ATK) - RU - 13 (8 ALL+ 5 RU) * TF - 13, 8 ALL + 5 TF * tickets that apply to ATK Day 1 – 4 (4 created after 5 p.m. Friday; assessing which ones truly apply to aTK . * 9/5: daryl suggests the parameters on the request be changed; ‘No Credit Cancel and the Refund Unapplied Credit’ flags enabled .
+
+[2025-09-08 09:45] [JIRA] (CMT-532) Large drop down menus will auto scroll  -  jira@cds-global.atlassian.net
+Jake Klopfenstein 1 made an update, added a new comment . large drop down menus will auto scroll https://secure.gravatar.com/avatar/a12cc9b6e827bb79e5659c31af59e377?d=https%3A%2F%2Aavatar-management--avatars.us-west-2.prod.public.atl-paas.net/assets/arrow
+
+[2025-09-08 10:06] RE: [Test email from BP-ACC] BP-ACC CIR - GIFT-NON-GIFT CHAIN NOT ASSIGNED  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+Dean, Corey CDean@cds-global.com> can you delete your scheduled NO CHAINS jobstream and reschedule for the same date and times? BP-ACC has sent a letter to a 'no chaINS' group . a new email will be sent to you on tuesday .
+
+[2025-09-08 10:43] Re: [Test email from BP-ACC] BP-ACC CIR - GIFT-NON-GIFT CHAIN NOT ASSIGNED  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=6C27FDCEC6FE45C5A217E34E2635B7DA-COREY D REI
+Dean | CDS Global | Technical Client Consultant | cell: 515-661-1001 ________________________ . Dean, Corey CDean@cds-global.com> . BP-ACC CIR - GIFT-NON-GIFT CHAIN NOT ASSIGNED .
+
+[2025-09-08 10:58] RE: [Test email from BP-ACC] BP-ACC CIR - GIFT-NON-GIFT CHAIN NOT ASSIGNED  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+BP-ACC CIR - GIFT-NON-GIFT CHAIN NOT ASSIGNED We had to update the select set, you should now get emails for all 4 No Chains . you should see 2 emails, one for AMB and one for CIR.
+
+[2025-09-08 11:17] RE: Data Quality Tests  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=AA36727841EE46A889D8C644C43EC540-KLOPFENSTEI
+jake.klopfenstein (He/Him) Core Support – Sr. Systems Account Analyst 1901 Bell Avenue Des Moines, IA 50315 . he/she has added some responses in green below . Klopfenstein, Jake Jake.Klopfstein@cds-global.com .
+
+[2025-09-08 11:23] Upcoming Training: Introduction to QuickSight Reporting Tool  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+these sessions will cover navigation basics and a short list of available reports . each session will cover the same material, so you only need to attend one . this training is open to all employees . a Teams option will also be available for those who must attend remotely . please email Drew Anglick (Drew.Anglick@cds-global.com)
+
+[2025-09-08 12:48] [JIRA] Steve Allen mentioned you on CMT-668  -  jira@cds-global.atlassian.net
+Steve Allen mentioned you on a work item https://cds-global.atlassian.net/browse/CMT-668?focusedCommentId=413026&sourceType=mention> Adding Fields to AMB350 JSON . Download the Jira Cloud app for Android .
+
+[2025-09-08 13:41] Re: RU Auto Renew Prices for Membership Tiers  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=78508E6B699840E3A3DC1BE73CA533D9-BASS, HALEY
+new NUB+NUD Promotions.xlsx: x:/r/sites/AdvantageUS/_layouts/15/Doc.aspx?sourcedoc=%7B8597555E-0F5A-4F78-ADDF-18333109FC33%7D .
+
+[2025-09-09 08:55] Core Client Services Team Standup Updates 9/9  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+ACS says this is a transitory error that can be ignored if it happens again . if the license key changes at renewal time, the program will continue to run . the ACS work item 310445 created to make a change to avoid it permanently .
+
+[2025-09-09 11:09] RE: RU-Auto Link.  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=F8B57133EC8B40DA84F5E8EF0EC92719-NEVZETA COS
+the files that ran this morning picked up the correct counts . I noticed that we have same counts for Auto link since you change something last week 572 . now I am not sure if you should change or adjust criteria ? Thank you for the heads up, Jacob, .
+
+[2025-09-09 11:17] RE: RU-Auto Link.  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+can you clarify the date for when you didn’t have counts? please be sure we are creating a TI for any issues we are finding . this will help provide visibility into concerns as well as have a tool for tracking resolution and when applicable be able to communicate to the masses .
+
+[2025-09-09 12:26] Re: RU Auto Renew Prices for Membership Tiers  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=78508E6B699840E3A3DC1BE73CA533D9-BASS, HALEY
+the RU chain assignment is completely different than the BP one that I have reviewed many times . we finally received answers on the auto renewal rates for the new membership tiers . you can also find this information here . the new NUB+NUD Promotions.xlsx promotions is now available .
+
+[2025-09-09 12:33] Re: RU Auto Renew Prices for Membership Tiers  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=78508E6B699840E3A3DC1BE73CA533D9-BASS, HALEY
+the RU chain assignment is completely different than the BP one that I have reviewed many times . we can place these in the same offer since they aren't being offered choices, just autocharged . if they include regional pricing, is it set up with same offer or did you use duplicate offers?
+
+[2025-09-11 09:19] FW: [EXTERNAL] RE: NUB Expire Precounts for Mailed and Emailed, Expires 2501-2503  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B0BCFF5FFB634B98A1472D1D9ED07C53-ALLEN, JESS
+we don’t know if they may want to try it again in the future . we are cancelling all of these efforts going forward . this includes all email selections and mailing selections . if you have any questions regarding this change, please let me know .
+
+[2025-09-11 10:28] Daily Validation Report Change  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+the daily validation jobstreams (WFDLYVAL & WFWKDVAL) will need to be scheduled to run every hour from 7am to 4pm . the QC process (Nevzeta and Josh logging/submitting track its) happening every hour the reports are received .
+
+[2025-09-11 10:33] RE: [EXTERNAL] RE: NUB Expire Precounts for Mailed and Emailed, Expires 2501-2503  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+we will then determine how best to note this in Core . we do not want to move forward with the expire reactivation campaign at this time . they don’t know if they may want to try it again in the future . u.s.-based cds-global.com has a re-activation policy .
+
+[2025-09-11 10:41] RE: [EXTERNAL] RE: NUB Expire Precounts for Mailed and Emailed, Expires 2501-2503  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=F8B57133EC8B40DA84F5E8EF0EC92719-NEVZETA COS
+cds-global.com: Allen, Shawna Jessica.Allen mailto:SBoozell.com> Sent: Thursday, September 11, 2025 10:34 AM . we will move tabs to end and gray it out (meaning we don't have to do it now)
+
+[2025-09-11 10:42] RE: [EXTERNAL] RE: NUB Expire Precounts for Mailed and Emailed, Expires 2501-2503  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+I would also recommend exporting and saving a copy of any selects we are planning on using once they’ve been built, fully tested, and we feel they are established so we have record in case we encounter a hiccup . Thank you, Jacob Derifield ________________________________ .
+
+[2025-09-11 10:57] Daily Validation Report Change  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+daily validation jobstreams (WFDLYVAL & WFWKDVAL) will need to be scheduled (by the TCC doing the production scheduling) to run every hour from 7am to 4pm . the QC process (Nevzeta and Josh logging/submitting track its) happening every hour the reports are received .
+
+[2025-09-11 11:05] Re: Daily Validation Report Change  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=6C27FDCEC6FE45C5A217E34E2635B7DA-COREY D REI
+the daily validation jobstreams (WFDLYVAL & WFWKDVAL) will need to be scheduled (by the TCC doing the production scheduling) to run every hour from 7am to 4pm . the QC process(Nevzeta and Josh logging/submitting track its) happening every hour the reports are received .
+
+[2025-09-11 12:08] RE: Daily Validation Report Change  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=F8B57133EC8B40DA84F5E8EF0EC92719-NEVZETA COS
+first file was created for BP and we don’t have any errors . all our processes run with D except CDS260-E . TI is still open for that and BP-ACC Corey Dean is preparing a new file . WFDLYVAL should run Monday through Friday, every hour, 7am – 4pm .
+
+[2025-09-11 12:24] RE: Daily Validation Report Change  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+this was not reported in Track It #266299 for this morning’s errors on BP . the CDS260 process is run by ACS and we are not monitoring this process, so it does not need to be reported . we will make this change to BP-ACC after go live .
+
+[2025-09-11 12:50] Re: Daily Validation Report Change  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0FF4C3191605417EB3FDD797AF17C952-COFFMAN, JI
+jill Jill M Reha Technical Client Consultant has completed the validation scheduling for TF-ACC and TF2-E2E . the CDS260 process is run by ACS and we are not monitoring this process, so it does not need to be reported . we will make this change to BP-ACC after go live .
+
+[2025-09-12 11:44] [RU Request 266314] Question: Jobstream document  -  andrew.skalicky@cds-global.com
+RU Request 266314 Question: Could you create a jobstream document for RU similar to the one that was used for TF? Request Name: Validate Jobstream and workflow setup for production Please login to Track it to respond . RU requests a similar document to a TF document .
+
+[2025-09-15 09:49] Re: Daily Validation Report Change  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B83E5D4C95AE4EBCBC47DB5724E310C7-BCA50517-AB
+can schedule in other instances if needed, but not seeing that it is scheduled in others currently . updating logging spreadsheet. I've completed the validation scheduling for TF-ACC and TF2-E2E . jill Jill M Reha Technical Client Consultant .
+
+[2025-09-16 07:27] TODAY FILES   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=F8B57133EC8B40DA84F5E8EF0EC92719-NEVZETA COS
+230 Invoices_NUB_Single_Bills_Mailed_938_20250916031056_TEST.JSON—counts 292 Renewals - 601 Thank you . Nevzeta Cosic I CDS Global I Client Quality Control Production Specialist I .
+
+[2025-09-16 15:41] BP-PRD AMB - GIFT-NON-GIFT CHAIN NOT ASSIGNED  -  CDSGLOBAL@CDS-GLOBAL.COM
+your Automated Test has completed: Test ID: AMB - GIFT-NON-GIFT CHAIN NOT ASSIGNED Test Counts: 5 - 5 . if you do not have a test ID, you will be able to complete the test .
+
+[2025-09-16 15:41] BP-PRD CIR - GIFT-NON-GIFT CHAIN NOT ASSIGNED  -  CDSGLOBAL@CDS-GLOBAL.COM
+your Automated Test has completed: Test ID: CIR - GIFT-NON-GIFT CHAIN NOT ASSIGNED Test Counts: 0 . 0 Tests are performed by a computer based on a test ID .
+
+[2025-09-17 05:01] BP-PRD CUSTOMERS WITH DUPLICATE AGREEMENTS  -  CDSGLOBAL@CDS-GLOBAL.COM
+your Automated Test has completed: Test ID: CUSTOMERS WITH DUPLICATE AGREEMENTS Test Counts: 0 and 0 . if you have a test ID, please contact us for a free test ID and we will get back to you .
+
+[2025-09-17 05:01] BP-PRD DIGITAL WALLET EXCEPTIONS  -  CDSGLOBAL@CDS-GLOBAL.COM
+Your Automated Test has completed: Test ID: DIGITAL WALLET EXCEPTIONS Test Counts: 0 . 0 Tests Counted: 0-, 0 and 0, . 5 . Tests counted as a total of 0.
+
+[2025-09-17 05:02] BP-PRD LINK_LETTERS_MISSED  -  CDSGLOBAL@CDS-GLOBAL.COM
+your Automated Test has completed: Test ID: LINK_LETTERS_MISSED Test Counts: 21,363 . if you have any questions, please contact us on 020 555 111 or email us at 1-800-273-8255 .
+
+[2025-09-17 05:02] BP-PRD EXPIRED AGR SUB MISSED RENEWAL  -  CDSGLOBAL@CDS-GLOBAL.COM
+your Automated Test has completed: Test ID: EXPIRED AGR SUB MISSED RENEWAL Test Counts: 0 . 0 Tests are performed by a computer based test based on a test ID and 0 tests .
+
+[2025-09-17 05:02] BP-PRD AMB ORDER NO EMAIL  -  CDSGLOBAL@CDS-GLOBAL.COM
+Your Automated Test has completed: Test ID: AMB ORDER NO EMAIL Test Counts: 0 . 0 Tests are completed by aMB orDER or a e-mail address . the test is based on a test ID .
+
+[2025-09-17 08:22] [JIRA] Jake Klopfenstein mentioned you on CMT-526  -  jira@cds-global.atlassian.net
+https://cds-global.atlassian.net/browse/CMT-526?focusedCommentId=416741&sourceType=mention> RU-ACC - Geographic rates not being called upon . download the Jira Cloud app for Android .
+
+[2025-09-17 08:47] CORE Stand-up 9/17  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+ATK HyperCare - Core Implementations https://cds-global.atlassian.net/jira/software/c/projects/HCCI/issues?jql=project%20%20%22HCCI%22%20ORDER%20created%20DESC> Today’s goal: * First ‘live’ production ran for ATK 9/17! Validating all production runs ran successfully, completed as expected .
+
+[2025-09-17 10:23] Re: BP-PRD LINK_LETTERS_MISSED  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=AA36727841EE46A889D8C644C43EC540-KLOPFENSTEI
+SQL has been updated on this test. I am now selecting 0. Thanks Jake Klopfenstein (He/Him) Core Support – Sr. Systems Account Analyst 1901 Bell Avenue Des Moines, IA 50315 jake.klopfenstein@cds-global.com .
+
+[2025-09-17 10:33] Re: BP-PRD LINK_LETTERS_MISSED  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=AA36727841EE46A889D8C644C43EC540-KLOPFENSTEI
+the test is using the date range as provided by the link select (23 - 30 days for BP) with declare statements . these will need to update per client with whatever range we need to look at . deCLARE @today date = CAST(GETDATE() AS date); DECLARE . @start date = DATEADD(day, 23, . today); deCLare @end date = . DATEDAD(day 31, @totoday); thanks Jake Klopfenstein (He/
+
+[2025-09-17 10:43] [JIRA] Jake Klopfenstein mentioned you on CMT-526  -  jira@cds-global.atlassian.net
+RU-ACC - Geographic pricing is now pulling into the files correctly . if more work is needed for other areas, those should have their own tickets . Jake Klopfenstein mentioned you on a work item https://cds-global.atlassian.net/browse/CMT-526?focusedCommentId=416805&sourceType=mention> .
+
+[2025-09-17 12:53] [CDS Request 266387] Question: EOD update  -  bmealey@cds-global.com
+Request 266387 has a question in Track it . you will want to make this update for RU since you have the premiums and the single copies . Request Name: Update EOD Jobstream across all instances 16SEP25 Please login to Track it to respond .
+
+[2025-09-17 14:53] Automatic reply: Daily Updates  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=78611E9222D74AF4A1FEBE2CBC08AC13-KLYN, CURTI
+all, I will be out of the office September 17th at 2 pm returning to the office Sept 22nd . I will answer your email upon my return or sooner . thanks, Curtis, for letting me know if you haven't contacted me .
+
+[2025-09-17 20:09] RE: Daily Updates  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+Derifield, Jacob Jacob.Derifield@cds-global.com> . RU's new price tier promo codes will only be used after go live . this will only pick up customers who have placed new orders and for some reason haven't been assigned a chain .
+
+[2025-09-17 20:39] help  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=C8820C8B9FBE43458604505DB047FBF8-DEARDEN, SU
+if you could compare the columns I mention, and put the result in that column . I have 4 columns that are highlighted . please and thank you . Sue Dearden | senior account analyst | Client Services | CDS Global . i'm looking forward to your help on comparing some columns .
+
+[2025-09-17 21:04] RE: help  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=C8820C8B9FBE43458604505DB047FBF8-DEARDEN, SU
+Sue Dearden | Senior Account Analyst | Client Services | CDS Global From: Derifield, Jacob Jacob.Derifield@cds-global.com> Subject: help Hey Jacob, I need your help on comparing some columns in the attached spreadsheet .
+
+[2025-09-18 13:45] FW: [EXTERNAL] NUB 2026 masters  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B0BCFF5FFB634B98A1472D1D9ED07C53-ALLEN, JESS
+2026 masters are for renewals and bills for RU . please pass them along to anyone else who may need them on the Core side . if there’s something I need to build for Core, let me know if you see anything amiss . I will get these out to iMeet .
+
+[2025-09-18 13:52] FW: 1 Error Records and 5 Surplus Records to manually apply from BP migration to Core  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+Shawna - can you review what is in my file to determine if this is all the information you need to apply this order for a service period of 7 days on BP migration to Core Attached is the 1 error record from the migration to core . this person had a bad credit card so it could not be migrated .
+
+[2025-09-19 07:37] Re: BP-PRD LINK_LETTERS_MISSED  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=AA36727841EE46A889D8C644C43EC540-KLOPFENSTEI
+this 1 customer had a zip not valid error . but the Avalara test didn't pick them up so we will need to figure out why that's the case . BP-PRD LINK_LETTERS_MISSED Your Automated Test has completed .
+
+[2025-09-19 08:59] RE: CORE Stand-up 9/19  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+ATK HyperCare - Core Implementations . HCCI-25 Unapplied credit card payments . customers to be reviewed for special circumstances. Asking Kerri’s help. cds001clfadv200 has been restored on the server .
+
+[2025-09-19 15:17] RU-ACC and TF-ACC - list (in progress)   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=212E8D59BC2747549BCE0A30DEC8DA76-BRENDA L BL
+RU-ACC all generate the error of "OOPS, that page does not exist" when clicking on the My Orders, blue renew button . the offer should be 1 year for $54.99, and the 3 renewal updates have not changed that it is showing a 1 year and 2 year offer .
+
+[2025-09-19 15:19] FW: NUB ECR/NET error 9-16  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B0BCFF5FFB634B98A1472D1D9ED07C53-ALLEN, JESS
+Jess Jessica Allen | Client Manager | CDS Global, Inc . we have always had trouble with orders for these keys coming through correctly . the second one looks to be legit, but the firt one has a test name . please let me know if this needs to be applied .
+
+[2025-09-19 15:26] FW: 1 Error Records and 5 Surplus Records to manually apply from BP migration to Core  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+boozell, Shawna SBoozell@cds-global.com> would rather apply them with correct addresses instead of applying money for 5 people using 1901 Bell Ave . we would prefer to put the money on a correct address in case they contact us later .
+
+[2025-09-19 16:25] CORE Status Update - TOP 5 - 9/19 update  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=2943BA5D03694197B84E79D970E52103-RUFFOLO, MI
+the new Republic * Go-Live: Postponed. New Date being vetted . 3 failed tests (-2), 49 blocked tests (+27), 113 waiting to be tested (-49). Added 26 tickets * 7 that pertain to ALL clients * 5 ATK * 14 TFCCS * Resolved 33 tickets * 2 Critical * 9 Major * 18 Medium * 3 Minor * 1 Unknown Total Issues by category and by priority week Ending 9/19/25 Week Ending : 9/12/25 Issues
+
+[2025-09-22 11:03] TFCCS renewals  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=212E8D59BC2747549BCE0A30DEC8DA76-BRENDA L BL
+no description to show 1 year versus 2 year detail . no description of 1 year or 2 year details . if you have any questions, please contact us at cnn.com/heroes/hershey@yahoo.com . click here for more information .
+
+[2025-09-22 14:11] Re: TFCCS renewals  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=212E8D59BC2747549BCE0A30DEC8DA76-BRENDA L BL
+if there is another list of renewal offers I can use to hammer away, I am finding that most of the accounts that I have are no longer on Core . I mostly only found single renewal examples, and the gift accounts I had don't work anymore . this is the first time a renewal offers have been updated despite 3 weeks of cycles .
+
+[2025-09-22 15:07] Re: TFCCS renewals  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=212E8D59BC2747549BCE0A30DEC8DA76-BRENDA L BL
+if you could wait until tomorrow morning, I can send over the newest files . automation will run in the morning and for the first time in 28 days, all of the processes will be running at once . if there is another list of renewal accounts I can use to hammer away, I am finding that most of the accounts I have are no longer on Core .
+
+[2025-09-23 10:01] RE: Daily progress update  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=78611E9222D74AF4A1FEBE2CBC08AC13-KLYN, CURTI
+TF will be testing renewals this week and should have been informed of the missing or incorrect functionalities they will encounter . u.s. embassy in london, syria, has been notified that applies must run daily regardless of the timing criteria for RU links .
+
+[2025-09-23 10:25] RE: [EXTERNAL] RE: credit policies on system generated keys  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8CC4B7F9636F486098363B36915765A0-KESSLER, AB
+abby Kessler (she/her) Product Manager 1901 Bell Ave Des Moines, IA 50315 T: 515-699-3699 akessler@cds-global.com . is this the case for single renewals as well?
+
+[2025-09-23 10:33] RE: [EXTERNAL] RE: credit policies on system generated keys  -  Tim.Zapawa@advantagecs.com
+Timothy Zapawa tim.zapawa@advantagecs.com forwarded the email to you . if you are not the intended recipient, please contact the sender by reply mail and destroy all copies of the original message . any unauthorized review, use, storage, disclosure or distribution is prohibited .
+
+[2025-09-23 10:39] RE: [EXTERNAL] RE: credit policies on system generated keys  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8CC4B7F9636F486098363B36915765A0-KESSLER, AB
+the email that you forwarded was your response to Haley’s first question below, then she responded with another question . is this the case for single renewals as well? STD is the default for RU, but BP uses STD and STOPCHRG . akessler (she/her) Product Manager 1901 Bell Ave Des Moines, IA 50315 .
+
+[2025-09-23 11:00] Re: [EXTERNAL] RE: credit policies on system generated keys  -  Daryl.Vautour@advantagecs.com
+the Credit Policy Code is tied to the Offer Code, not directly to the Promotion . each renewal key code generated by CIR340 points to an Offer Code defined at the lowest select level . note the same concerns have originated over auto-generated key codes in CIR350 and AMB350 .
+
+[2025-09-23 11:17] Re: [EXTERNAL] RE: credit policies on system generated keys  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=78508E6B699840E3A3DC1BE73CA533D9-BASS, HALEY
+the Credit Policy Code is tied to the Offer Code, not directly to the Promotion . each renewal key code generated by CIR340 points to an Offer Code defined at the lowest select level of the select . 99% confident that’s exactly how it’s working today, given that there shouldn’t be a problem or gap .
+
+[2025-09-23 14:18] Re: TFCCS renewals  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=212E8D59BC2747549BCE0A30DEC8DA76-BRENDA L BL
+RU-ACC accounts are all returning the same 1 year and 2 year renewal offers . 184901/NP182AA ________________________ . this is one example, but they are all doing the same thing . the first 2 .json datasets below are the first to be updated .
+
+[2025-09-23 14:23] Re: TFCCS renewals  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=212E8D59BC2747549BCE0A30DEC8DA76-BRENDA L BL
+184901/NP182AA The promotion in the json - "PromotionChoice": "SR1YR$99.97ROW", The promo codes in the dev tools . RU-ACC, these accounts are all returning the same 1 year and 2 year renewal offers . here is one example, but they are doing the same thing .
+
+[2025-09-24 09:05] Fw: New Republic renewal issues - Incorrect Prices  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=212E8D59BC2747549BCE0A30DEC8DA76-BRENDA L BL
+this is what I sent to Marc yesterday for RU-ACC, showing the wrong renewal offers in Global Care . none of the renewals I tested are matching the promotion terms and values that are on Core . I will also forward what I send to Marc last Friday that were other issues . this is one example, but they are all the same .
+
+[2025-09-24 09:08] RU-ACC other renewal issues   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=212E8D59BC2747549BCE0A30DEC8DA76-BRENDA L BL
+RU-ACC all generate the error of "OOPS, that page does not exist" when clicking on the My Orders, blue renew button . the offer should be 1 year for $54.99, and the 3 renewal updates have not changed that it is showing a 1 year and 2 year offer .
+
+[2025-09-24 09:14] Re: New Republic renewal issues - Incorrect Prices  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=C13414519F2343B2BAAB27267E83DF57-CEDCCDF5-86
+Scott Wanhala Sr Product Owner scott.wanhala@cds-global.com . this is what I sent to Marc yesterday for RU-ACC . none of the renewals I tested are matching the promotion terms and values that are on Core .
+
+[2025-09-24 09:33] Re: New Republic renewal issues - Incorrect Prices  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=212E8D59BC2747549BCE0A30DEC8DA76-BRENDA L BL
+Jason Forret will have ideas on how to resolve what appears to be an odd caching issue from Core to Global Care . this is what I sent to Marc yesterday for RU-ACC, showing the wrong renewal offers in Global Care. Basically, none of the renewals I tested are matching the promotion terms and values that are on Core .
+
+[2025-09-24 09:35] Re: New Republic renewal issues - Incorrect Prices  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=C13414519F2343B2BAAB27267E83DF57-CEDCCDF5-86
+Jason is out on PTO sadly till early next week so bit of a pickle . but will un-cover the issue and see where its steming from to get a Dev to fix if needed . Hopefully Jason forret will have ideas on how to resolve what appears to be an odd caching issue from Core to Global Care .
+
+[2025-09-24 09:46] TF-ACC renewal issues  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=212E8D59BC2747549BCE0A30DEC8DA76-BRENDA L BL
+there are a few of what I forwarded to Marc last Friday for First Church . there are no descriptions to show 1 year versus 2 year detail . if you have any questions, please contact me at cnn.com/heroes/hershey@gmail.com .
+
+[2025-09-24 15:15] [JIRA] (CMT-644) AMB410 ends in error in RU-ACC - suspensions across terms  -  jira@cds-global.atlassian.net
+Levi Hyssong made 3 updates, added a new comment, updated a comment . core MT / CMT-644 ends in error in RU-ACC . suspensions across terms https://secure.gravatar.com/avatar/c2bfff0efb3815b114ae03fc94a2dadd2?d=https%3A%2Favatar-management--avatars.us-west-2.prod
+
+[2025-09-25 09:32] TF Canadian taxes  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=550C2A8BF2074F48AC3D704B1921350A-KRIS S DUER
+TF is setup like RU and Template: Kris Duerkes Senior Account Analyst Client Services kduerkes@cds-global.com . TF has a RU account and template: Kris duerkes is a senior account analyst client .
+
+[2025-09-26 07:53] Automatic reply: Daily progress update  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=78611E9222D74AF4A1FEBE2CBC08AC13-KLYN, CURTI
+all, I will be out of the office September 26th returning to the office . I will answer your email upon my return or sooner . thanks, Curtis, for sharing your email with us on cnn ireport . click here for all the latest news .
+
+[2025-09-26 10:11] FW: TF-ACC renewal examples that submit, but get an error on the confirmation page.   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=6BD1891770D34302A775B8C8A1B0BBDF-WHITE, EILE
+Eileen White vice president Client Services 1901 Bell Avenue Des Moines, IA 50315 M: 515.360.1785 ewhite@cds-global.com . Adding Ike and Isaiah IBrown for visibility . I also get an error on the confirmation page in Global Care .
+
+[2025-09-26 14:27] [JIRA] (CMT-476) iCare testing for RU-SINREPLACE promotion code & Donation Promotion Codes  -  jira@cds-global.atlassian.net
+scott.wanhala adds a new comment . iCare testing for RU-SINREPLACE promotion code . download the Jira Cloud app for Android https://play.google.com/store/apps/details?id=com.atlassian.android.jira.core&referrer=utm_source .
+
+[2025-09-26 15:42] RE: CORE Status Update - TOP 5 - 9/26 update  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=2943BA5D03694197B84E79D970E52103-RUFFOLO, MI
+HCCI-49 ACTIVE CUSTOMER VARIANCE BETWEEN EHUB & QUICKSIGHT – Jayram TED 9/24 . 2 failed tests, 47 blocked tests (-2), 113 waiting to be tested (-38). the new Republic * Go-Live: Postponed. New Date being vetted .
+
+[2025-09-29 08:29] RE: CORE Stand-up  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=78611E9222D74AF4A1FEBE2CBC08AC13-KLYN, CURTI
+HyperCare * ATK * Critical * HCCI-48 ACTIVE CUSTOMER VARIANCE BETWEEN EHUB &QUICKSIGHT – Jayram TED 9/24 – Update? * Medium & Minor * HSCI-27 WH Hard Decline workflow rule * 9/18: Issue unique to BP-PRD .
+
+[2025-09-29 08:52] Re: CORE Stand-up  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=72F89B944CE54C669FE7C0DB4A1B1D0F-KERRI R WAG
+RU & TF are testing for RU-sINREPLACE promotion code . target end date has been changed to 8/29/25 . iCare is working in QA and BA icare . new tickets are https://cds-global.atlassian.net/browse/CMT-789 .
+
+[2025-09-29 09:25] RE: SUGOO Tickets Related to Global Care  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=78611E9222D74AF4A1FEBE2CBC08AC13-KLYN, CURTI
+RU SUGOO tickets related to global care are all related to both TF and RU . we can link CMT tickets as well for tracking, if needed . more tickets will be opened as we work through our high level findings and determine how to break them down after testing .
+
+[2025-09-29 09:35] Re: SUGOO Tickets Related to Global Care  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=C13414519F2343B2BAAB27267E83DF57-CEDCCDF5-86
+this is the blocker story: SUGOO-4718 “Core Implement Geo-Pricing, Taxation Rules” * Once this is flush out with all final decisions from Core we can have the GC dev team update Global Care and it will resolve the following stories . this will be resolved on Thursday 10/2 .
+
+[2025-09-29 13:29] Re: SUGOO Tickets Related to Global Care (SUGOO-4718 - no client label)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=C13414519F2343B2BAAB27267E83DF57-CEDCCDF5-86
+@derifield, Jacob mailto:Jacob.Derifeld@cds-global.com> and the core team to define the rules for Geo pricing, taxation rules, regional restrictions = We can make the update to Global Care . @Strahl, Sherry, SStrahl and scott wanhala are connected to 4718 .
+
+[2025-09-29 13:39] FW: SUGOO Tickets Related to Global Care (SUGOO-4718 - no client label)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+the core team to define the rules for Geo pricing, taxation rules, regional restrictions = We can make the update to Global Care . @derifield, Jacob mailto:Jacob.Derifeld@cds-global.com> there are couple connected bugs to 4718 .
+
+[2025-09-29 14:06] RE: SUGOO Tickets Related to Global Care (SUGOO-4718 - no client label)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=635967D30101475996B71DEE8DF72813-STRAHL, SHE
+SUGOO-4718 – ‘blocks’ the following 3 tickets per Jira – no client label – please add ‘TF’ label on ticket; also comment if required for TF to Go Live (if you add that label); if not needed, comment . if there is a work around * TF-4796 – RU – Open – No TED – should this be labelled for tv as well? if so, update ticket in . Jir
+
+[2025-09-29 16:45] RE: SUGOO Tickets Related to Global Care (SUGOO-4718 - no client label)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+Scott and Curt have added comments/rules to the ticket . I guess I may be at sort of a loss, but maybe this is then taken care of or I need someone to help me understand what is still outstanding . i know Kris setup much of the taxation rules . but, that's as far as my knowledge goes .
+
+[2025-09-30 08:08] [RU Request 266649] RU-ACC- BILLS AND RENEWALS  -  trackit@cds-global.com
+request name: RU-ACC- BILLS AND RENEWALS Request Type: Core - Core Question or Issue Status: Support New System: Core Requested Due: 09/30/2025 Your team (or product owners) should review, get ballparks, prioritize and justify this request . or your team can also complete or cancel this request.
+
+[2025-09-30 08:16] Re: Core: Select Set Output Review - Lettershop & Marigold (Tues)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=EE3988D7B6284D6AB0D5E6BE3A74FDE1-BELOKOPITOV
+the client is asking for more accounts to look at to verify they are happy with how it works . 71 programs 54 with the client or going soon 80% 9 in DEV with DDT 8 with QC 4. Karen is working with Barb on the GACK and the choice we should be seeing in the file and aren't .
+
+[2025-09-30 08:53] RE: CORE Stand-up 9/30  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+9/30 CMT tickets identified as Blocker, Critical or Major ALL clients - 9 ATK - 4 RU - 5 TF - 13 ATK HyperCare - Core Implementations . HCCI-54 Cannot run Data Quality Tests in BP-PRD; continues with spinning circles .
+
+[2025-10-01 08:22] RE: CORE Stand-up 10/1  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+10/1 CMT tickets identified as Blocker, Critical or Major ALL clients - 9 ATK - 2 RU - 7 TF - 12 ATK HyperCare - Core Implementations . CDS Global is waiting on payload so we can start the Omnistream file .
+
+[2025-10-01 10:03] [EXTERNAL] Hearst Tech Academy - Announcements: Check Out Our October 2025 Offerings!  -  notifications@hearst-techacademy.brightspace.com
+Hearst Tech Academy - Announcements: Check Out Our October 2025 Offerings! Posted Wednesday, October 1, 2025 11:00 AM EDT Instructor-Led Training: * Azure Data Fundamentals: October 16-17 . it is critical to evaluate the policies and guardrails around acceptable use of this technology .
+
+[2025-10-01 11:14] Changes to EOM Jobstreams  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=7721F426786A49BF98BBEA79C2BDBC26-87F3E0C3-D5
+CDSGEOML * Remove the CDSLOK process CLIRPTKG * Add the ARP53L process . these jobstreams will have to be rescheduled after making these changes . if you have any questions, please feel free to contact Andrew Skalicky .
+
+[2025-10-01 11:37] RE: Changes to EOM Jobstreams  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+we updated TF-E2E and TF ACC, sorry that wasn’t communicated, that was on me . can you make the changes to the other area types in TF please? TF has the ARP531 process, but not the aRP53L process?
+
+[2025-10-01 11:41] RE: Changes to EOM Jobstreams  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+Derifield, Jacob Jacob.Derifield@cds-global.com> . BP should be updated already as that was the first one we changed . I can update BP too since Corey is out today . thanks for checking TF .
+
+[2025-10-01 12:57] [JIRA] scott.wanhala mentioned you on CMT-789  -  jira@cds-global.atlassian.net
+scott.wanhala mentioned you on a work item . iCare TF-ACC & TF E2E promotion code . all the choices are of the Subscription order type, "productType": "Subscription" . the promotion codes are showing promotion code choices in a TF .
+
+[2025-10-01 15:26] NUBRN001  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=4E8F309F0B1343F486285E19ABCE4FC8-TARA J SINC
+RN001 is for the CanFor efforts 4 & 7 only . the program is currently set up for effort 1-9, should we clean up this program and delete all the unused efforts . Tara Sinclair Senior Document Design Analyst Document Technologies Phone (515) 699-3758 .
+
+[2025-10-01 16:44] RU Event Based Triggered Emails.   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+I have all the correct event based triggered email workflow rules set up in CORE . I understand you won’t know what the workflow rule code is . but I was hoping with the description it might help you determine if you can tell if we have all our bases covered .
+
+[2025-10-02 07:03] [JIRA] Daryl Vautour mentioned you on CMT-808  -  jira@cds-global.atlassian.net
+Core MT / CMT-808 https://cds-global.atlassian.net/browse/CMT808?actionerId=557058%3A0d61142e-18d2-4eb6-a11d-34902fb1b929&sourceType=mention> Review file folder permissions . most users should have very limited delete permissions, which makes sense for stability and security .
+
+[2025-10-02 07:58] RE: Daily progress update  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+RU production log w/ Nevzeta * CDS260 is erroring out in RU causing overnight processes not to run . the belief is this error was caused by issues with an AMB340 code deployment . if it does, DO NOT CLOSE OUT THE PROCESS .
+
+[2025-10-02 08:49] RE: CORE Stand-up 10/2  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+HCCI-48 ACTIVE CUSTOMER VARIANCE BETWEEN EHUB & QUICKSIGHT – Jayram TED 9/24 – Update? 9/29-data issue has been resolved, reporting team continuing work on this item .
+
+[2025-10-02 10:54] Schedule Update: TF - Migration to Core  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=91503FECFF2F4B4DBBB06347F299AF2B-CDS_GLOBAL,
+#54 Migration to Core Schedule Updated 10/02/25 Client: The First Church of Christ, Scientist (TFCCS) to TF Products: eHub to Core: Concord Online (A29) to CNO time-based CS Monitor (A31) . new #54 migration to core Schedule updated 10/14/25 .
+
+[2025-10-02 14:35] Monthly maintenance times for Core servers - Teams message  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+monthly maintenance times for CORE servers General - ACS-CDS Global Solomon, T.J.Tollefson, SarahReszel, PeterStrahl, Sherry Posimsetti, Narendra Prasad (Contractor) Merugu, Yelender (Contracctor)Davis, Amy We are defining monthly maintenance windows for Core development and production servers to allow for updates/upgrades, major changes, troubleshooting and reboots .
+
+[2025-10-02 14:56] [JIRA] (CMT-771) iCare TF-E2E CIR cancels with reason code Correction erroring  -  jira@cds-global.atlassian.net
+Curt Klyn added a new comment . iCare TF-E2E CIR cancels with reason code Correction erroring . it appears as if it’s set-up in ACS as CORR . download the Jira Cloud app for Android .
+
+[2025-10-02 15:42] [JIRA] (CMT-789) iCare TF-ACC & TF-E2E Promotion Code SINREPLACE, XREPLACE, FXREPLACE, INET, WHOLESALE, WHOLESALEI, WATS, WHITE & HOUSE have no choices loaded for PRO items  -  jira@cds-global.atlassian.net
+Kerri Wagner made 2 updates, added a new comment . Core MT / CMT-789 have no choices loaded for PRO items . iCare TF-ACC & TF2-E2E Promotion Code SINREPLACE, XREPLACACE, FXREPACE, INET, WHOLESALE, WHOLEALEI, WATS, WHITE & HUSE have no choice loaded .
+
+[2025-10-02 15:48] [JIRA] (CMT-771) iCare TF-E2E CIR cancels with reason code Correction erroring  -  jira@cds-global.atlassian.net
+Kerri Wagner 1 made an update, added a new comment . iCare TF-E2E CIR cancels with reason code Correction erroring . I am closing this one. Apparently I opened this one twice . abby responded in https://cds-global.atlassian.net/browse/CMT-782 .
+
+[2025-10-02 16:09] Re: Monthly maintenance times for Core servers - Teams message  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=6C27FDCEC6FE45C5A217E34E2635B7DA-COREY D REI
+we'd have to set up three separate schedules to accommodate the 11:00 pm end time of the production maintenance that happens once a month . the second would be at 11:15 pm on the first, second, fourth and last Thursdays of the month The third would be on the third, second and fourth Thursdays . I really don't think we want to have three schedules and should just look at moving the EOD back to an 11.15 pm run time across the board.
+
+[2025-10-03 07:08] Fw: TF-Data Quality Tests  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0B5BB1BEFAED49BBAB42A8CB81DD74A5-2836CB1C-5E
+Rob Nutt Technical Client Consultant CDS Global 1901 Bell Avenue Des Moines, IA 50315 . TF-Data Quality tests are updated in TF, along with select sets, jobstreams and workflow rules . still in process of cleaning up spreadsheets .
+
+[2025-10-03 08:42] CORE Stand-up 10/3  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+HCCI-48 ACTIVE CUSTOMER VARIANCE BETWEEN EHUB & QUICKSIGHT – Jayram TED 9/24 – Update? 9/29-data issue has been resolved, reporting team continuing work on this item .
+
+[2025-10-03 08:58] RE: CORE Stand-up 10/3  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+CMT-692 Activity Statements for TF has been CLOSED . client approved the latest samples! TEAMS! Woohoo! from: Boozell, Shawna SBoozell@cds-global.com .
+
+[2025-10-03 11:21] RE: RU Event Based Triggered Emails.   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=69B3E84EF57A42AB88128B72A9E070FB-RICHT, LORI
+the below looks good to me @brown, Isaiah mailto:IBrown@cds-global.com> can you take a look too . can you help me confirm I have all the correct event based triggered email workflow rules set up in CORE? I understand you won’t know what the workflow rule code is .
+
+[2025-10-03 11:53] RE: TF-Data Quality Tests  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+Shawna From: Adair, Rachael Rachael.Adair@cds-global.com: mailto:SBoozell.adair.com> > Sent: Friday, October 3, 2025 10:56 AM . if we can target to have these setup and ready to test, that would be great .
+
+[2025-10-03 12:13] RE: RU Event Based Triggered Emails.   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B81A56ACEA4F4151BC1A0352843F99BE-ISAIAH A BR
+Isaiah Brown Director – Engage Front End Web Development Tel (515) 362-3465 ibrown@cds-global.com . he has never seen this table before . the below looks good to me @Brown, Isaiah .
+
+[2025-10-03 12:16] RE: RU Event Based Triggered Emails.   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+Isaiah Brown Director – Engage Front End Web Development Tel (515) 362-3465 ibrown@cds-global.com . the descriptions are ones the CORE team(Toby, Will, or me) created . they all look logical to me and make sense based off the match workflow code .
+
+[2025-10-03 12:17] RE: RU Event Based Triggered Emails.   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B81A56ACEA4F4151BC1A0352843F99BE-ISAIAH A BR
+Isaiah Brown Director – Engage Front End Web Development Tel (515) 362-3465 ibrown@cds-global.com . the descriptions are ones the CORE team(Toby, Will, or me) created . this is from the workflow rule view in CORE .
+
+[2025-10-03 12:31] RE: TF-Data Quality Tests  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=1F0D981B41AE4E938C91E43FE31F10E9-97A8D961-6E
+Boozell, Shawna SBoozell@cds-global.com> Sent: Friday, October 3, 2025 11:53 AM to: Adair, Rachael Rachael.Adair@cc: Derifield, Jacob Jacob.Derifield@cls.global> . if we can target to have these setup and ready to test as of next Wednesday, that would be great .
+
+[2025-10-03 13:57] TF Updated Schedule  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=91503FECFF2F4B4DBBB06347F299AF2B-CDS_GLOBAL,
+line Item: eHub ‘Last money transactions (orders, recurs)’ was removed . this will happen once online order pages are redirected . #47 was changed from 7am to 12 noon Migration to Core Schedule Updated 10/02/25 Client: The First Church of Christ, Scientist (TFCCS)
+
+[2025-10-03 16:16] RE: RU Event Based Triggered Emails.   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B81A56ACEA4F4151BC1A0352843F99BE-ISAIAH A BR
+Isaiah Brown Director – Engage Front End Web Development Tel (515) 362-3465 ibrown@cds-global.com . the descriptions are ones the CORE team(Toby, Will, or me) created . they look logical to me and make sense based off the match workflow code .
+
+[2025-10-03 16:47] RE: RU Event Based Triggered Emails.   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+order confirmation workflow rule is inactive on TF-PRD . Isaiah brown director – Engage Front End Web Development Tel (515) 362-3465 ibrown@cds-global.com . the description is ones the CORE team(Toby, Will, or me created .
+
+[2025-10-03 18:34] Re: RU Event Based Triggered Emails.   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=69B3E84EF57A42AB88128B72A9E070FB-RICHT, LORI
+the order confirmation workflow rule as inactive on TF-PRD, not sure why, but I’ve activated it if you want to test again . I placed a prod. order on an acquisition page yesterday but my order conf email never came through for TF .
+
+[2025-10-03 23:45] RE: CORE Status Update - TOP 5 - 10/3 update  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=2943BA5D03694197B84E79D970E52103-RUFFOLO, MI
+ATK * Live Date: 9/15/25 * 57 (+5) Issues opened since 9/15 * 16 remain Critical * HCCI-49 ATK Database Feed - Fields over Max Length – Jayaram TED 9/3 . ACS/Hasey TED 10/1 Major . we have 0 failed tests (-2), 2 blocked tests (-47), 69 waiting to be tested (-44)
+
+[2025-10-04 09:00] RE: RU Event Based Triggered Emails.   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+TF isn’t technically live, but it’s a manual process . once we go live the production area will be restricted to only allow a select few the access to flip it to active/inactive . are there any messages that you guys get when workflow becomes inactive? Get Outlook for iOS .
+
+[2025-10-04 10:20] RE: Daily progress update  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+Jacob Derifield has added 4 hours PTO to Friday morning appointments . RU prod log is working through master schedule for RU to determine scheduling post-go live . reviewing RU tickets that will need tracked ahead of RU go live now that approaching 1 month potential go live date .
+
+[2025-10-06 08:30] RE: RU Event Based Triggered Emails.   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B81A56ACEA4F4151BC1A0352843F99BE-ISAIAH A BR
+Isaiah Brown Director – Engage Front End Web Development Tel (515) 362-3465 ibrown@cds-global.com . no email, it’s a manual process . because TF isn’t technically live, I’m sure that is why it was inactive, once we go live the production area will be restricted to only allow a select few the access to flip it to active/inactive .
+
+[2025-10-06 08:47] CORE Stand-up 10/6  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+ATK HyperCare - 17 OPEN * 4 Critical * 5 Major * Critical * HCCI-38 Auto recur keys missing part of promocode & large number of customers were overcharged which need a partial refund . CDS Global is waiting on payload so we can start the Omnistream file .
+
+[2025-10-06 09:44] RE: RU Event Based Triggered Emails.   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+Isaiah brown director – Engage Front End Web Development Tel (515) 362-3465 ibrown@cds-global.com> . he test again and no email . the endpoint for production wasn’t completed . I have it ready now. you should receive the email call now .
+
+[2025-10-06 09:48] RE: RU Event Based Triggered Emails.   -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=B81A56ACEA4F4151BC1A0352843F99BE-ISAIAH A BR
+Isaiah Brown Director – Engage Front End Web Development Tel (515) 362-3465 ibrown@cds-global.com . the endpoint for production wasn’t completed. I have it ready now . I refired the workflow action, you should receive the email call now.
+
+[2025-10-06 12:12] FW: [EXTERNAL] Inventory for TFCCS at cutover  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+Brent Mealey (He, Him) Sr. Technical Client Consultant 1901 Bell Ave Des Moines, IA 50315 T: 5154715912 bmealey@cds-global.com> . Boozell, Shawna sboozell@advantagecs.com >; Klyn, Curt Curt.Klyn . cc: Mike Hasey; Mark Sauter Mark.Sauter .
+
+[2025-10-06 15:41] [JIRA] (SUGOO-4795) [Global Care] RU Renewal Page Showing Wrong Offer  -  jira@cds-global.atlassian.net
+clicking the Renew Now button takes you to a page showing two renewal offers . the incorrect rate on the 1 year offer has been fixed as part of the promotion inquiry on the last renewal promotion on the order . however, there are 2 offers being returned from a promotion inquiry, so having 2 offers would be expected .
+
+[2025-10-06 16:03] [TF Request 266776]  Task: WMS Inventory Set up for COre  -  trackit@cds-global.com
+Cynthia Vercher assigned a task to your team (Client Services - Core Team Requests) the details are as follows: System: Core Request Name: WMS Inventory Set up for COre Request Type: Request Due Date: Request Owner: Cynthia Verscher Task desc: WMM Inventory Setup for CORe Task Type: Support Status: New Click on the link below to view the task: https://www.mycdsglobal.com/Trackit/LoginServlet?page=EditTask
+
+[2025-10-06 16:05] [JIRA] (SUGOO-4795) [Global Care] RU Renewal Page Showing Wrong Offer  -  jira@cds-global.atlassian.net
+scott.wanhala adds a new comment . would like to always place a $ in front of any money amounts . this would need to be fixed by WSG . if WSG make the update on their end to show currency by country (U.S. / Canada / Row)?
+
+[2025-10-06 16:10] [JIRA] (SUGOO-4795) [Global Care] RU Renewal Page Showing Wrong Offer  -  jira@cds-global.atlassian.net
+abby Kessler added a new comment . ________________________________ . Open the work item to view attachments over 100 . Get Jira notifications on your phone! Download the .jira notification on your . phone!
+
+[2025-10-07 08:39] CORE Stand-up 10/7  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+cds-global.atlassian.net/jira/software/c/projects/HCCI/issues?jql=project%20%20%22HCCI%22%20ORDER%20created%20DESC> HyperCare 10/7 ATK - 18 OPEN * 4 Critical * 5 Major * Critical * HCCI-38 Auto recur keys missing part of promocode & large number of customers were overcharged .
+
+[2025-10-07 12:26] [JIRA] scott.wanhala mentioned you on SUGOO-4807  -  jira@cds-global.atlassian.net
+scott.wanhala mentioned you on a work item ________________________________ . he said you were a team and need further details in order to de-bug . can you share screen shots of the bug issues within Core that were affecting RU?
+
+[2025-10-07 12:32] RE: BP-PRD CUSTOMERS WITH DUPLICATE AGREEMENTS  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+boozell, Shawna SBoozell@cds-global.com>; DL CDS Global Core AVENGERS coreavengers . I believe Sue has reached out to Deb about how ATK wants us to handle duplicates thanks Jake Klopfenstein (He/Him) Core Support – Sr. Systems Account Analyst 1901 Bell Avenue Des Moines, IA 50315 .
+
+[2025-10-07 12:32] [JIRA] (SUGOO-4775) (S) [Global Care] Core TFCCS Agreements and subscription details missing from the Global Care  -  jira@cds-global.atlassian.net
+scott.wanhala added a new comment . download the Jira Cloud app for Android . 'i'm not sure what to do' - a 'sw2track' app . click here to view the work item . the 'jira cloud' app is available for android .
+
+[2025-10-07 13:34] RU EOM - CLIRPTKG  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=8C914D80F86A4B51BE8E2DC44842DA18-TEMPLETON,
+we had a change to the output for jobstream CLIRPTKG . can you reschedule this jobstream? Thank you, Carey Templeton Software Quality Assurance Analyst CDS Global . if you have any questions, please contact us at cnn.com .
+
+[2025-10-07 14:10] RE: Core: Select Set Output Review - Lettershop & Marigold (Tues)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+if there are no items to discuss I can cancel today’s meeting . a small number of people have a conflict, with a daily standing meeting that has risen in preparation for the TF migration to Core . have not included ACS attendees at this time, however as we see they are needed we can add them in .
+
+[2025-10-07 14:12] [JIRA] (CMT-832) Cycle end error after deploying adjusted batch updates to extended distribution tables  -  jira@cds-global.atlassian.net
+sherry Strahl 1 made an update _________________________ Core MT . https://cds-global.atlassian.net/browse/CMT-832> Cycle end error after deployment adjusted batch updates to extended distribution tables . Download the Jira Cloud app for Android .
+
+[2025-10-07 14:13] Re: Core: Select Set Output Review - Lettershop & Marigold (Tues)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=EE3988D7B6284D6AB0D5E6BE3A74FDE1-BELOKOPITOV
+we just sent a Transaction file from WMS - Testing TF single copy confirmations and inventory changes . Jacob is talking about a file change that I don't know the impact of right now . he's talking about the change that he has .
+
+[2025-10-07 14:15] RE: Core: Select Set Output Review - Lettershop & Marigold (Tues)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH
+if there are topics to discuss I am good with leaving the meeting scheduled . just know there may be some individuals who may not be able to attend . the meeting will be held on tuesday, October 7, 2025 at 9 p.m. et .
+
+[2025-10-07 14:17] Re: Core: Select Set Output Review - Lettershop & Marigold (Tues)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=EE3988D7B6284D6AB0D5E6BE3A74FDE1-BELOKOPITOV
+Lori Belokopitovs director |Document Technologies | Wilton Client Services ________________________ . he's good to cancel him, but he will be re-signing him . the cds-global.com director has been resigning from his job .
+
+[2025-10-07 14:18] Re: Core: Select Set Output Review - Lettershop & Marigold (Tues)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=74ACC30CB6544FC8BD740FACF58E0CBC-JOE M FAZIO
+Joe Fazio | Sr. Systems Consultant | CDS_LSO Group Label, Selection, Output . Date: Tuesday, October 7, 2025 at 2:15 PM . so will need to jump off by then if the meeting is kept . cds-global.com has a quick meeting at 245 .
+
+[2025-10-07 14:18] Re: Core: Select Set Output Review - Lettershop & Marigold (Tues)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=F0E1D5E9A046461F9FA6D42923A65657-MARYBELLE P
+________________________________ ______________ . he is good to cancel Marybelle 515-471-5943 . she was resigned from the cds-global.com office . but she has been re-elected to the senate .
+
+[2025-10-07 14:21] Re: Core: Select Set Output Review - Lettershop & Marigold (Tues)  -  /O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0FF4C3191605417EB3FDD797AF17C952-COFFMAN, JI
+jill.reha@cds-global.com is good to cxl Jill M Reha Technical Client Consultant . he is a client consultant at ccsl's web site . the client consultant has a reputation as a consultant .
+
+[2025-10-07 14:27] [JIRA] (SUGOO-4795) [Global Care] RU Renewal Page Showing Wrong Offer  -  jira@cds-global.atlassian.net
+scott.wanhala made 4 updates ________________________ Subscription - Goonies . http://cds-global.atlassian.net/browse/SUGOO-4795 . [Global Care] RU Renewal Page Showing Wrong Offer .
+
+[2025-10-07 14:37] [JIRA] (CMT-832) Cycle end error after deploying adjusted batch updates to extended distribution tables  -  jira@cds-global.atlassian.net
+Core MT https://cds-global.atlassian.net/browse/CMT-832> Cycle end error after deployment adjusted batch updates to extended distribution tables . download the Jira Cloud app for android .

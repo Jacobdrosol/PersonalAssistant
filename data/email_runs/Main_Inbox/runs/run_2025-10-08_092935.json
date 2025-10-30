@@ -1,0 +1,88 @@
+{
+  "run_token": "2025-10-08_092935",
+  "config_id": "Main_Inbox",
+  "profile_name": null,
+  "include_folders": [
+    "Jacob.Derifield@cds-global.com/Inbox"
+  ],
+  "include_subfolders": true,
+  "started_at": "2025-10-08T09:29:35",
+  "completed_at": "2025-10-08T09:30:29",
+  "cancelled": false,
+  "inserted_count": 10,
+  "summarized_count": 10,
+  "summary_path": "C:\\Users\\jderifield\\Documents\\CDS Projects\\Personal Assistant\\Version 1.0\\data\\email_runs\\Main_Inbox\\summaries\\summary_2025-10-08_093024.txt",
+  "brief_summary": "this new Extended Distribution field (TotalAmount) will capture tax + unit price, which I believe is valuable for locations that use VAT (e.g., Canada, Europe) Lori indicated she\u2019s not comfortable with this field and perceives it would be disruptive . but this request did come from the lettershop . RU believes this would apply as an issue where they are coming up all under the same title .",
+  "inserted_records": [
+    {
+      "id": "00000000FAD97FD23179014F83B84378F07986EB070060B80B77C3B4A44F83936CBF1484018200000000010C000060B80B77C3B4A44F83936CBF1484018200007CDDCAB90000",
+      "subject": "[JIRA] Daryl Vautour mentioned you on CMT-683",
+      "sender": "jira@cds-global.atlassian.net",
+      "folder": "Jacob.Derifield@cds-global.com/Inbox",
+      "received_time": "2025-10-07T15:44:10+00:00"
+    },
+    {
+      "id": "00000000FAD97FD23179014F83B84378F07986EB070060B80B77C3B4A44F83936CBF1484018200000000010C000060B80B77C3B4A44F83936CBF1484018200007CDDCABC0000",
+      "subject": "Re: RU & TF Cycle End Data Quality Tests",
+      "sender": "/O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=AA36727841EE46A889D8C644C43EC540-KLOPFENSTEI",
+      "folder": "Jacob.Derifield@cds-global.com/Inbox",
+      "received_time": "2025-10-07T15:57:07+00:00"
+    },
+    {
+      "id": "00000000FAD97FD23179014F83B84378F07986EB070060B80B77C3B4A44F83936CBF1484018200000000010C000060B80B77C3B4A44F83936CBF1484018200007CDDCABD0000",
+      "subject": "RE: RU & TF Cycle End Data Quality Tests",
+      "sender": "/O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=1F0D981B41AE4E938C91E43FE31F10E9-97A8D961-6E",
+      "folder": "Jacob.Derifield@cds-global.com/Inbox",
+      "received_time": "2025-10-07T16:38:05+00:00"
+    },
+    {
+      "id": "00000000FAD97FD23179014F83B84378F07986EB070060B80B77C3B4A44F83936CBF1484018200000000010C000060B80B77C3B4A44F83936CBF1484018200007CDDCABE0000",
+      "subject": "[JIRA] (CMT-577) Agency - OSM Error file creation",
+      "sender": "jira@cds-global.atlassian.net",
+      "folder": "Jacob.Derifield@cds-global.com/Inbox",
+      "received_time": "2025-10-07T17:32:09+00:00"
+    },
+    {
+      "id": "00000000FAD97FD23179014F83B84378F07986EB070060B80B77C3B4A44F83936CBF1484018200000000010C000060B80B77C3B4A44F83936CBF1484018200007F29E5970000",
+      "subject": "[JIRA] (CMT-790) iCare cancels not working in RU",
+      "sender": "jira@cds-global.atlassian.net",
+      "folder": "Jacob.Derifield@cds-global.com/Inbox",
+      "received_time": "2025-10-08T06:54:27+00:00"
+    },
+    {
+      "id": "00000000FAD97FD23179014F83B84378F07986EB070060B80B77C3B4A44F83936CBF1484018200000000010C000060B80B77C3B4A44F83936CBF1484018200007F29E5980000",
+      "subject": "[JIRA] (SUGOO-4805) [Global Care] Core TFCCS Renewals showing in-correct",
+      "sender": "jira@cds-global.atlassian.net",
+      "folder": "Jacob.Derifield@cds-global.com/Inbox",
+      "received_time": "2025-10-08T08:01:28+00:00"
+    },
+    {
+      "id": "00000000FAD97FD23179014F83B84378F07986EB070060B80B77C3B4A44F83936CBF1484018200000000010C000060B80B77C3B4A44F83936CBF1484018200007F29E59A0000",
+      "subject": "Correction Updated Winners for October Newsletter Scavenger Hunt ",
+      "sender": "/O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=91503FECFF2F4B4DBBB06347F299AF2B-CDS_GLOBAL,",
+      "folder": "Jacob.Derifield@cds-global.com/Inbox",
+      "received_time": "2025-10-08T08:24:15+00:00"
+    },
+    {
+      "id": "00000000FAD97FD23179014F83B84378F07986EB070060B80B77C3B4A44F83936CBF1484018200000000010C000060B80B77C3B4A44F83936CBF1484018200007F29E59B0000",
+      "subject": "NJY Frequency Change",
+      "sender": "/O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=91503FECFF2F4B4DBBB06347F299AF2B-CDS_GLOBAL,",
+      "folder": "Jacob.Derifield@cds-global.com/Inbox",
+      "received_time": "2025-10-08T08:33:45+00:00"
+    },
+    {
+      "id": "00000000FAD97FD23179014F83B84378F07986EB070060B80B77C3B4A44F83936CBF1484018200000000010C000060B80B77C3B4A44F83936CBF1484018200007F29E59C0000",
+      "subject": "[JIRA] (CMT-790) iCare cancels not working in RU",
+      "sender": "jira@cds-global.atlassian.net",
+      "folder": "Jacob.Derifield@cds-global.com/Inbox",
+      "received_time": "2025-10-08T08:35:53+00:00"
+    },
+    {
+      "id": "00000000FAD97FD23179014F83B84378F07986EB070060B80B77C3B4A44F83936CBF1484018200000000010C000060B80B77C3B4A44F83936CBF1484018200007F29E59D0000",
+      "subject": "CORE Stand-up 10/8",
+      "sender": "/O=EXCHANGELABS/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=0824E7C8FEC44F25857EBFC8B2FDE79F-BOOZELL, SH",
+      "folder": "Jacob.Derifield@cds-global.com/Inbox",
+      "received_time": "2025-10-08T08:47:34+00:00"
+    }
+  ]
+}
