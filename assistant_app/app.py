@@ -55,15 +55,16 @@ class PersonalAssistantApp(tk.Tk):
         self.notebook.pack(fill=tk.BOTH, expand=True)
 
         manage_shortcuts = self._should_manage_shortcut()
-        self.settings_panel = ttk.Frame(self, style="TFrame")
+        self.settings_tab_frame = ttk.Frame(self.notebook, style="TFrame")
         self.settings_tab = SettingsTab(
-            self.settings_panel,
+            self.settings_tab_frame,
             desktop_enabled=self.settings.desktop_shortcut and manage_shortcuts,
             start_menu_enabled=self.settings.start_menu_shortcut and manage_shortcuts,
             on_shortcut_toggle=self._handle_shortcut_toggle,
         )
         self.settings_tab.pack(fill=tk.BOTH, expand=True)
-        self.settings_panel.pack_forget()
+        self.notebook.add(self.settings_tab_frame, text="Settings")
+        self.notebook.tab(self.settings_tab_frame, state="hidden")
 
         self.calendar_tab = CalendarTab(self.notebook, self.db)
         self.scrum_tab = ScrumTab(self.notebook, self.db)
@@ -454,23 +455,26 @@ class PersonalAssistantApp(tk.Tk):
 
     def _show_settings_view(self) -> None:
         self._last_notebook_tab = self.notebook.select()
-        self.notebook.pack_forget()
-        self.settings_panel.pack(fill=tk.BOTH, expand=True)
+        try:
+            self.notebook.tab(self.settings_tab_frame, state="normal")
+        except tk.TclError:
+            pass
+        self.notebook.select(self.settings_tab_frame)
         self._settings_visible = True
         self._sync_settings_button_state()
-
     def _hide_settings_view(self) -> None:
-        self.settings_panel.pack_forget()
-        self.notebook.pack(fill=tk.BOTH, expand=True)
         if self._last_notebook_tab:
             try:
                 self.notebook.select(self._last_notebook_tab)
             except tk.TclError:
                 pass
+        try:
+            self.notebook.tab(self.settings_tab_frame, state="hidden")
+        except tk.TclError:
+            pass
         self._settings_visible = False
         self._sync_settings_button_state()
         self._position_settings_button()
-
     def _sync_settings_button_state(self) -> None:
         if not hasattr(self, "settings_button"):
             return
