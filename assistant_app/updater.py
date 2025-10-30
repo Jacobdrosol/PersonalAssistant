@@ -154,33 +154,32 @@ def _download_asset(url: str, asset_name: str, progress: Optional[ProgressCallba
 
 
 def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
-    quoted_exe = str(executable).replace('"', '`"')
-    quoted_new = str(downloaded).replace('"', '`"')
-    script_content = "\n".join(
-        [
-            f'$exe = "{quoted_exe}"',
-            f'$new = "{quoted_new}"',
-            f"$pid = {os.getpid()}",
-            "while (Get-Process -Id $pid -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 500 }",
-            "Move-Item -Force -Path $new -Destination $exe",
-            "Start-Process -FilePath $exe",
-        ]
-    )
-    script_path = Path(tempfile.mkdtemp(prefix="pa-update-script-")) / "apply-update.ps1"
+    quoted_exe = str(executable).replace('"', '""')
+    quoted_new = str(downloaded).replace('"', '""')
+    script_content = """@echo off
+setlocal
+set "EXE=%s"
+set "NEW=%s"
+set "PID=%d"
+:wait
+tasklist /FI "PID eq %%PID%%" | find "%%PID%%" >nul
+if %%ERRORLEVEL%%==0 (
+    timeout /T 1 /NOBREAK >nul
+    goto wait
+)
+copy /Y "%%NEW%%" "%%EXE%%"
+if exist "%%NEW%%" del /F /Q "%%NEW%%"
+start "" "%%EXE%%"
+exit /B 0
+""" % (quoted_exe, quoted_new, os.getpid())
+    script_path = Path(tempfile.mkdtemp(prefix="pa-update-script-")) / "apply-update.bat"
     script_path.write_text(script_content, encoding="utf-8")
     try:
         subprocess.Popen(
-            [
-                "powershell",
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                str(script_path),
-            ],
+            ["cmd", "/c", "start", "", str(script_path)],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             creationflags=subprocess.DETACHED_PROCESS if hasattr(subprocess, "DETACHED_PROCESS") else 0,
         )
     except FileNotFoundError as exc:
-        raise UpdateError("PowerShell is required to apply updates on Windows.") from exc
+        raise UpdateError("cmd.exe is required to apply updates on Windows.") from exc
