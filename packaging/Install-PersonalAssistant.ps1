@@ -59,6 +59,23 @@ if (Test-Path $iconTarget) {
     $shortcut.IconLocation = "$targetExe,0"
 }
 $shortcut.Save()
+Write-Info "Creating Start Menu shortcut..."
+$startMenu = Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'Microsoft\Windows\Start Menu\Programs'
+if (-not (Test-Path $startMenu)) {
+    New-Item -ItemType Directory -Path $startMenu | Out-Null
+}
+$startShortcutPath = Join-Path $startMenu 'Personal Assistant.lnk'
+$startShortcut = $wsh.CreateShortcut($startShortcutPath)
+$startShortcut.TargetPath = $targetExe
+$startShortcut.WorkingDirectory = $installRoot
+$startShortcut.WindowStyle = 1
+if (Test-Path $iconTarget) {
+    $startShortcut.IconLocation = "$iconTarget,0"
+} else {
+    $startShortcut.IconLocation = "$targetExe,0"
+}
+$startShortcut.Save()
+
 
 Write-Info "Launching Personal Assistant"
 Start-Process $targetExe

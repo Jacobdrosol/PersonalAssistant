@@ -75,3 +75,12 @@ def get_desktop_path() -> Path:
             return Path(desktop) / "Desktop"
         return Path.home() / "Desktop"
     return Path.home() / "Desktop"
+
+
+def get_start_menu_programs_path() -> Path:
+    if sys.platform.startswith("win"):
+        appdata = os.getenv("APPDATA")
+        if appdata:
+            return Path(appdata) / "Microsoft" / "Windows" / "Start Menu" / "Programs"
+        return Path.home() / "AppData" / "Roaming" / "Microsoft" / "Windows" / "Start Menu" / "Programs"
+    return Path.home()

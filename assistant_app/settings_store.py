@@ -8,6 +8,7 @@ from pathlib import Path
 @dataclass
 class AppSettings:
     desktop_shortcut: bool = True
+    start_menu_shortcut: bool = True
 
 
 def load_settings(path: Path) -> AppSettings:
@@ -22,6 +23,7 @@ def load_settings(path: Path) -> AppSettings:
         return AppSettings()
     return AppSettings(
         desktop_shortcut=bool(payload.get("desktop_shortcut", True)),
+        start_menu_shortcut=bool(payload.get("start_menu_shortcut", True)),
     )
 
 

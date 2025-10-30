@@ -156,22 +156,24 @@ def _download_asset(url: str, asset_name: str, progress: Optional[ProgressCallba
 def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
     quoted_exe = str(executable).replace('"', '""')
     quoted_new = str(downloaded).replace('"', '""')
-    script_content = """@echo off
-setlocal
-set "EXE=%s"
-set "NEW=%s"
-set "PID=%d"
-:wait
-tasklist /FI "PID eq %PID%" | find "%PID%" >nul
-if %ERRORLEVEL%==0 (
-    timeout /T 1 /NOBREAK >nul
-    goto wait
-)
-copy /Y "%NEW%" "%EXE%"
-if exist "%NEW%" del /F /Q "%NEW%"
-start "" "%EXE%"
-exit /B 0
-""" % (quoted_exe, quoted_new, os.getpid())
+    script_lines = [
+        "@echo off",
+        "setlocal",
+        f'set "EXE={quoted_exe}"',
+        f'set "NEW={quoted_new}"',
+        f'set "PID={os.getpid()}"',
+        ":wait",
+        'tasklist /FI "PID eq %PID%" | find "%PID%" >nul',
+        'if %ERRORLEVEL%==0 (',
+        '    timeout /T 1 /NOBREAK >nul',
+        '    goto wait',
+        ')',
+        'copy /Y "%NEW%" "%EXE%"',
+        'if exist "%NEW%" del /F /Q "%NEW%"',
+        'start "" "%EXE%"',
+        "exit /B 0",
+    ]
+    script_content = "\n".join(script_lines)
     script_path = Path(tempfile.mkdtemp(prefix="pa-update-script-")) / "apply-update.bat"
     script_path.write_text(script_content, encoding="utf-8")
     try:

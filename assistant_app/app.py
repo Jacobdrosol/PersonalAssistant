@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import subprocess
 import sys
 import threading
 from pathlib import Path
@@ -19,7 +20,14 @@ from .notifications import NotificationManager, NotificationPayload
 from .environment import APP_NAME, ensure_user_data_dir, legacy_project_root
 from .settings_store import AppSettings, load_settings, save_settings
 from .settings_tab import SettingsTab
-from .shortcuts import create_desktop_shortcut, remove_desktop_shortcut, shortcut_exists
+from .shortcuts import (
+    create_desktop_shortcut,
+    remove_desktop_shortcut,
+    desktop_shortcut_exists,
+    create_start_menu_shortcut,
+    remove_start_menu_shortcut,
+    start_menu_shortcut_exists,
+)
 from .version import __version__
 from . import updater
 
@@ -46,12 +54,13 @@ class PersonalAssistantApp(tk.Tk):
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(fill=tk.BOTH, expand=True)
 
-        initial_shortcut_enabled = self.settings.desktop_shortcut and self._should_manage_shortcut()
+        manage_shortcuts = self._should_manage_shortcut()
         self.settings_panel = ttk.Frame(self, style="TFrame")
         self.settings_tab = SettingsTab(
             self.settings_panel,
-            shortcut_enabled=initial_shortcut_enabled and shortcut_exists(),
-            on_desktop_shortcut_toggle=self._handle_desktop_shortcut_toggle,
+            desktop_enabled=self.settings.desktop_shortcut and manage_shortcuts,
+            start_menu_enabled=self.settings.start_menu_shortcut and manage_shortcuts,
+            on_shortcut_toggle=self._handle_shortcut_toggle,
         )
         self.settings_tab.pack(fill=tk.BOTH, expand=True)
         self.settings_panel.pack_forget()
@@ -85,7 +94,7 @@ class PersonalAssistantApp(tk.Tk):
         self.notification_manager = NotificationManager(self.db, self._handle_notification)
         self.after(1000, self.notification_manager.start)
         self.after(2000, self._check_for_updates_async)
-        self.after(250, self._ensure_desktop_shortcut)
+        self.after(250, self._ensure_shortcuts)
 
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
@@ -246,109 +255,104 @@ class PersonalAssistantApp(tk.Tk):
     def _should_manage_shortcut(self) -> bool:
         return sys.platform.startswith("win") and bool(getattr(sys, "frozen", False))
 
-    def _ensure_desktop_shortcut(self) -> None:
+    def _ensure_shortcuts(self) -> None:
         if not self._should_manage_shortcut():
             self.settings.desktop_shortcut = False
-            self.settings_tab.update_shortcut_state(False)
+            self.settings.start_menu_shortcut = False
+            self.settings_tab.update_shortcut_state("desktop", False)
+            self.settings_tab.update_shortcut_state("start_menu", False)
             save_settings(self.settings_path, self.settings)
             return
-        desired = self.settings.desktop_shortcut
-        exists = shortcut_exists()
-        if desired and not exists:
-            if not self._create_desktop_shortcut():
-                self.settings.desktop_shortcut = False
-        elif not desired and exists:
-            if not remove_desktop_shortcut():
-                messagebox.showerror(
-                    "Desktop Shortcut",
-                    "Unable to remove the desktop shortcut.",
-                    parent=self,
-                )
-                self.settings.desktop_shortcut = True
-        current = shortcut_exists()
-        self.settings_tab.update_shortcut_state(current)
-        save_settings(self.settings_path, self.settings)
-
-    def _update_settings_tab_position(self, event: Optional[tk.Event] = None) -> None:
-        if not hasattr(self, "_settings_tab_id"):
-            return
-        try:
-            tabs = self.notebook.tabs()
-        except tk.TclError:
-            return
-        if self._settings_tab_id not in tabs:
-            return
-        try:
-            self.notebook.tab(self._settings_tab_id, padding=self._settings_tab_base_padding)
-            self.notebook.update_idletasks()
-            total_width = 0
-            for tab_id in tabs:
-                try:
-                    bbox = self.notebook.bbox(tab_id)
-                except tk.TclError:
-                    return
-                if not bbox:
-                    return
-                total_width += bbox[2]
-            extra = max(self.notebook.winfo_width() - total_width, 0)
-            pad = (self._settings_tab_base_padding[0] + extra, *self._settings_tab_base_padding[1:])
-            self.notebook.tab(self._settings_tab_id, padding=pad)
-        except tk.TclError:
-            pass
-
-    def _create_desktop_shortcut(self) -> bool:
-        if not self._should_manage_shortcut():
-            return False
         icon = self._icon_path or self._ensure_icon_file()
         if icon is not None and icon.exists():
             self._icon_path = icon
             self._apply_window_icon()
+        target = Path(sys.executable).resolve()
+        if self.settings.desktop_shortcut and not desktop_shortcut_exists():
+            if not self._create_shortcut("desktop", target):
+                self.settings.desktop_shortcut = False
+        elif not self.settings.desktop_shortcut and desktop_shortcut_exists():
+            if not self._remove_shortcut("desktop"):
+                self.settings.desktop_shortcut = True
+        if self.settings.start_menu_shortcut and not start_menu_shortcut_exists():
+            if not self._create_shortcut("start_menu", target):
+                self.settings.start_menu_shortcut = False
+        elif not self.settings.start_menu_shortcut and start_menu_shortcut_exists():
+            if not self._remove_shortcut("start_menu"):
+                self.settings.start_menu_shortcut = True
+        self.settings_tab.update_shortcut_state("desktop", desktop_shortcut_exists())
+        self.settings_tab.update_shortcut_state("start_menu", start_menu_shortcut_exists())
+        save_settings(self.settings_path, self.settings)
+
+    def _create_shortcut(self, kind: str, target: Path) -> bool:
+        icon = self._icon_path or self._ensure_icon_file()
+        if icon is not None and icon.exists():
+            self._icon_path = icon
+            self._apply_window_icon()
+        label = "Desktop Shortcut" if kind == "desktop" else "Start Menu Shortcut"
         if icon is None or not icon.exists():
             messagebox.showerror(
-                "Desktop Shortcut",
+                label,
                 "Unable to locate the application icon for the shortcut.",
                 parent=self,
             )
             return False
-        executable = Path(sys.executable).resolve()
-        success = create_desktop_shortcut(executable, icon)
+        if kind == "desktop":
+            success = create_desktop_shortcut(target, icon)
+        else:
+            success = create_start_menu_shortcut(target, icon)
         if not success:
-            messagebox.showerror(
-                "Desktop Shortcut",
-                "Unable to create the desktop shortcut.",
-                parent=self,
-            )
+            messagebox.showerror(label, f"Unable to create the {label.lower()}.", parent=self)
         return success
 
-    def _handle_desktop_shortcut_toggle(self, enabled: bool) -> None:
+    def _remove_shortcut(self, kind: str) -> bool:
+        if kind == "desktop":
+            return remove_desktop_shortcut()
+        return remove_start_menu_shortcut()
+
+    def _handle_shortcut_toggle(self, kind: str, enabled: bool) -> None:
+        label = "Desktop" if kind == "desktop" else "Start Menu"
         if not self._should_manage_shortcut():
             messagebox.showinfo(
-                "Desktop Shortcut",
-                "Desktop shortcuts are only available in the packaged application.",
+                f"{label} Shortcut",
+                f"{label} shortcuts are only available in the packaged application.",
                 parent=self,
             )
-            self.settings_tab.update_shortcut_state(False)
-            self.settings.desktop_shortcut = False
+            self.settings_tab.update_shortcut_state(kind, False)
+            if kind == "desktop":
+                self.settings.desktop_shortcut = False
+            else:
+                self.settings.start_menu_shortcut = False
             save_settings(self.settings_path, self.settings)
             return
+        target = Path(sys.executable).resolve()
         if enabled:
-            success = self._create_desktop_shortcut()
+            success = self._create_shortcut(kind, target)
             if success:
-                self.settings.desktop_shortcut = True
+                if kind == "desktop":
+                    self.settings.desktop_shortcut = True
+                else:
+                    self.settings.start_menu_shortcut = True
         else:
-            success = remove_desktop_shortcut()
+            success = self._remove_shortcut(kind)
             if not success:
                 messagebox.showerror(
-                    "Desktop Shortcut",
-                    "Unable to remove the desktop shortcut.",
+                    f"{label} Shortcut",
+                    f"Unable to remove the {label.lower()} shortcut.",
                     parent=self,
                 )
+                if kind == "desktop":
+                    self.settings.desktop_shortcut = True
+                else:
+                    self.settings.start_menu_shortcut = True
             else:
-                self.settings.desktop_shortcut = False
-        current = shortcut_exists()
-        self.settings_tab.update_shortcut_state(current)
+                if kind == "desktop":
+                    self.settings.desktop_shortcut = False
+                else:
+                    self.settings.start_menu_shortcut = False
+        self.settings_tab.update_shortcut_state("desktop", desktop_shortcut_exists())
+        self.settings_tab.update_shortcut_state("start_menu", start_menu_shortcut_exists())
         save_settings(self.settings_path, self.settings)
-
     def _register_email_shortcuts(self) -> None:
         bindings = {
             "<Control-n>": self._shortcut_email_new,
@@ -621,6 +625,30 @@ class NotificationWindow(tk.Toplevel):
 
 
 
+
+def _ensure_installed_binary(data_root: Path) -> None:
+    if not getattr(sys, "frozen", False):
+        return
+    expected_exe = data_root / "PersonalAssistant.exe"
+    current_exe = Path(sys.executable).resolve()
+    if current_exe == expected_exe:
+        return
+    expected_exe.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        shutil.copy2(current_exe, expected_exe)
+    except Exception:
+        return
+    icon_source = current_exe.with_name("personal_assistant.ico")
+    icon_target = data_root / "personal_assistant.ico"
+    if icon_source.exists():
+        try:
+            shutil.copy2(icon_source, icon_target)
+        except Exception:
+            pass
+    args = sys.argv[1:]
+    subprocess.Popen([str(expected_exe), *args])
+    sys.exit(0)
+
 def _migrate_legacy_data(data_root: Path) -> None:
     legacy_root = legacy_project_root()
     legacy_db = legacy_root / "assistant_app" / "assistant.db"
@@ -668,6 +696,7 @@ def _rewrite_email_run_paths(base_dir: Path) -> None:
 def main() -> None:
     data_root = ensure_user_data_dir()
     _migrate_legacy_data(data_root)
+    _ensure_installed_binary(data_root)
     settings_path = data_root / "settings.json"
     settings = load_settings(settings_path)
     db_path = data_root / "assistant.db"
@@ -676,6 +705,7 @@ def main() -> None:
 
 
 __all__ = ["main", "PersonalAssistantApp"]
+
 
 
 
