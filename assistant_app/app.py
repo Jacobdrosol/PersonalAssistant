@@ -443,11 +443,54 @@ class PersonalAssistantApp(tk.Tk):
             self.settings_button.lift()
         except tk.TclError:
             pass
+        self._place_settings_overlay()
+
+    def _place_settings_overlay(self) -> None:
+        if not self._settings_visible:
+            return
+        offset = self._compute_notebook_content_offset()
+        height = max(0, self.notebook.winfo_height() - offset)
+        params = {
+            "in_": self.notebook,
+            "relx": 0.0,
+            "x": 0,
+            "y": offset,
+            "relwidth": 1.0,
+        }
+        if height > 0:
+            params["height"] = height
+        else:
+            params["relheight"] = 1.0
+        try:
+            self.settings_tab_frame.place(**params)
+            self.settings_tab_frame.lift()
+        except tk.TclError:
+            pass
+
+    def _compute_notebook_content_offset(self) -> int:
+        try:
+            current_id = self.notebook.select()
+            if current_id:
+                widget = self.nametowidget(current_id)
+                notebook_y = self.notebook.winfo_rooty()
+                widget_y = widget.winfo_rooty()
+                if widget_y >= notebook_y:
+                    return widget_y - notebook_y
+        except Exception:
+            pass
+        # Fallback to a reasonable default tab height.
+        return 36
 
     def _record_last_notebook_tab(self, event: Optional[tk.Event] = None) -> None:
+        current = self.notebook.select()
         if self._settings_visible:
+            self.settings_tab_frame.place_forget()
+            self._settings_visible = False
+            self._last_notebook_tab = current
+            self._sync_settings_button_state()
+            self._position_settings_button()
             return
-        self._last_notebook_tab = self.notebook.select()
+        self._last_notebook_tab = current
         self._sync_settings_button_state()
 
     def _toggle_settings_view(self) -> None:
@@ -458,9 +501,8 @@ class PersonalAssistantApp(tk.Tk):
 
     def _show_settings_view(self) -> None:
         self._last_notebook_tab = self.notebook.select()
-        self.settings_tab_frame.place(in_=self.notebook, relx=0.0, rely=0.0, relwidth=1.0, relheight=1.0)
-        self.settings_tab_frame.lift()
         self._settings_visible = True
+        self._place_settings_overlay()
         self._sync_settings_button_state()
         self._position_settings_button()
 
