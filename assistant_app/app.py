@@ -63,6 +63,8 @@ class PersonalAssistantApp(tk.Tk):
             on_shortcut_toggle=self._handle_shortcut_toggle,
         )
         self.settings_tab.pack(fill=tk.BOTH, expand=True)
+        self.notebook.add(self.settings_tab_frame, text="Settings")
+        self.notebook.tab(self.settings_tab_frame, state="hidden")
 
         self.calendar_tab = CalendarTab(self.notebook, self.db)
         self.scrum_tab = ScrumTab(self.notebook, self.db)
@@ -267,20 +269,24 @@ class PersonalAssistantApp(tk.Tk):
             self._icon_path = icon
             self._apply_window_icon()
         target = Path(sys.executable).resolve()
-        if self.settings.desktop_shortcut and not desktop_shortcut_exists():
-            if not self._create_shortcut("desktop", target):
-                self.settings.desktop_shortcut = False
-        elif not self.settings.desktop_shortcut and desktop_shortcut_exists():
-            if not self._remove_shortcut("desktop"):
-                self.settings.desktop_shortcut = True
-        if self.settings.start_menu_shortcut and not start_menu_shortcut_exists():
-            if not self._create_shortcut("start_menu", target):
-                self.settings.start_menu_shortcut = False
-        elif not self.settings.start_menu_shortcut and start_menu_shortcut_exists():
-            if not self._remove_shortcut("start_menu"):
-                self.settings.start_menu_shortcut = True
-        self.settings_tab.update_shortcut_state("desktop", desktop_shortcut_exists())
-        self.settings_tab.update_shortcut_state("start_menu", start_menu_shortcut_exists())
+        desktop_exists = desktop_shortcut_exists()
+        start_exists = start_menu_shortcut_exists()
+        if self.settings.desktop_shortcut and not desktop_exists:
+            if self._create_shortcut("desktop", target):
+                desktop_exists = True
+        elif not self.settings.desktop_shortcut and desktop_exists:
+            if self._remove_shortcut("desktop"):
+                desktop_exists = False
+        if self.settings.start_menu_shortcut and not start_exists:
+            if self._create_shortcut("start_menu", target):
+                start_exists = True
+        elif not self.settings.start_menu_shortcut and start_exists:
+            if self._remove_shortcut("start_menu"):
+                start_exists = False
+        self.settings.desktop_shortcut = desktop_exists
+        self.settings.start_menu_shortcut = start_exists
+        self.settings_tab.update_shortcut_state("desktop", desktop_exists)
+        self.settings_tab.update_shortcut_state("start_menu", start_exists)
         save_settings(self.settings_path, self.settings)
 
     def _create_shortcut(self, kind: str, target: Path) -> bool:
@@ -352,6 +358,7 @@ class PersonalAssistantApp(tk.Tk):
         self.settings_tab.update_shortcut_state("desktop", desktop_shortcut_exists())
         self.settings_tab.update_shortcut_state("start_menu", start_menu_shortcut_exists())
         save_settings(self.settings_path, self.settings)
+
     def _register_email_shortcuts(self) -> None:
         bindings = {
             "<Control-n>": self._shortcut_email_new,
@@ -401,7 +408,6 @@ class PersonalAssistantApp(tk.Tk):
             self.email_tab.open_shard_folder()
             return "break"
         return None
-
 
     def _handle_notification(self, payload: NotificationPayload) -> None:
         self.after(0, lambda: self.show_notification(payload))
@@ -460,6 +466,8 @@ class PersonalAssistantApp(tk.Tk):
         self.notebook.select(self.settings_tab_frame)
         self._settings_visible = True
         self._sync_settings_button_state()
+        self._position_settings_button()
+
     def _hide_settings_view(self) -> None:
         if self._last_notebook_tab:
             try:
@@ -624,32 +632,93 @@ class NotificationWindow(tk.Toplevel):
             self.master.remove_notification(self)
 
 
-
-
-
-
 def _ensure_installed_binary(data_root: Path) -> None:
     if not getattr(sys, "frozen", False):
         return
+
     expected_exe = data_root / "PersonalAssistant.exe"
     current_exe = Path(sys.executable).resolve()
-    if current_exe == expected_exe:
-        return
-    expected_exe.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        shutil.copy2(current_exe, expected_exe)
-    except Exception:
-        return
-    icon_source = current_exe.with_name("personal_assistant.ico")
-    icon_target = data_root / "personal_assistant.ico"
-    if icon_source.exists():
+    version_file = data_root / "app_version.txt"
+
+    def _write_version_file() -> None:
         try:
+            version_file.write_text(__version__, encoding="utf-8")
+        except Exception:
+            pass
+
+    def _copy_icon(source: Path) -> None:
+        icon_source = source.with_name("personal_assistant.ico")
+        if not icon_source.exists():
+            return
+        icon_target = data_root / "personal_assistant.ico"
+        try:
+            icon_target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(icon_source, icon_target)
         except Exception:
             pass
-    args = sys.argv[1:]
-    subprocess.Popen([str(expected_exe), *args])
-    sys.exit(0)
+
+    if current_exe == expected_exe:
+        _write_version_file()
+        icon_path = data_root / "personal_assistant.ico"
+        if not icon_path.exists():
+            _copy_icon(current_exe)
+        return
+
+    expected_exe.parent.mkdir(parents=True, exist_ok=True)
+
+    installed_version_key: Optional[tuple[int, ...]] = None
+    if version_file.exists():
+        try:
+            installed_version_key = _parse_version(version_file.read_text(encoding="utf-8"))
+        except Exception:
+            installed_version_key = None
+
+    current_version_key = _parse_version(__version__)
+
+    def _launch_installed() -> None:
+        args = sys.argv[1:]
+        subprocess.Popen([str(expected_exe), *args])
+        sys.exit(0)
+
+    if expected_exe.exists():
+        if installed_version_key and installed_version_key >= current_version_key:
+            _launch_installed()
+            return
+        if not installed_version_key:
+            try:
+                if expected_exe.stat().st_mtime >= current_exe.stat().st_mtime:
+                    _launch_installed()
+                    return
+            except OSError:
+                _launch_installed()
+                return
+
+    try:
+        shutil.copy2(current_exe, expected_exe)
+    except Exception:
+        if expected_exe.exists():
+            _launch_installed()
+        return
+
+    _copy_icon(current_exe)
+    _write_version_file()
+    _launch_installed()
+
+
+def _parse_version(value: str) -> tuple[int, ...]:
+    cleaned = (value or "").strip().lower()
+    if cleaned.startswith("v"):
+        cleaned = cleaned[1:]
+    tokens: list[int] = []
+    for part in cleaned.replace("-", ".").split("."):
+        part = part.strip()
+        if not part:
+            continue
+        digits = "".join(ch for ch in part if ch.isdigit())
+        if digits:
+            tokens.append(int(digits))
+    return tuple(tokens) if tokens else (0,)
+
 
 def _migrate_legacy_data(data_root: Path) -> None:
     legacy_root = legacy_project_root()
@@ -697,8 +766,8 @@ def _rewrite_email_run_paths(base_dir: Path) -> None:
 
 def main() -> None:
     data_root = ensure_user_data_dir()
-    _migrate_legacy_data(data_root)
     _ensure_installed_binary(data_root)
+    _migrate_legacy_data(data_root)
     settings_path = data_root / "settings.json"
     settings = load_settings(settings_path)
     db_path = data_root / "assistant.db"

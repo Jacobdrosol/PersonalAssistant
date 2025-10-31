@@ -60,7 +60,7 @@ if (Test-Path $iconTarget) {
 }
 $shortcut.Save()
 Write-Info "Creating Start Menu shortcut..."
-$startMenu = Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'Microsoft\Windows\Start Menu\Programs'
+$startMenu = [Environment]::GetFolderPath('Programs')
 if (-not (Test-Path $startMenu)) {
     New-Item -ItemType Directory -Path $startMenu | Out-Null
 }

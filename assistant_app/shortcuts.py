@@ -52,7 +52,6 @@ def remove_shortcut(path: Path) -> bool:
         return False
 
 
-
 def create_desktop_shortcut(target: Path, icon: Optional[Path]) -> bool:
     return create_shortcut(desktop_shortcut_path(), target, icon)
 
@@ -75,4 +74,3 @@ def remove_start_menu_shortcut() -> bool:
 
 def start_menu_shortcut_exists() -> bool:
     return shortcut_exists(start_menu_shortcut_path())
-

@@ -177,12 +177,17 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
     script_content = "\n".join(script_lines)
     script_path = Path(tempfile.mkdtemp(prefix="pa-update-script-")) / "apply-update.bat"
     script_path.write_text(script_content, encoding="utf-8")
+    creation_flags = 0
+    if hasattr(subprocess, "DETACHED_PROCESS"):
+        creation_flags |= subprocess.DETACHED_PROCESS
+    if hasattr(subprocess, "CREATE_NO_WINDOW"):
+        creation_flags |= subprocess.CREATE_NO_WINDOW
     try:
         subprocess.Popen(
             ["cmd", "/c", str(script_path)],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            creationflags=subprocess.DETACHED_PROCESS if hasattr(subprocess, "DETACHED_PROCESS") else 0,
+            creationflags=creation_flags,
         )
     except FileNotFoundError as exc:
         raise UpdateError("cmd.exe is required to apply updates on Windows.") from exc
