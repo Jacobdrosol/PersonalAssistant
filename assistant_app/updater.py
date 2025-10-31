@@ -161,7 +161,8 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
         "    [Parameter(Mandatory = $true)][string]$TargetPath,",
         "    [Parameter(Mandatory = $true)][string]$SourcePath,",
         "    [Parameter(Mandatory = $true)][int]$ParentPid,",
-        "    [Parameter(Mandatory = $true)][string]$ScriptPath",
+        "    [Parameter(Mandatory = $true)][string]$ScriptPath,",
+        "    [string]$ArgumentsJson = '[]'",
         ")",
         "$ErrorActionPreference = 'SilentlyContinue'",
         "$maxRetries = 10",
@@ -179,6 +180,17 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
         "if (-not (Test-Path -LiteralPath $SourcePath)) { Write-Log 'Source file missing.'; exit 1 }",
         "$sourceHash = Get-FileHash -LiteralPath $SourcePath -Algorithm SHA256",
         "$backupPath = \"$TargetPath.bak\"",
+        "$argumentList = @()",
+        "if ($ArgumentsJson -and $ArgumentsJson.Trim().Length -gt 0) {",
+        "    try {",
+        "        $parsed = ConvertFrom-Json -InputObject $ArgumentsJson",
+        "        if ($parsed -is [System.Collections.IEnumerable]) { $argumentList = @($parsed) }",
+        "        Write-Log ('Restored argument list: {0}' -f ($argumentList -join ' '))",
+        "    } catch {",
+        "        Write-Log ('Failed to parse ArgumentsJson: {0}' -f $_.Exception.Message)",
+        "        $argumentList = @()",
+        "    }",
+        "}",
         "for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {",
         "    Write-Log (\"Attempt {0} beginning.\" -f $attempt)",
         "    try {",
@@ -207,7 +219,14 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
         "try { Remove-Item -LiteralPath $SourcePath -Force } catch {}",
         "Write-Log 'Launching updated executable.'",
         "Start-Sleep -Milliseconds 2000",
-        "Start-Process -FilePath $TargetPath",
+        "$workingDirectory = Split-Path -LiteralPath $TargetPath",
+        "if (-not $workingDirectory) { $workingDirectory = [System.IO.Path]::GetDirectoryName($TargetPath) }",
+        "try {",
+        "    Start-Process -FilePath $TargetPath -ArgumentList $argumentList -WorkingDirectory $workingDirectory -WindowStyle Normal",
+        "    Write-Log 'Start-Process issued successfully.'",
+        "} catch {",
+        "    Write-Log ('Failed to launch updated executable: {0}' -f $_.Exception.Message)",
+        "}",
         "Start-Sleep -Milliseconds 2000",
         "try { Remove-Item -LiteralPath $ScriptPath -Force } catch {}",
         "Write-Log 'Update script completed.'",
@@ -218,6 +237,7 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
     powershell = shutil.which("powershell") or shutil.which("powershell.exe")
     if not powershell:
         raise UpdateError("PowerShell is required to apply updates on Windows.")
+    arguments_json = json.dumps(sys.argv[1:])
     try:
         subprocess.Popen(
             [
@@ -237,6 +257,8 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
                 str(os.getpid()),
                 "-ScriptPath",
                 str(script_path),
+                "-ArgumentsJson",
+                arguments_json,
             ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
