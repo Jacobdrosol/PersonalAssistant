@@ -26,9 +26,23 @@ class LogTab(ttk.Frame):
         self._pending_resize_refresh = False
         self._editor_panel: TextEditorPanel | None = None
 
+        self._configure_styles()
         self._build_ui()
         self._initialize_tree_metrics()
         self.refresh()
+
+    def _configure_styles(self) -> None:
+        style = ttk.Style(self)
+        style.configure(
+            "Danger.TButton",
+            background="#ba1a1a",
+            foreground="#ffffff",
+            padding=(12, 6),
+        )
+        style.map(
+            "Danger.TButton",
+            background=[("active", "#d32f2f"), ("pressed", "#8c1c1c")],
+        )
 
     def _build_ui(self) -> None:
         header = ttk.Frame(self)
@@ -37,6 +51,8 @@ class LogTab(ttk.Frame):
         title = ttk.Label(header, text="Daily Update Log", style="SidebarHeading.TLabel")
         title.pack(side=tk.LEFT)
 
+        self.clear_btn = ttk.Button(header, text="Clear", style="Danger.TButton", command=self.clear_entries)
+        self.clear_btn.pack(side=tk.RIGHT, padx=(0, 6))
         self.copy_btn = ttk.Button(header, text="Copy All", command=self.copy_to_clipboard)
         self.copy_btn.pack(side=tk.RIGHT)
 
@@ -73,6 +89,7 @@ class LogTab(ttk.Frame):
             self.add_sub_entry_btn,
             self.edit_entry_btn,
             self.delete_entry_btn,
+            self.clear_btn,
         ]
 
     def _initialize_tree_metrics(self) -> None:
@@ -320,6 +337,21 @@ class LogTab(ttk.Frame):
         if messagebox.askyesno("Delete Entry", "Delete this entry and its sub-entries?"):
             self.db.delete_log_entry(entry_id)
             self.refresh()
+
+    def clear_entries(self) -> None:
+        if not self.entries:
+            messagebox.showinfo("Clear Log", "There are no entries to clear.")
+            return
+        confirm = messagebox.askyesno(
+            "Clear Daily Update Log",
+            "This will permanently delete every entry in the daily update log. Continue?",
+            parent=self,
+        )
+        if not confirm:
+            return
+        self.db.clear_log_entries()
+        self.refresh()
+        messagebox.showinfo("Clear Log", "All daily update log entries have been cleared.", parent=self)
 
     def _open_text_editor(self, title: str, initial: str, on_save: Callable[[str], None]) -> None:
         if self._editor_panel is not None:

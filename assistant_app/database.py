@@ -931,5 +931,10 @@ class Database:
             self._conn.execute("DELETE FROM log_entries WHERE id = ?", (entry_id,))
             self._conn.commit()
 
+    def clear_log_entries(self) -> None:
+        with self._lock:
+            self._conn.execute("DELETE FROM log_entries")
+            self._conn.commit()
+
 
 __all__ = ["Database"]
