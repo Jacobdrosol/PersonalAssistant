@@ -63,8 +63,7 @@ class PersonalAssistantApp(tk.Tk):
             on_shortcut_toggle=self._handle_shortcut_toggle,
         )
         self.settings_tab.pack(fill=tk.BOTH, expand=True)
-        self.notebook.add(self.settings_tab_frame, text="Settings")
-        self.notebook.tab(self.settings_tab_frame, state="hidden")
+        self.settings_tab_frame.place_forget()
 
         self.calendar_tab = CalendarTab(self.notebook, self.db)
         self.scrum_tab = ScrumTab(self.notebook, self.db)
@@ -459,11 +458,8 @@ class PersonalAssistantApp(tk.Tk):
 
     def _show_settings_view(self) -> None:
         self._last_notebook_tab = self.notebook.select()
-        try:
-            self.notebook.tab(self.settings_tab_frame, state="normal")
-        except tk.TclError:
-            pass
-        self.notebook.select(self.settings_tab_frame)
+        self.settings_tab_frame.place(in_=self.notebook, relx=0.0, rely=0.0, relwidth=1.0, relheight=1.0)
+        self.settings_tab_frame.lift()
         self._settings_visible = True
         self._sync_settings_button_state()
         self._position_settings_button()
@@ -474,10 +470,7 @@ class PersonalAssistantApp(tk.Tk):
                 self.notebook.select(self._last_notebook_tab)
             except tk.TclError:
                 pass
-        try:
-            self.notebook.tab(self.settings_tab_frame, state="hidden")
-        except tk.TclError:
-            pass
+        self.settings_tab_frame.place_forget()
         self._settings_visible = False
         self._sync_settings_button_state()
         self._position_settings_button()
