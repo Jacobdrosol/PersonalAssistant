@@ -157,37 +157,42 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
     quoted_exe = str(executable).replace('"', '""')
     quoted_new = str(downloaded).replace('"', '""')
     script_lines = [
-        "@echo off",
-        "setlocal",
-        f'set "EXE={quoted_exe}"',
-        f'set "NEW={quoted_new}"',
-        f'set "PID={os.getpid()}"',
-        ":wait",
-        'tasklist /FI "PID eq %PID%" | find "%PID%" >nul',
-        'if %ERRORLEVEL%==0 (',
-        '    timeout /T 1 /NOBREAK >nul',
-        '    goto wait',
-        ')',
-        'move /Y "%NEW%" "%EXE%" >nul',
-        'if not exist "%EXE%" copy /Y "%NEW%" "%EXE%" >nul',
-        'if exist "%NEW%" del /F /Q "%NEW%"',
-        'start "" "%EXE%"',
-        "exit /B 0",
+        "Option Explicit",
+        "On Error Resume Next",
+        f'Const TARGET = "{quoted_exe}"',
+        f'Const SOURCE = "{quoted_new}"',
+        f"Const PID = {os.getpid()}",
+        "Dim shell, fso, wmi, processes",
+        'Set shell = CreateObject("WScript.Shell")',
+        'Set fso = CreateObject("Scripting.FileSystemObject")',
+        'Set wmi = GetObject("winmgmts:\\\\.\\root\\cimv2")',
+        "Do",
+        '    Set processes = wmi.ExecQuery("Select * from Win32_Process Where ProcessId = " & PID)',
+        "    If processes.Count = 0 Then Exit Do",
+        "    WScript.Sleep 500",
+        "Loop",
+        "Err.Clear",
+        "fso.CopyFile SOURCE, TARGET, True",
+        "If Err.Number <> 0 Then",
+        "    Err.Clear",
+        "    WScript.Sleep 1000",
+        "    fso.CopyFile SOURCE, TARGET, True",
+        "End If",
+        "If Err.Number = 0 Then",
+        "    fso.DeleteFile SOURCE, True",
+        '    shell.Run """" & TARGET & """", 1, False',
+        "    WScript.Sleep 1000",
+        "End If",
+        "fso.DeleteFile WScript.ScriptFullName, True",
     ]
-    script_content = "\n".join(script_lines)
-    script_path = Path(tempfile.mkdtemp(prefix="pa-update-script-")) / "apply-update.bat"
+    script_content = "\r\n".join(script_lines)
+    script_path = Path(tempfile.mkdtemp(prefix="pa-update-script-")) / "apply-update.vbs"
     script_path.write_text(script_content, encoding="utf-8")
-    creation_flags = 0
-    if hasattr(subprocess, "DETACHED_PROCESS"):
-        creation_flags |= subprocess.DETACHED_PROCESS
-    if hasattr(subprocess, "CREATE_NO_WINDOW"):
-        creation_flags |= subprocess.CREATE_NO_WINDOW
     try:
         subprocess.Popen(
-            ["cmd", "/c", str(script_path)],
+            ["wscript.exe", str(script_path)],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            creationflags=creation_flags,
         )
     except FileNotFoundError as exc:
-        raise UpdateError("cmd.exe is required to apply updates on Windows.") from exc
+        raise UpdateError("wscript.exe is required to apply updates on Windows.") from exc
