@@ -15,6 +15,7 @@ from .log_tab import LogTab
 from .plugins import EmailIngestManager
 from .scrum_tab import ScrumTab
 from .ui.views.email_ingest import EmailIngestView
+from .ui.views.sql_assist import SqlAssistView
 from .system_notifications import SystemNotifier
 from .notifications import NotificationManager, NotificationPayload
 from .environment import APP_NAME, ensure_user_data_dir, legacy_project_root
@@ -69,11 +70,13 @@ class PersonalAssistantApp(tk.Tk):
         self.scrum_tab = ScrumTab(self.notebook, self.db)
         self.log_tab = LogTab(self.notebook, self.db)
         self.email_tab = EmailIngestView(self.notebook, self.email_manager)
+        self.sql_assist_tab = SqlAssistView(self.notebook)
 
         self.notebook.add(self.calendar_tab, text="Production Calendar")
         self.notebook.add(self.log_tab, text="Daily Update Log")
         self.notebook.add(self.scrum_tab, text="Tasks Board")
         self.notebook.add(self.email_tab, text="Email Ingest")
+        self.notebook.add(self.sql_assist_tab, text="SQL Assist")
 
         self._last_notebook_tab = self.notebook.select()
         self._settings_visible = False

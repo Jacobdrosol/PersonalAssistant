@@ -222,7 +222,11 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
         "$workingDirectory = Split-Path -LiteralPath $TargetPath",
         "if (-not $workingDirectory) { $workingDirectory = [System.IO.Path]::GetDirectoryName($TargetPath) }",
         "try {",
-        "    Start-Process -FilePath $TargetPath -ArgumentList $argumentList -WorkingDirectory $workingDirectory -WindowStyle Normal",
+        "    if ($argumentList.Count -gt 0) {",
+        "        Start-Process -FilePath $TargetPath -ArgumentList $argumentList -WorkingDirectory $workingDirectory -WindowStyle Normal",
+        "    } else {",
+        "        Start-Process -FilePath $TargetPath -WorkingDirectory $workingDirectory -WindowStyle Normal",
+        "    }",
         "    Write-Log 'Start-Process issued successfully.'",
         "} catch {",
         "    Write-Log ('Failed to launch updated executable: {0}' -f $_.Exception.Message)",
@@ -238,6 +242,11 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
     if not powershell:
         raise UpdateError("PowerShell is required to apply updates on Windows.")
     arguments_json = json.dumps(sys.argv[1:])
+    creation_flags = 0
+    if hasattr(subprocess, "DETACHED_PROCESS"):
+        creation_flags |= subprocess.DETACHED_PROCESS  # type: ignore[attr-defined]
+    if hasattr(subprocess, "CREATE_NO_WINDOW"):
+        creation_flags |= subprocess.CREATE_NO_WINDOW  # type: ignore[attr-defined]
     try:
         subprocess.Popen(
             [
@@ -262,6 +271,7 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
             ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            creationflags=creation_flags,
         )
     except FileNotFoundError as exc:
         raise UpdateError("PowerShell is required to apply updates on Windows.") from exc
