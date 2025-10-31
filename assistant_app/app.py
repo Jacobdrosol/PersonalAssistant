@@ -63,8 +63,6 @@ class PersonalAssistantApp(tk.Tk):
             on_shortcut_toggle=self._handle_shortcut_toggle,
         )
         self.settings_tab.pack(fill=tk.BOTH, expand=True)
-        self.notebook.add(self.settings_tab_frame, text="Settings")
-        self.notebook.tab(self.settings_tab_frame, state="hidden")
 
         self.calendar_tab = CalendarTab(self.notebook, self.db)
         self.scrum_tab = ScrumTab(self.notebook, self.db)
