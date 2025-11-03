@@ -8,7 +8,16 @@ from threading import RLock
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from . import utils
-from .models import Calendar, Event, LogEntry, ProductionCalendar, ScrumNote, ScrumTask
+from .models import (
+    Calendar,
+    Event,
+    LogEntry,
+    ProductionCalendar,
+    ScrumNote,
+    ScrumTask,
+    SqlInstance,
+    SqlTable,
+)
 
 MISSING = object()
 SCRUM_STATUSES: Tuple[str, ...] = ("todo", "doing", "review", "done")
@@ -70,6 +79,7 @@ class Database:
             default_pc_id = self._ensure_default_production_calendar()
             self._ensure_default_calendar(default_pc_id)
             self._ensure_scrum_schema()
+            self._ensure_sql_assist_schema()
 
     def _ensure_column(self, table: str, column: str, definition: str) -> None:
         existing = {
@@ -232,6 +242,32 @@ class Database:
             )
             self._conn.commit()
             return cursor.lastrowid
+
+    def _ensure_sql_assist_schema(self) -> None:
+        self._conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS sql_instances (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS sql_tables (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                instance_id INTEGER NOT NULL REFERENCES sql_instances(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                UNIQUE(instance_id, name)
+            );
+
+            CREATE TABLE IF NOT EXISTS sql_columns (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                table_id INTEGER NOT NULL REFERENCES sql_tables(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                UNIQUE(table_id, name)
+            );
+            """
+        )
+        self._conn.commit()
 
     def update_production_calendar(
         self,
@@ -935,6 +971,204 @@ class Database:
         with self._lock:
             self._conn.execute("DELETE FROM log_entries")
             self._conn.commit()
+
+    # SQL Assist operations -------------------------------------------------
+    def get_sql_instances(self) -> List[SqlInstance]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, name FROM sql_instances ORDER BY name COLLATE NOCASE"
+            ).fetchall()
+        return [SqlInstance(id=row["id"], name=row["name"]) for row in rows]
+
+    def create_sql_instance(self, name: str) -> int:
+        name = name.strip()
+        if not name:
+            raise ValueError("Instance name cannot be empty.")
+        with self._lock:
+            try:
+                cursor = self._conn.execute(
+                    "INSERT INTO sql_instances (name, created_at) VALUES (?, ?)",
+                    (name, utils.to_iso(datetime.now())),
+                )
+            except sqlite3.IntegrityError as exc:  # pragma: no cover - UI handles messaging
+                raise ValueError("An instance with that name already exists.") from exc
+            self._conn.commit()
+            return cursor.lastrowid
+
+    def delete_sql_instance(self, instance_id: int) -> None:
+        with self._lock:
+            self._conn.execute("DELETE FROM sql_instances WHERE id = ?", (instance_id,))
+            self._conn.commit()
+
+    def get_sql_tables_with_columns(self, instance_id: int) -> List[SqlTable]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT t.id AS table_id, t.name AS table_name, c.name AS column_name
+                FROM sql_tables AS t
+                LEFT JOIN sql_columns AS c ON c.table_id = t.id
+                WHERE t.instance_id = ?
+                ORDER BY LOWER(t.name), LOWER(c.name)
+                """,
+                (instance_id,),
+            ).fetchall()
+        tables: dict[int, SqlTable] = {}
+        for row in rows:
+            table_id = row["table_id"]
+            table = tables.get(table_id)
+            if table is None:
+                table = SqlTable(id=table_id, name=row["table_name"], columns=[])
+                tables[table_id] = table
+            column_name = row["column_name"]
+            if column_name:
+                table.columns.append(column_name)
+        return sorted(tables.values(), key=lambda t: t.name.lower())
+
+    def export_sql_instance(self, instance_id: int) -> dict[str, object]:
+        with self._lock:
+            instance = self._conn.execute(
+                "SELECT id, name FROM sql_instances WHERE id = ?",
+                (instance_id,),
+            ).fetchone()
+            if instance is None:
+                raise ValueError("SQL instance not found.")
+            rows = self._conn.execute(
+                """
+                SELECT t.name AS table_name, c.name AS column_name
+                FROM sql_tables AS t
+                LEFT JOIN sql_columns AS c ON c.table_id = t.id
+                WHERE t.instance_id = ?
+                ORDER BY LOWER(t.name), LOWER(c.name)
+                """,
+                (instance_id,),
+            ).fetchall()
+        tables: dict[str, List[str]] = {}
+        for row in rows:
+            table_name = row["table_name"]
+            table_entry = tables.setdefault(table_name, [])
+            column_name = row["column_name"]
+            if column_name and column_name not in table_entry:
+                table_entry.append(column_name)
+        return {
+            "schema": "sql_assist/v1",
+            "name": instance["name"],
+            "tables": [
+                {"name": table_name, "columns": columns}
+                for table_name, columns in tables.items()
+            ],
+        }
+
+    def import_sql_instance(
+        self,
+        payload: dict[str, object],
+        *,
+        replace_existing: bool = False,
+    ) -> int:
+        schema = str(payload.get("schema", ""))
+        if schema != "sql_assist/v1":
+            raise ValueError("Unsupported SQL assist export format.")
+        name = str(payload.get("name", "")).strip()
+        if not name:
+            raise ValueError("Imported instance is missing a name.")
+        tables_payload = payload.get("tables")
+        if not isinstance(tables_payload, list):
+            raise ValueError("Imported instance is missing table definitions.")
+        with self._lock:
+            existing = self._conn.execute(
+                "SELECT id FROM sql_instances WHERE name = ?",
+                (name,),
+            ).fetchone()
+            if existing and replace_existing:
+                self._conn.execute(
+                    "DELETE FROM sql_instances WHERE id = ?",
+                    (existing["id"],),
+                )
+                existing = None
+            if existing and not replace_existing:
+                raise ValueError("An instance with that name already exists.")
+            cursor = self._conn.execute(
+                "INSERT INTO sql_instances (name, created_at) VALUES (?, ?)",
+                (name, utils.to_iso(datetime.now())),
+            )
+            instance_id = cursor.lastrowid
+            for item in tables_payload:
+                if not isinstance(item, dict):
+                    continue
+                table_name = str(item.get("name", "")).strip()
+                if not table_name:
+                    continue
+                table_cursor = self._conn.execute(
+                    "INSERT INTO sql_tables (instance_id, name) VALUES (?, ?)",
+                    (instance_id, table_name),
+                )
+                table_id = table_cursor.lastrowid
+                for column in item.get("columns") or []:
+                    column_name = str(column).strip()
+                    if not column_name:
+                        continue
+                    self._conn.execute(
+                        "INSERT INTO sql_columns (table_id, name) VALUES (?, ?)",
+                        (table_id, column_name),
+                    )
+            self._conn.commit()
+            return instance_id
+
+    def ingest_sql_table_columns(
+        self,
+        instance_id: int,
+        table_columns: Dict[str, set[str]],
+    ) -> tuple[int, int]:
+        new_tables = 0
+        new_columns = 0
+        with self._lock:
+            table_rows = self._conn.execute(
+                "SELECT id, name FROM sql_tables WHERE instance_id = ?",
+                (instance_id,),
+            ).fetchall()
+            table_ids = {row["name"]: row["id"] for row in table_rows}
+            column_map: Dict[int, set[str]] = {}
+            if table_ids:
+                column_rows = self._conn.execute(
+                    """
+                    SELECT t.name AS table_name, c.name AS column_name
+                    FROM sql_tables AS t
+                    JOIN sql_columns AS c ON c.table_id = t.id
+                    WHERE t.instance_id = ?
+                    """,
+                    (instance_id,),
+                ).fetchall()
+                for row in column_rows:
+                    table_id = table_ids.get(row["table_name"])
+                    if table_id is None:
+                        continue
+                    column_map.setdefault(table_id, set()).add(row["column_name"])
+            for table_name, columns in table_columns.items():
+                normalized_name = table_name.strip()
+                if not normalized_name:
+                    continue
+                table_id = table_ids.get(normalized_name)
+                if table_id is None:
+                    cursor = self._conn.execute(
+                        "INSERT INTO sql_tables (instance_id, name) VALUES (?, ?)",
+                        (instance_id, normalized_name),
+                    )
+                    table_id = cursor.lastrowid
+                    table_ids[normalized_name] = table_id
+                    column_map[table_id] = set()
+                    new_tables += 1
+                existing_columns = column_map.setdefault(table_id, set())
+                for column_name in columns:
+                    normalized_column = column_name.strip()
+                    if not normalized_column or normalized_column in existing_columns:
+                        continue
+                    self._conn.execute(
+                        "INSERT INTO sql_columns (table_id, name) VALUES (?, ?)",
+                        (table_id, normalized_column),
+                    )
+                    existing_columns.add(normalized_column)
+                    new_columns += 1
+            self._conn.commit()
+        return new_tables, new_columns
 
 
 __all__ = ["Database"]

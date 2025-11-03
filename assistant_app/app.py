@@ -70,7 +70,7 @@ class PersonalAssistantApp(tk.Tk):
         self.scrum_tab = ScrumTab(self.notebook, self.db)
         self.log_tab = LogTab(self.notebook, self.db)
         self.email_tab = EmailIngestView(self.notebook, self.email_manager)
-        self.sql_assist_tab = SqlAssistView(self.notebook)
+        self.sql_assist_tab = SqlAssistView(self.notebook, self.db)
 
         self.notebook.add(self.calendar_tab, text="Production Calendar")
         self.notebook.add(self.log_tab, text="Daily Update Log")

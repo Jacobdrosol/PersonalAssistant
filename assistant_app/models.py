@@ -149,3 +149,16 @@ class ScrumNote:
     task_id: int
     content: str
     created_at: datetime
+
+
+@dataclass(slots=True)
+class SqlInstance:
+    id: int
+    name: str
+
+
+@dataclass(slots=True)
+class SqlTable:
+    id: int
+    name: str
+    columns: List[str]
