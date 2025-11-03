@@ -22,6 +22,7 @@ from .models import (
     SqlDataSourceJoin,
     SqlDataSourceExpression,
     SqlDataSourceDetail,
+    SqlSavedQuery,
 )
 
 MISSING = object()
@@ -337,6 +338,14 @@ class Database:
                 updated_at TEXT,
                 updated_by TEXT
             );
+
+            CREATE TABLE IF NOT EXISTS sql_saved_queries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT,
+                content TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
             """
         )
         self._conn.commit()
@@ -379,6 +388,9 @@ class Database:
         self._ensure_column("sql_data_source_expressions", "is_sql_valid", "INTEGER")
         self._ensure_column("sql_data_source_expressions", "updated_at", "TEXT")
         self._ensure_column("sql_data_source_expressions", "updated_by", "TEXT")
+        self._ensure_column("sql_saved_queries", "description", "TEXT")
+        self._ensure_column("sql_saved_queries", "content", "TEXT")
+        self._ensure_column("sql_saved_queries", "updated_at", "TEXT")
         with self._lock:
             self._conn.execute(
                 """
@@ -1130,6 +1142,9 @@ class Database:
 
     def get_sql_tables_with_columns(self, instance_id: int) -> List[SqlTable]:
         with self._lock:
+            # Ensure legacy databases have the description columns before querying.
+            self._ensure_column("sql_tables", "description", "TEXT")
+            self._ensure_column("sql_columns", "description", "TEXT")
             rows = self._conn.execute(
                 """
                 SELECT t.id AS table_id,
@@ -1409,6 +1424,80 @@ class Database:
             for title, source_id in existing.items():
                 if title not in incoming_titles:
                     self._conn.execute("DELETE FROM sql_data_sources WHERE id = ?", (source_id,))
+            self._conn.commit()
+
+    # Saved query operations -------------------------------------------------
+    def get_sql_saved_queries(self) -> List[SqlSavedQuery]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, name, description, content, updated_at FROM sql_saved_queries ORDER BY LOWER(name)"
+            ).fetchall()
+        return [
+            SqlSavedQuery(
+                id=row["id"],
+                name=row["name"],
+                description=row["description"],
+                content=row["content"],
+                updated_at=row["updated_at"],
+            )
+            for row in rows
+        ]
+
+    def get_sql_saved_query(self, query_id: int) -> SqlSavedQuery:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT id, name, description, content, updated_at FROM sql_saved_queries WHERE id = ?",
+                (query_id,),
+            ).fetchone()
+        if row is None:
+            raise ValueError("Saved query not found.")
+        return SqlSavedQuery(
+            id=row["id"],
+            name=row["name"],
+            description=row["description"],
+            content=row["content"],
+            updated_at=row["updated_at"],
+        )
+
+    def create_sql_saved_query(self, name: str, description: Optional[str], content: str) -> int:
+        if not name.strip():
+            raise ValueError("Query name cannot be empty.")
+        now = utils.to_iso(datetime.now())
+        with self._lock:
+            cursor = self._conn.execute(
+                """
+                INSERT INTO sql_saved_queries (name, description, content, updated_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (name.strip(), description, content, now),
+            )
+            self._conn.commit()
+            return cursor.lastrowid
+
+    def update_sql_saved_query(
+        self,
+        query_id: int,
+        name: str,
+        description: Optional[str],
+        content: str,
+    ) -> None:
+        if not name.strip():
+            raise ValueError("Query name cannot be empty.")
+        now = utils.to_iso(datetime.now())
+        with self._lock:
+            self._conn.execute(
+                """
+                UPDATE sql_saved_queries
+                SET name = ?, description = ?, content = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (name.strip(), description, content, now, query_id),
+            )
+            self._conn.commit()
+
+    def delete_sql_saved_query(self, query_id: int) -> None:
+        with self._lock:
+            self._conn.execute("DELETE FROM sql_saved_queries WHERE id = ?", (query_id,))
             self._conn.commit()
     def export_sql_instance(self, instance_id: int) -> dict[str, object]:
         with self._lock:

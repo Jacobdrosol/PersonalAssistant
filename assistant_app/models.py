@@ -232,3 +232,12 @@ class SqlDataSourceDetail:
     source: SqlDataSource
     joins: List[SqlDataSourceJoin]
     expressions: List[SqlDataSourceExpression]
+
+
+@dataclass(slots=True)
+class SqlSavedQuery:
+    id: Optional[int]
+    name: str
+    description: Optional[str]
+    content: str
+    updated_at: Optional[str]

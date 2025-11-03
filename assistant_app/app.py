@@ -451,6 +451,11 @@ class PersonalAssistantApp(tk.Tk):
     def _place_settings_overlay(self) -> None:
         if not self._settings_visible:
             return
+        try:
+            self.notebook.update_idletasks()
+            self.settings_tab_frame.update_idletasks()
+        except tk.TclError:
+            pass
         offset = self._compute_notebook_content_offset()
         height = max(0, self.notebook.winfo_height() - offset)
         params = {
@@ -492,6 +497,10 @@ class PersonalAssistantApp(tk.Tk):
             self._last_notebook_tab = current
             self._sync_settings_button_state()
             self._position_settings_button()
+            try:
+                self.settings_button.state(["!pressed"])
+            except tk.TclError:
+                pass
             return
         self._last_notebook_tab = current
         self._sync_settings_button_state()
@@ -508,6 +517,10 @@ class PersonalAssistantApp(tk.Tk):
         self._place_settings_overlay()
         self._sync_settings_button_state()
         self._position_settings_button()
+        try:
+            self.settings_button.state(["pressed"])
+        except tk.TclError:
+            pass
 
     def _hide_settings_view(self) -> None:
         if self._last_notebook_tab:
@@ -519,6 +532,15 @@ class PersonalAssistantApp(tk.Tk):
         self._settings_visible = False
         self._sync_settings_button_state()
         self._position_settings_button()
+        try:
+            self.settings_button.state(["!pressed"])
+        except tk.TclError:
+            pass
+        try:
+            self.settings_tab_frame.lower()
+        except tk.TclError:
+            pass
+
     def _sync_settings_button_state(self) -> None:
         if not hasattr(self, "settings_button"):
             return

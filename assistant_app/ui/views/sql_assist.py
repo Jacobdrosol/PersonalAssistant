@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import sqlite3
 from collections import defaultdict
 from pathlib import Path
 import tkinter as tk
@@ -17,6 +18,7 @@ from ...models import (
     SqlDataSourceJoin,
     SqlDataSourceExpression,
     SqlDataSourceDetail,
+    SqlSavedQuery,
 )
 
 
@@ -45,6 +47,10 @@ class SqlAssistView(ttk.Frame):
         self.search_field_var = tk.StringVar(value="Table")
         self.search_text_var = tk.StringVar(value="")
         self.data_source_search_var = tk.StringVar(value="")
+        self.query_search_var = tk.StringVar(value="")
+        self.query_name_var = tk.StringVar()
+        self.query_description_var = tk.StringVar()
+        self.query_validation_var = tk.StringVar(value="")
 
         self.updated_var = tk.StringVar(value="Last updated: --")
 
@@ -55,10 +61,20 @@ class SqlAssistView(ttk.Frame):
         self._tree_table_map: dict[str, SqlTable] = {}
         self._all_data_sources: List[SqlDataSource] = []
         self._source_item_map: Dict[str, SqlDataSource] = {}
+        self.saved_queries: List[SqlSavedQuery] = []
+        self._filtered_queries: List[SqlSavedQuery] = []
+        self.current_query_id: Optional[int] = None
+        self.query_dirty = False
+        self._query_validation_after: Optional[str] = None
+        self._suspend_query_events = False
 
         self._build_ui()
         self.data_source_search_var.trace_add("write", lambda *_: self._apply_data_source_filter())
         self.search_text_var.trace_add("write", lambda *_: self._apply_table_filter())
+        self.query_search_var.trace_add("write", lambda *_: self._apply_query_filter())
+        self.query_name_var.trace_add("write", lambda *_: self._mark_query_dirty())
+        self.query_description_var.trace_add("write", lambda *_: self._mark_query_dirty())
+        self._update_query_controls()
         self.after(0, self._show_lock_overlay)
 
     # ------------------------------------------------------------------ UI construction
@@ -218,14 +234,72 @@ class SqlAssistView(ttk.Frame):
         sources_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         self.sources_tree.configure(yscrollcommand=sources_scroll.set)
 
-        self.query_tab = ttk.Frame(self.notebook)
-        self.notebook.add(self.query_tab, text="Query Generation")
-        ttk.Label(
-            self.query_tab,
-            text="Query templates and generation tools are coming soon.",
-            wraplength=520,
-            justify="center",
-        ).pack(expand=True, pady=40, padx=24)
+        query_tab = ttk.Frame(self.notebook)
+        query_tab.columnconfigure(1, weight=1)
+        query_tab.columnconfigure(2, weight=0)
+        query_tab.rowconfigure(1, weight=1)
+        self.notebook.add(query_tab, text="Query Generation")
+        self.query_tab = query_tab
+
+        query_list_frame = ttk.Frame(query_tab)
+        query_list_frame.grid(row=0, column=0, rowspan=3, sticky="nsw", padx=(0, 12))
+        ttk.Label(query_list_frame, text="Saved Queries").pack(anchor="w")
+        self.query_search_entry = ttk.Entry(query_list_frame, textvariable=self.query_search_var, width=24)
+        self.query_search_entry.pack(fill=tk.X, pady=(4, 4))
+        self.query_listbox = tk.Listbox(query_list_frame, height=20, exportselection=False)
+        self.query_listbox.pack(fill=tk.BOTH, expand=True)
+        self.query_listbox.bind("<<ListboxSelect>>", self._on_select_query)
+        list_btns = ttk.Frame(query_list_frame)
+        list_btns.pack(fill=tk.X, pady=(6, 0))
+        ttk.Button(list_btns, text="New", command=self._new_query).pack(side=tk.LEFT)
+        self.delete_query_btn = ttk.Button(list_btns, text="Delete", command=self._delete_query)
+        self.delete_query_btn.pack(side=tk.LEFT, padx=(6, 0))
+
+        details_frame = ttk.Frame(query_tab)
+        details_frame.grid(row=0, column=1, sticky="new")
+        details_frame.columnconfigure(1, weight=1)
+        ttk.Label(details_frame, text="Name:").grid(row=0, column=0, sticky="w")
+        self.query_name_entry = ttk.Entry(details_frame, textvariable=self.query_name_var)
+        self.query_name_entry.grid(row=0, column=1, sticky="ew", padx=(4, 0))
+        ttk.Label(details_frame, text="Description:").grid(row=1, column=0, sticky="w", pady=(6, 0))
+        self.query_description_entry = ttk.Entry(details_frame, textvariable=self.query_description_var)
+        self.query_description_entry.grid(row=1, column=1, sticky="ew", padx=(4, 0))
+
+        text_frame = ttk.Frame(query_tab)
+        text_frame.grid(row=1, column=1, sticky="nsew")
+        text_frame.columnconfigure(0, weight=1)
+        text_frame.rowconfigure(0, weight=1)
+        self.query_text = tk.Text(text_frame, wrap="word", undo=True, height=18)
+        self.query_text.grid(row=0, column=0, sticky="nsew")
+        query_scroll = ttk.Scrollbar(text_frame, orient=tk.VERTICAL, command=self.query_text.yview)
+        query_scroll.grid(row=0, column=1, sticky="ns")
+        self.query_text.configure(yscrollcommand=query_scroll.set)
+        self.query_text.bind("<<Modified>>", self._on_query_text_modified)
+
+        query_buttons = ttk.Frame(query_tab)
+        query_buttons.grid(row=2, column=1, sticky="w", pady=(6, 0))
+        self.save_query_btn = ttk.Button(query_buttons, text="Save", command=self._save_query)
+        self.save_query_btn.grid(row=0, column=0)
+        self.save_as_query_btn = ttk.Button(
+            query_buttons, text="Save As", command=lambda: self._save_query(save_as=True)
+        )
+        self.save_as_query_btn.grid(row=0, column=1, padx=(6, 0))
+        self.validate_query_btn = ttk.Button(query_buttons, text="Validate", command=self._validate_query)
+        self.validate_query_btn.grid(row=0, column=2, padx=(6, 0))
+
+        self.query_validation_label = ttk.Label(query_tab, textvariable=self.query_validation_var, anchor="w")
+        self.query_validation_label.grid(row=3, column=1, sticky="ew", pady=(6, 0))
+
+        palette_frame = ttk.Frame(query_tab)
+        palette_frame.grid(row=0, column=2, rowspan=3, sticky="ns", padx=(12, 0))
+        palette_frame.rowconfigure(1, weight=1)
+        ttk.Label(palette_frame, text="Tables & Columns").grid(row=0, column=0, sticky="w")
+        self.table_palette = ttk.Treeview(palette_frame, show="tree", height=22)
+        self.table_palette.grid(row=1, column=0, sticky="nsew")
+        palette_scroll = ttk.Scrollbar(palette_frame, orient=tk.VERTICAL, command=self.table_palette.yview)
+        palette_scroll.grid(row=1, column=1, sticky="ns")
+        self.table_palette.configure(yscrollcommand=palette_scroll.set)
+        self.table_palette.bind("<Double-1>", self._on_palette_double_click)
 
     # ------------------------------------------------------------------ Lock overlay
     def _show_lock_overlay(self) -> None:
@@ -303,6 +377,7 @@ class SqlAssistView(ttk.Frame):
         self._lock_error_var.set("")
         self.refresh_instances()
         self._refresh_data_sources()
+        self._refresh_saved_queries()
         self.instance_combo.focus_set()
 
     # ------------------------------------------------------------------ Data management
@@ -328,6 +403,7 @@ class SqlAssistView(ttk.Frame):
                 self._base_table_count = 0
                 self._base_column_count = 0
                 self._populate_tree([])
+                self._populate_table_palette()
         elif names:
             selected_instance = self.instances[0]
             self.instance_var.set(selected_instance.name)
@@ -342,6 +418,7 @@ class SqlAssistView(ttk.Frame):
             self._base_table_count = 0
             self._base_column_count = 0
             self._populate_tree([])
+            self._populate_table_palette()
 
         has_instance = self.current_instance_id is not None
         self.export_btn.configure(state=tk.NORMAL if has_instance else tk.DISABLED)
@@ -398,6 +475,7 @@ class SqlAssistView(ttk.Frame):
         self._base_table_count = len(tables)
         self._base_column_count = sum(len(table.columns) for table in tables)
         self._apply_table_filter()
+        self._populate_table_palette()
 
     def _apply_table_filter(self, *_: object) -> None:
         if self.current_instance_id is None:
@@ -498,6 +576,262 @@ class SqlAssistView(ttk.Frame):
                 if column.description:
                     label = f"{column.name} - {column.description}"
                 self.tree.insert(parent, tk.END, text=label)
+
+    def _populate_table_palette(self) -> None:
+        if not hasattr(self, "table_palette"):
+            return
+        self.table_palette.delete(*self.table_palette.get_children())
+        for table in self._all_tables:
+            parent = self.table_palette.insert("", tk.END, text=table.name, tags=("table",))
+            for column in sorted(table.columns, key=lambda col: col.name.lower()):
+                self.table_palette.insert(parent, tk.END, text=column.name, tags=("column",))
+
+    # ------------------------------------------------------------------ Saved query management
+    def _refresh_saved_queries(self, select_id: Optional[int] = None) -> None:
+        target_id = select_id if select_id is not None else self.current_query_id
+        try:
+            self.saved_queries = self.db.get_sql_saved_queries()
+        except Exception as exc:  # pragma: no cover - UI error path
+            self.saved_queries = []
+            messagebox.showerror("Saved Queries", f"Unable to load saved queries: {exc}", parent=self)
+            target_id = None
+        self._apply_query_filter(select_id=target_id)
+
+    def _apply_query_filter(self, select_id: Optional[int] = None) -> None:
+        search = self.query_search_var.get().strip().lower()
+        self.query_listbox.delete(0, tk.END)
+        self._filtered_queries = []
+        for query in self.saved_queries:
+            haystacks = [query.name.lower()]
+            if query.description:
+                haystacks.append(query.description.lower())
+            if not search or any(search in hay for hay in haystacks):
+                self._filtered_queries.append(query)
+                label = query.name if not query.description else f"{query.name} — {query.description}"
+                self.query_listbox.insert(tk.END, label)
+        has_results = bool(self._filtered_queries)
+        self.query_listbox.configure(state=tk.NORMAL if has_results else tk.DISABLED)
+        target_id = select_id if select_id is not None else (
+            self.current_query_id if self.current_query_id in {q.id for q in self._filtered_queries} else None
+        )
+        self._select_query_by_id(target_id)
+        self._update_query_controls()
+
+    def _on_select_query(self, event: Optional[tk.Event]) -> None:
+        if self._suspend_query_events:
+            return
+        selection = self.query_listbox.curselection()
+        if not selection:
+            return
+        index = selection[0]
+        if index >= len(self._filtered_queries):
+            return
+        query = self._filtered_queries[index]
+        if self.query_dirty and (self.current_query_id != query.id):
+            if not self._confirm_discard_query_changes():
+                self._select_query_by_id(self.current_query_id)
+                return
+        self._load_query_details(query)
+        self._select_query_by_id(query.id)
+
+    def _select_query_by_id(self, query_id: Optional[int]) -> None:
+        self._suspend_query_events = True
+        try:
+            self.query_listbox.selection_clear(0, tk.END)
+            if query_id is None:
+                return
+            for index, query in enumerate(self._filtered_queries):
+                if query.id == query_id:
+                    self.query_listbox.selection_set(index)
+                    self.query_listbox.see(index)
+                    break
+        finally:
+            self._suspend_query_events = False
+        self._update_query_controls()
+
+    def _load_query_details(self, query: Optional[SqlSavedQuery]) -> None:
+        self._suspend_query_events = True
+        try:
+            if query is None:
+                self.query_name_var.set("")
+                self.query_description_var.set("")
+                self.query_text.delete("1.0", tk.END)
+            else:
+                self.query_name_var.set(query.name)
+                self.query_description_var.set(query.description or "")
+                self.query_text.delete("1.0", tk.END)
+                self.query_text.insert("1.0", query.content)
+        finally:
+            self._suspend_query_events = False
+        self.current_query_id = query.id if query else None
+        self.query_dirty = False
+        self.query_text.edit_modified(False)
+        if query and query.updated_at:
+            self._set_query_validation(f"Loaded query. Last saved {query.updated_at}.", status="info")
+        elif query:
+            self._set_query_validation("Loaded query.", status="info")
+        else:
+            self._set_query_validation("Ready to draft a new query.", status="info")
+        self._update_query_controls()
+
+    def _new_query(self) -> None:
+        if not self._confirm_discard_query_changes():
+            return
+        self.query_listbox.selection_clear(0, tk.END)
+        self._load_query_details(None)
+
+    def _delete_query(self) -> None:
+        selection = self.query_listbox.curselection()
+        if not selection or selection[0] >= len(self._filtered_queries):
+            return
+        query = self._filtered_queries[selection[0]]
+        if not messagebox.askyesno(
+            "Delete Saved Query",
+            f"Delete '{query.name}'?",
+            parent=self,
+        ):
+            return
+        try:
+            self.db.delete_sql_saved_query(query.id)  # type: ignore[arg-type]
+        except Exception as exc:  # pragma: no cover - UI path
+            messagebox.showerror("Delete Failed", str(exc), parent=self)
+            return
+        self.current_query_id = None
+        self._load_query_details(None)
+        self._refresh_saved_queries()
+
+    def _save_query(self, save_as: bool = False) -> None:
+        name = self.query_name_var.get().strip()
+        description = self.query_description_var.get().strip() or None
+        content = self._get_query_text()
+        if not name:
+            messagebox.showerror("Save Query", "Give the query a name before saving.", parent=self)
+            self.query_name_entry.focus_set()
+            return
+        if not content:
+            messagebox.showerror("Save Query", "Add some SQL before saving the query.", parent=self)
+            self.query_text.focus_set()
+            return
+        try:
+            if save_as or self.current_query_id is None:
+                query_id = self.db.create_sql_saved_query(name, description, content)
+                self.current_query_id = query_id
+            else:
+                query_id = self.current_query_id
+                self.db.update_sql_saved_query(query_id, name, description, content)  # type: ignore[arg-type]
+        except sqlite3.IntegrityError:
+            messagebox.showerror(
+                "Save Query",
+                "A saved query with that name already exists. Choose a different name.",
+                parent=self,
+            )
+            return
+        except ValueError as exc:
+            messagebox.showerror("Save Query", str(exc), parent=self)
+            return
+        except Exception as exc:  # pragma: no cover - UI path
+            messagebox.showerror("Save Query", f"Unable to save query: {exc}", parent=self)
+            return
+        try:
+            saved = self.db.get_sql_saved_query(self.current_query_id)  # type: ignore[arg-type]
+        except Exception:
+            saved = SqlSavedQuery(id=self.current_query_id, name=name, description=description, content=content, updated_at=None)
+        self.query_dirty = False
+        self._set_query_validation("Query saved.", status="success")
+        self._refresh_saved_queries(select_id=saved.id if saved else self.current_query_id)
+        self._load_query_details(saved)
+
+    def _validate_query(self) -> None:
+        sql_text = self._get_query_text()
+        if not sql_text:
+            self._set_query_validation("Enter SQL before running validation.", status="warning")
+            return
+        try:
+            connection = sqlite3.connect(":memory:")
+            try:
+                connection.execute(f"EXPLAIN {sql_text}")
+            finally:
+                connection.close()
+        except sqlite3.Error as exc:
+            self._set_query_validation(f"Validation failed: {exc}", status="error")
+            return
+        self._set_query_validation(
+            "Looks good! Validation uses SQLite, so vendor-specific syntax may still need manual review.",
+            status="success",
+        )
+
+    def _get_query_text(self) -> str:
+        return self.query_text.get("1.0", tk.END).strip()
+
+    def _mark_query_dirty(self, *_: object) -> None:
+        if self._suspend_query_events:
+            return
+        self.query_dirty = True
+        self._set_query_validation("Unsaved changes. Save to keep this version.", status="warning")
+        self._update_query_controls()
+
+    def _update_query_controls(self) -> None:
+        name_present = bool(self.query_name_var.get().strip())
+        sql_present = bool(self._get_query_text())
+        if hasattr(self, "save_query_btn"):
+            can_save = (self.query_dirty or self.current_query_id is None) and name_present and sql_present
+            self.save_query_btn.configure(state=tk.NORMAL if can_save else tk.DISABLED)
+        if hasattr(self, "save_as_query_btn"):
+            self.save_as_query_btn.configure(state=tk.NORMAL if name_present and sql_present else tk.DISABLED)
+        if hasattr(self, "validate_query_btn"):
+            self.validate_query_btn.configure(state=tk.NORMAL if sql_present else tk.DISABLED)
+        has_selection = bool(self.query_listbox.curselection())
+        self.delete_query_btn.configure(state=tk.NORMAL if has_selection else tk.DISABLED)
+
+    def _set_query_validation(self, message: str, *, status: str = "info") -> None:
+        palette = {
+            "info": "#9FA8DA",
+            "success": "#7ed321",
+            "warning": "#FFB74D",
+            "error": "#FF6B6B",
+        }
+        self.query_validation_var.set(message)
+        color = palette.get(status, palette["info"])
+        try:
+            self.query_validation_label.configure(foreground=color)
+        except tk.TclError:
+            pass
+
+    def _on_query_text_modified(self, event: Optional[tk.Event]) -> None:
+        if not self.query_text.edit_modified():
+            return
+        self.query_text.edit_modified(False)
+        if self._suspend_query_events:
+            return
+        self._mark_query_dirty()
+
+    def _insert_into_query(self, snippet: str) -> None:
+        if not snippet:
+            return
+        self.query_text.insert(tk.INSERT, snippet)
+        self.query_text.focus_set()
+
+    def _on_palette_double_click(self, event: tk.Event) -> None:
+        item = self.table_palette.focus()
+        if not item:
+            return
+        label = self.table_palette.item(item, "text")
+        parent = self.table_palette.parent(item)
+        if parent:
+            table_name = self.table_palette.item(parent, "text")
+            snippet = f"{table_name}.{label} "
+        else:
+            snippet = f"{label} "
+        self._insert_into_query(snippet)
+
+    def _confirm_discard_query_changes(self) -> bool:
+        if not self.query_dirty:
+            return True
+        return messagebox.askyesno(
+            "Discard Changes?",
+            "You have unsaved query changes. Discard them?",
+            parent=self,
+        )
 
     def _refresh_data_sources(self) -> None:
         try:
@@ -1203,5 +1537,8 @@ class SqlAssistView(ttk.Frame):
 
 
 __all__ = ["SqlAssistView"]
+
+
+
 
 

@@ -223,11 +223,16 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
         "if (-not $workingDirectory) { $workingDirectory = [System.IO.Path]::GetDirectoryName($TargetPath) }",
         "try {",
         "    if ($argumentList.Count -gt 0) {",
-        "        Start-Process -FilePath $TargetPath -ArgumentList $argumentList -WorkingDirectory $workingDirectory -WindowStyle Normal",
+        "        $proc = Start-Process -FilePath $TargetPath -ArgumentList $argumentList -WorkingDirectory $workingDirectory -WindowStyle Normal -PassThru -ErrorAction Stop",
         "    } else {",
-        "        Start-Process -FilePath $TargetPath -WorkingDirectory $workingDirectory -WindowStyle Normal",
+        "        $proc = Start-Process -FilePath $TargetPath -WorkingDirectory $workingDirectory -WindowStyle Normal -PassThru -ErrorAction Stop",
         "    }",
-        "    Write-Log 'Start-Process issued successfully.'",
+        "    if ($null -ne $proc) {",
+        "        Write-Log ('Launched updated executable (PID {0}).' -f $proc.Id)",
+        "        try { $proc.Dispose() } catch {}",
+        "    } else {",
+        "        Write-Log 'Launched updated executable.'",
+        "    }",
         "} catch {",
         "    Write-Log ('Failed to launch updated executable: {0}' -f $_.Exception.Message)",
         "}",
@@ -238,7 +243,18 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
     script_content = "\r\n".join(script_lines)
     script_path = Path(tempfile.mkdtemp(prefix="pa-update-script-")) / "apply-update.ps1"
     script_path.write_text(script_content, encoding="utf-8")
-    powershell = shutil.which("powershell") or shutil.which("powershell.exe")
+    powershell = (
+        shutil.which("powershell.exe")
+        or shutil.which("powershell")
+        or shutil.which("pwsh.exe")
+        or shutil.which("pwsh")
+    )
+    if not powershell:
+        system_root = os.environ.get("SystemRoot")
+        if system_root:
+            candidate = Path(system_root) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+            if candidate.exists():
+                powershell = str(candidate)
     if not powershell:
         raise UpdateError("PowerShell is required to apply updates on Windows.")
     arguments_json = json.dumps(sys.argv[1:])
@@ -247,6 +263,13 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
         creation_flags |= subprocess.DETACHED_PROCESS  # type: ignore[attr-defined]
     if hasattr(subprocess, "CREATE_NO_WINDOW"):
         creation_flags |= subprocess.CREATE_NO_WINDOW  # type: ignore[attr-defined]
+    startupinfo = None
+    if os.name == "nt" and hasattr(subprocess, "STARTUPINFO"):
+        startupinfo = subprocess.STARTUPINFO()  # type: ignore[attr-defined]
+        if hasattr(subprocess, "STARTF_USESHOWWINDOW"):
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW  # type: ignore[attr-defined]
+        if hasattr(subprocess, "SW_HIDE"):
+            startupinfo.wShowWindow = subprocess.SW_HIDE  # type: ignore[attr-defined]
     try:
         subprocess.Popen(
             [
@@ -272,6 +295,7 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             creationflags=creation_flags,
+            startupinfo=startupinfo,
         )
     except FileNotFoundError as exc:
         raise UpdateError("PowerShell is required to apply updates on Windows.") from exc
