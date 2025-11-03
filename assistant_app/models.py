@@ -155,10 +155,80 @@ class ScrumNote:
 class SqlInstance:
     id: int
     name: str
+    updated_at: Optional[datetime]
+
+
+@dataclass(slots=True)
+class SqlColumn:
+    name: str
+    description: Optional[str]
 
 
 @dataclass(slots=True)
 class SqlTable:
-    id: int
+    id: Optional[int]
     name: str
-    columns: List[str]
+    description: Optional[str]
+    columns: List[SqlColumn]
+
+
+@dataclass(slots=True)
+class SqlDataSourceJoin:
+    id: Optional[int]
+    source_id: Optional[int]
+    alias: Optional[str]
+    sequence: Optional[str]
+    description: Optional[str]
+    join_object: Optional[str]
+    join_type: Optional[str]
+    row_expected: Optional[bool]
+    join_index: Optional[str]
+    is_base_join: Optional[bool]
+    join_in_error: Optional[bool]
+    join_error_message: Optional[str]
+    updated_at: Optional[str]
+    updated_by: Optional[str]
+    comment: Optional[str]
+    relate_sequence: Optional[str]
+    relate_alias: Optional[str]
+    relate_name: Optional[str]
+    clause_updated_at: Optional[str]
+    clause_updated_by: Optional[str]
+
+
+@dataclass(slots=True)
+class SqlDataSourceExpression:
+    id: Optional[int]
+    source_id: Optional[int]
+    expression_name: Optional[str]
+    select_json_id: Optional[str]
+    note: Optional[str]
+    validated_field_name: Optional[str]
+    is_csharp_valid: Optional[bool]
+    is_sql_valid: Optional[bool]
+    updated_at: Optional[str]
+    updated_by: Optional[str]
+
+
+@dataclass(slots=True)
+class SqlDataSource:
+    id: Optional[int]
+    title: str
+    description: Optional[str]
+    is_base: bool
+    is_in_error: bool
+    error_message: Optional[str]
+    parent_source: Optional[str]
+    select_set: Optional[str]
+    updated_at: Optional[str]
+    updated_by: Optional[str]
+    is_visible: Optional[bool]
+    visible_updated_at: Optional[str]
+    visible_updated_by: Optional[str]
+
+
+@dataclass(slots=True)
+class SqlDataSourceDetail:
+    source: SqlDataSource
+    joins: List[SqlDataSourceJoin]
+    expressions: List[SqlDataSourceExpression]
