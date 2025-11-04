@@ -230,6 +230,7 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
         "}",
         "function Write-Log([string]$Message) {",
         "    $timestamped = \"{0:o} {1}\" -f (Get-Date), $Message",
+        "    Write-Host $timestamped",
         "    try {",
         "        Add-Content -LiteralPath $logPath -Value $timestamped -Force",
         "    } catch {",
@@ -275,6 +276,7 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
         "    }",
         "}",
         "$success = $false",
+        "$launchSuccess = $false",
         "for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {",
         "    Write-Log (\"Attempt {0} beginning.\" -f $attempt)",
         "    $restoreNeeded = $false",
@@ -339,11 +341,13 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
         "    if ($null -ne $proc) {",
         "        Write-Log ('Launched updated executable (PID {0}).' -f $proc.Id)",
         "        try { $proc.Dispose() } catch {}",
+        "        $launchSuccess = $true",
         "        if (Test-Path -LiteralPath $backupPath) {",
         "            try { Remove-Item -LiteralPath $backupPath -Force } catch {}",
         "        }",
         "    } else {",
         "        Write-Log 'Launched updated executable.'",
+        "        $launchSuccess = $true",
         "        if (Test-Path -LiteralPath $backupPath) {",
         "            try { Remove-Item -LiteralPath $backupPath -Force } catch {}",
         "        }",
@@ -361,7 +365,14 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
         "}",
         "Start-Sleep -Milliseconds 2000",
         "try { Remove-Item -LiteralPath $ScriptPath -Force } catch {}",
-        "Write-Log 'Update script completed.'",    ]
+        "Write-Log 'Update script completed.'",
+        "if (-not $success -or -not $launchSuccess) {",
+        "    Write-Log 'Update encountered an error. Waiting for user acknowledgement.'",
+        "    try { [void](Read-Host 'Press Enter to close this window. Review console output above for details.') } catch {}",
+        "} else {",
+        "    Start-Sleep -Milliseconds 1500",
+        "}",
+    ]
     script_content = "\r\n".join(script_lines)
     script_path = Path(tempfile.mkdtemp(prefix="pa-update-script-")) / "apply-update.ps1"
     script_path.write_text(script_content, encoding="utf-8")
@@ -383,27 +394,16 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
         raise UpdateError("PowerShell is required to apply updates on Windows.")
     arguments_json = json.dumps(sys.argv[1:])
     creation_flags = 0
-    if hasattr(subprocess, "DETACHED_PROCESS"):
-        creation_flags |= subprocess.DETACHED_PROCESS  # type: ignore[attr-defined]
-    if hasattr(subprocess, "CREATE_NO_WINDOW"):
-        creation_flags |= subprocess.CREATE_NO_WINDOW  # type: ignore[attr-defined]
     startupinfo = None
-    if os.name == "nt" and hasattr(subprocess, "STARTUPINFO"):
-        startupinfo = subprocess.STARTUPINFO()  # type: ignore[attr-defined]
-        if hasattr(subprocess, "STARTF_USESHOWWINDOW"):
-            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW  # type: ignore[attr-defined]
-        if hasattr(subprocess, "SW_HIDE"):
-            startupinfo.wShowWindow = subprocess.SW_HIDE  # type: ignore[attr-defined]
     _python_log(f"Launching update script via {powershell}.")
     try:
         proc = subprocess.Popen(
             [
                 powershell,
+                "-NoLogo",
                 "-NoProfile",
                 "-ExecutionPolicy",
                 "Bypass",
-                "-WindowStyle",
-                "Hidden",
                 "-File",
                 str(script_path),
                 "-TargetPath",
