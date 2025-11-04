@@ -192,37 +192,61 @@ def _download_asset(url: str, asset_name: str, progress: Optional[ProgressCallba
 
 
 def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
-    quoted_exe = str(executable).replace('"', '""')
-    quoted_new = str(downloaded).replace('"', '""')
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    primary_log = _LOG_DIR / f"pa-update-ps-{timestamp}.log"
+    secondary_log = Path(tempfile.gettempdir()) / f"pa-update-ps-{timestamp}.log"
+    try:
+        primary_log.parent.mkdir(parents=True, exist_ok=True)
+        secondary_log.parent.mkdir(parents=True, exist_ok=True)
+        primary_log.touch(exist_ok=True)
+        secondary_log.touch(exist_ok=True)
+    except OSError as exc:
+        _python_log(f"Failed to prime PowerShell log files: {exc}")
+    _python_log(
+        f"Preparing PowerShell helper; primary log {primary_log}, secondary log {secondary_log}."
+    )
     script_lines = [
         "param(",
         "    [Parameter(Mandatory = $true)][string]$TargetPath,",
         "    [Parameter(Mandatory = $true)][string]$SourcePath,",
         "    [Parameter(Mandatory = $true)][int]$ParentPid,",
+        "    [Parameter(Mandatory = $true)][string]$PrimaryLogPath,",
+        "    [Parameter(Mandatory = $true)][string]$SecondaryLogPath,",
         "    [Parameter(Mandatory = $true)][string]$ScriptPath,",
         "    [string]$ArgumentsJson = '[]'",
         ")",
         "$ErrorActionPreference = 'SilentlyContinue'",
         "$maxRetries = 10",
         "$retryDelayMs = 1500",
-        "$timestamp = Get-Date",
-        "$logFileName = 'pa-update-{0:yyyyMMdd-HHmmss-ffff}.log' -f $timestamp",
-        "$logPath = Join-Path ([System.IO.Path]::GetTempPath()) $logFileName",
-        "$appData = [Environment]::GetFolderPath('ApplicationData')",
-        "$secondaryDir = Join-Path $appData 'PersonalAssistant\\Logs'",
-        "if (-not (Test-Path -LiteralPath $secondaryDir)) {",
+        "$logPath = $PrimaryLogPath",
+        "$secondaryLogPath = $SecondaryLogPath",
+        "$logDir = Split-Path -LiteralPath $logPath -Parent",
+        "if ($logDir -and -not (Test-Path -LiteralPath $logDir)) {",
+        "    try { New-Item -ItemType Directory -Path $logDir -Force | Out-Null } catch {}",
+        "}",
+        "$secondaryDir = Split-Path -LiteralPath $secondaryLogPath -Parent",
+        "if ($secondaryDir -and -not (Test-Path -LiteralPath $secondaryDir)) {",
         "    try { New-Item -ItemType Directory -Path $secondaryDir -Force | Out-Null } catch {}",
         "}",
-        "$global:SecondaryLogPath = Join-Path $secondaryDir $logFileName",
         "function Write-Log([string]$Message) {",
         "    Add-Content -LiteralPath $logPath -Value (\"{0:o} {1}\" -f (Get-Date), $Message) -Force",
-        "    try { Add-Content -LiteralPath $global:SecondaryLogPath -Value (\"{0:o} {1}\" -f (Get-Date), $Message) -Force } catch {}",
+        "    if ($secondaryLogPath) { try { Add-Content -LiteralPath $secondaryLogPath -Value (\"{0:o} {1}\" -f (Get-Date), $Message) -Force } catch {} }",
         "}",
         "Write-Log ('Logging to {0}' -f $logPath)",
         "Write-Log ('Updater started. Target={0} Source={1} ParentPid={2}' -f $TargetPath, $SourcePath, $ParentPid)",
+        "Write-Log ('Primary log: {0}' -f $logPath)",
+        "Write-Log ('Secondary log: {0}' -f $secondaryLogPath)",
+        "try {",
+        "    $sourceInfo = Get-Item -LiteralPath $SourcePath -ErrorAction Stop",
+        "    Write-Log ('Source size: {0} bytes' -f $sourceInfo.Length)",
+        "} catch {",
+        "    Write-Log ('Failed to stat source file: {0}' -f $_.Exception.Message)",
+        "}",
+        "Write-Log 'Waiting for parent process to exit.'",
         "for ($i = 0; $i -lt 120; $i++) {",
         "    if (-not (Get-Process -Id $ParentPid -ErrorAction SilentlyContinue)) { break }",
         "    Start-Sleep -Milliseconds 500",
+        "    if ($i -eq 0 -or ($i % 10) -eq 0) { Write-Log ('Still waiting for parent PID {0}.' -f $ParentPid) }",
         "}",
         "Write-Log 'Parent process exited. Proceeding with update.'",
         "if (-not (Test-Path -LiteralPath $SourcePath)) { Write-Log 'Source file missing.'; exit 1 }",
@@ -244,6 +268,10 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
         "    Write-Log (\"Attempt {0} beginning.\" -f $attempt)",
         "    $restoreNeeded = $false",
         "    try {",
+        "        if (Test-Path -LiteralPath $backupPath) {",
+        "            Write-Log 'Removing stale backup before attempting update.'",
+        "            try { Remove-Item -LiteralPath $backupPath -Force } catch { Write-Log ('Failed to remove stale backup: {0}' -f $_.Exception.Message) }",
+        "        }",
         "        if (Test-Path -LiteralPath $TargetPath) {",
         "            Move-Item -LiteralPath $TargetPath -Destination $backupPath -Force",
         "            Write-Log 'Existing target renamed to .bak.'",
@@ -373,6 +401,10 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
                 str(downloaded),
                 "-ParentPid",
                 str(os.getpid()),
+                "-PrimaryLogPath",
+                str(primary_log),
+                "-SecondaryLogPath",
+                str(secondary_log),
                 "-ScriptPath",
                 str(script_path),
                 "-ArgumentsJson",
