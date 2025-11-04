@@ -10,6 +10,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from .calendar_tab import CalendarTab
+from .contact_tab import ContactTab
 from .database import Database
 from .log_tab import LogTab
 from .plugins import EmailIngestManager
@@ -71,12 +72,14 @@ class PersonalAssistantApp(tk.Tk):
         self.log_tab = LogTab(self.notebook, self.db)
         self.email_tab = EmailIngestView(self.notebook, self.email_manager)
         self.sql_assist_tab = SqlAssistView(self.notebook, self.db)
+        self.contact_tab = ContactTab(self.notebook, self.data_root)
 
         self.notebook.add(self.calendar_tab, text="Production Calendar")
         self.notebook.add(self.log_tab, text="Daily Update Log")
         self.notebook.add(self.scrum_tab, text="Tasks Board")
         self.notebook.add(self.email_tab, text="Email Ingest")
         self.notebook.add(self.sql_assist_tab, text="SQL Assist")
+        self.notebook.add(self.contact_tab, text="Contact Support")
 
         self._last_notebook_tab = self.notebook.select()
         self._settings_visible = False
