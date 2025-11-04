@@ -207,7 +207,6 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
         "    $restoreNeeded = $false",
         "    try {",
         "        if (Test-Path -LiteralPath $TargetPath) {",
-        "            try { Remove-Item -LiteralPath $backupPath -Force } catch {}",
         "            Move-Item -LiteralPath $TargetPath -Destination $backupPath -Force",
         "            Write-Log 'Existing target renamed to .bak.'",
         "        }",
