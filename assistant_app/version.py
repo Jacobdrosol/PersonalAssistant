@@ -1,6 +1,6 @@
 __all__ = ["__version__"]
 
 # Update this value when creating a new release tag.
-__version__ = "1.1.2"
+__version__ = "1.1.3"
 
 # Testing Updater with a new version
