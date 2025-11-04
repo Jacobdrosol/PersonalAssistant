@@ -38,7 +38,11 @@ class SettingsTab(ttk.Frame):
 
         footer = ttk.Frame(self)
         footer.pack(fill=tk.BOTH, expand=True)
-        ttk.Label(footer, text=f"Version: {app_version}").pack(anchor="se", pady=(0, 4))
+        footer.grid_columnconfigure(0, weight=1)
+        footer.grid_rowconfigure(1, weight=1)
+
+        version_label = ttk.Label(footer, text=f"Version: {app_version}")
+        version_label.grid(row=1, column=0, sticky="se", padx=4, pady=4)
 
     def _on_shortcut_toggled(self, kind: str) -> None:
         value = bool(self.desktop_var.get()) if kind == "desktop" else bool(self.start_menu_var.get())
