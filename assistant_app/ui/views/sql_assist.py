@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 import sqlite3
 from collections import defaultdict
 from pathlib import Path
@@ -66,6 +67,7 @@ class SqlAssistView(ttk.Frame):
         self.current_query_id: Optional[int] = None
         self.query_dirty = False
         self._query_validation_after: Optional[str] = None
+        self._query_diagnostics: list[tuple[str, str]] = []
         self._suspend_query_events = False
 
         self._build_ui()
@@ -252,7 +254,7 @@ class SqlAssistView(ttk.Frame):
         list_btns = ttk.Frame(query_list_frame)
         list_btns.pack(fill=tk.X, pady=(6, 0))
         ttk.Button(list_btns, text="New", command=self._new_query).pack(side=tk.LEFT)
-        self.delete_query_btn = ttk.Button(list_btns, text="Delete", command=self._delete_query)
+        self.delete_query_btn = ttk.Button(list_btns, text="Delete", command=self._delete_query, state=tk.DISABLED)
         self.delete_query_btn.pack(side=tk.LEFT, padx=(6, 0))
 
         details_frame = ttk.Frame(query_tab)
@@ -289,6 +291,27 @@ class SqlAssistView(ttk.Frame):
 
         self.query_validation_label = ttk.Label(query_tab, textvariable=self.query_validation_var, anchor="w")
         self.query_validation_label.grid(row=3, column=1, sticky="ew", pady=(6, 0))
+
+        diag_frame = ttk.Frame(query_tab)
+        diag_frame.grid(row=4, column=1, sticky="nsew", pady=(4, 0))
+        diag_frame.columnconfigure(0, weight=1)
+        self.query_diag_tree = ttk.Treeview(
+            diag_frame,
+            columns=("type", "message"),
+            show="headings",
+            height=5,
+            selectmode="browse",
+        )
+        self.query_diag_tree.heading("type", text="Type")
+        self.query_diag_tree.heading("message", text="Message")
+        self.query_diag_tree.column("type", width=80, anchor="center")
+        self.query_diag_tree.column("message", width=480, anchor="w")
+        diag_scroll = ttk.Scrollbar(diag_frame, orient=tk.VERTICAL, command=self.query_diag_tree.yview)
+        diag_scroll.grid(row=0, column=1, sticky="ns")
+        self.query_diag_tree.configure(yscrollcommand=diag_scroll.set)
+        self.query_diag_tree.grid(row=0, column=0, sticky="nsew")
+        self.query_diag_tree.tag_configure("error", foreground="#FF6B6B")
+        self.query_diag_tree.tag_configure("warning", foreground="#FFB74D")
 
         palette_frame = ttk.Frame(query_tab)
         palette_frame.grid(row=0, column=2, rowspan=3, sticky="ns", padx=(12, 0))
@@ -596,6 +619,15 @@ class SqlAssistView(ttk.Frame):
             messagebox.showerror("Saved Queries", f"Unable to load saved queries: {exc}", parent=self)
             target_id = None
         self._apply_query_filter(select_id=target_id)
+        if (
+            target_id
+            and all(query.id != target_id for query in self._filtered_queries)
+            and self.query_search_var.get().strip()
+        ):
+            # Clear any active filter that is hiding the newly saved query.
+            self.query_search_var.set("")
+            self._apply_query_filter(select_id=target_id)
+        self.query_listbox.update_idletasks()
 
     def _apply_query_filter(self, select_id: Optional[int] = None) -> None:
         search = self.query_search_var.get().strip().lower()
@@ -666,6 +698,7 @@ class SqlAssistView(ttk.Frame):
         self.current_query_id = query.id if query else None
         self.query_dirty = False
         self.query_text.edit_modified(False)
+        self._set_query_diagnostics([])
         if query and query.updated_at:
             self._set_query_validation(f"Loaded query. Last saved {query.updated_at}.", status="info")
         elif query:
@@ -744,21 +777,40 @@ class SqlAssistView(ttk.Frame):
     def _validate_query(self) -> None:
         sql_text = self._get_query_text()
         if not sql_text:
+            self._set_query_diagnostics([])
             self._set_query_validation("Enter SQL before running validation.", status="warning")
             return
+        diagnostics: list[tuple[str, str]] = [
+            ("warning", warning) for warning in self._collect_query_warnings(sql_text)
+        ]
+        for message in self._collect_missing_reference_errors(sql_text):
+            diagnostics.append(("error", message))
         try:
             connection = sqlite3.connect(":memory:")
             try:
-                connection.execute(f"EXPLAIN {sql_text}")
+                self._seed_validation_schema(connection)
+                statements = list(self._split_sql_statements(sql_text))
+                if not statements:
+                    statements = [sql_text]
+                for statement in statements:
+                    if not statement.strip():
+                        continue
+                    try:
+                        connection.execute(f"EXPLAIN {statement}")
+                    except sqlite3.Error as exc:
+                        diagnostics.append(("error", self._clean_sqlite_error(str(exc))))
             finally:
                 connection.close()
         except sqlite3.Error as exc:
-            self._set_query_validation(f"Validation failed: {exc}", status="error")
-            return
-        self._set_query_validation(
-            "Looks good! Validation uses SQLite, so vendor-specific syntax may still need manual review.",
-            status="success",
-        )
+            diagnostics.append(("error", self._clean_sqlite_error(str(exc))))
+        errors, warnings = self._set_query_diagnostics(diagnostics)
+        if errors or warnings:
+            self._apply_validation_summary(errors, warnings)
+        else:
+            self._set_query_validation(
+                "Validation passed. No issues detected (SQLite syntax check).",
+                status="success",
+            )
 
     def _get_query_text(self) -> str:
         return self.query_text.get("1.0", tk.END).strip()
@@ -767,6 +819,7 @@ class SqlAssistView(ttk.Frame):
         if self._suspend_query_events:
             return
         self.query_dirty = True
+        self._set_query_diagnostics([])
         self._set_query_validation("Unsaved changes. Save to keep this version.", status="warning")
         self._update_query_controls()
 
@@ -782,6 +835,135 @@ class SqlAssistView(ttk.Frame):
             self.validate_query_btn.configure(state=tk.NORMAL if sql_present else tk.DISABLED)
         has_selection = bool(self.query_listbox.curselection())
         self.delete_query_btn.configure(state=tk.NORMAL if has_selection else tk.DISABLED)
+
+    def _set_query_diagnostics(self, diagnostics: list[tuple[str, str]]) -> tuple[int, int]:
+        normalized: list[tuple[str, str]] = []
+        for severity, message in diagnostics:
+            sev = severity.lower().strip()
+            if sev not in {"error", "warning"}:
+                sev = "warning"
+            normalized.append((sev, message))
+        self._query_diagnostics = normalized
+        if hasattr(self, "query_diag_tree"):
+            tree = self.query_diag_tree
+            tree.delete(*tree.get_children())
+            for severity, message in normalized:
+                display = severity.capitalize()
+                tree.insert("", tk.END, values=(display, message), tags=(severity,))
+        errors = sum(1 for severity, _ in normalized if severity == "error")
+        warnings = sum(1 for severity, _ in normalized if severity == "warning")
+        return errors, warnings
+
+    def _apply_validation_summary(self, errors: int, warnings: int) -> None:
+        parts: List[str] = []
+        if errors:
+            parts.append(f"{errors} error{'s' if errors != 1 else ''}")
+        if warnings:
+            parts.append(f"{warnings} warning{'s' if warnings != 1 else ''}")
+        summary = " and ".join(parts) if len(parts) == 2 else (parts[0] if parts else "")
+        status = "error" if errors else "warning"
+        message = f"Validation found {summary}. Review the list below." if summary else "Validation reported issues."
+        self._set_query_validation(message, status=status)
+
+    def _collect_query_warnings(self, sql_text: str) -> List[str]:
+        warnings: List[str] = []
+        lowered = sql_text.lower()
+        if "select *" in lowered:
+            warnings.append("Avoid SELECT *; list only the columns you need.")
+        trimmed = sql_text.strip()
+        if trimmed:
+            first_token = re.split(r"\s+", trimmed, 1)[0].lower()
+            if first_token in {"update", "delete"} and " where " not in lowered:
+                warnings.append(f"{first_token.upper()} statement without a WHERE clause may affect every row.")
+        return warnings
+
+    def _collect_missing_reference_errors(self, sql_text: str) -> List[str]:
+        if not self._all_tables:
+            return []
+        tables_by_lower: Dict[str, SqlTable] = {table.name.lower(): table for table in self._all_tables}
+        alias_lookup: Dict[str, str] = {}
+        errors: List[str] = []
+        seen_messages: set[str] = set()
+        table_pattern = re.compile(r"\b(from|join)\s+([A-Za-z0-9_]+)(?:\s+(?:as\s+)?([A-Za-z0-9_]+))?", re.IGNORECASE)
+        for match in table_pattern.finditer(sql_text):
+            table_name = match.group(2)
+            alias = match.group(3)
+            table_key = table_name.lower()
+            alias_lookup.setdefault(table_key, table_key)
+            if alias:
+                alias_lookup[alias.lower()] = table_key
+            if table_key not in tables_by_lower:
+                message = f"Table '{table_name}' is not defined for this instance."
+                if message not in seen_messages:
+                    errors.append(message)
+                    seen_messages.add(message)
+        column_pattern = re.compile(r"([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)")
+        for table_token, column_name in column_pattern.findall(sql_text):
+            table_key = table_token.lower()
+            resolved_table = alias_lookup.get(table_key)
+            if resolved_table is None:
+                if table_key not in tables_by_lower:
+                    message = f"Table or alias '{table_token}' is not recognized."
+                    if message not in seen_messages:
+                        errors.append(message)
+                        seen_messages.add(message)
+                continue
+            table_obj = tables_by_lower.get(resolved_table)
+            if table_obj is None:
+                continue
+            column_key = column_name.lower()
+            if not any((col.name or "").lower() == column_key for col in table_obj.columns):
+                message = f"Column '{table_token}.{column_name}' is not defined."
+                if message not in seen_messages:
+                    errors.append(message)
+                    seen_messages.add(message)
+        return errors
+
+    @staticmethod
+    def _clean_sqlite_error(message: str) -> str:
+        cleaned = " ".join(message.split())
+        return cleaned or "SQLite reported an unknown error."
+
+    def _seed_validation_schema(self, connection: sqlite3.Connection) -> None:
+        if not self._all_tables:
+            return
+        for table in self._all_tables:
+            table_name = table.name.strip()
+            if not table_name:
+                continue
+            seen_columns: set[str] = set()
+            column_defs: List[str] = []
+            for column in table.columns:
+                column_name = (column.name or "").strip()
+                if not column_name:
+                    continue
+                key = column_name.lower()
+                if key in seen_columns:
+                    continue
+                seen_columns.add(key)
+                column_defs.append(f"\"{column_name}\" TEXT")
+            if not column_defs:
+                column_defs.append("\"placeholder\" TEXT")
+            ddl = f"CREATE TABLE IF NOT EXISTS \"{table_name}\" ({', '.join(column_defs)})"
+            try:
+                connection.execute(ddl)
+            except sqlite3.Error:
+                continue
+
+    @staticmethod
+    def _split_sql_statements(sql_text: str) -> List[str]:
+        statements: List[str] = []
+        buffer: List[str] = []
+        for line in sql_text.splitlines():
+            buffer.append(line)
+            candidate = "\n".join(buffer)
+            if sqlite3.complete_statement(candidate):
+                statements.append(candidate.strip())
+                buffer = []
+        leftover = "\n".join(buffer).strip()
+        if leftover:
+            statements.append(leftover)
+        return statements
 
     def _set_query_validation(self, message: str, *, status: str = "info") -> None:
         palette = {

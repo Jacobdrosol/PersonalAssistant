@@ -1633,9 +1633,14 @@ class Database:
                 "SELECT id, name FROM sql_tables WHERE instance_id = ?",
                 (instance_id,),
             ).fetchall()
-            table_ids = {row["name"]: row["id"] for row in table_rows}
-            column_map: Dict[int, set[str]] = {}
-            if table_ids:
+            table_lookup: Dict[str, tuple[int, str]] = {}
+            for row in table_rows:
+                existing_name = (row["name"] or "").strip()
+                if not existing_name:
+                    continue
+                table_lookup[existing_name.lower()] = (row["id"], existing_name)
+            column_map_lower: Dict[int, set[str]] = {}
+            if table_lookup:
                 column_rows = self._conn.execute(
                     """
                     SELECT t.name AS table_name, c.name AS column_name
@@ -1646,34 +1651,47 @@ class Database:
                     (instance_id,),
                 ).fetchall()
                 for row in column_rows:
-                    table_id = table_ids.get(row["table_name"])
-                    if table_id is None:
+                    table_name = (row["table_name"] or "").strip()
+                    column_name = (row["column_name"] or "").strip()
+                    if not table_name or not column_name:
                         continue
-                    column_map.setdefault(table_id, set()).add(row["column_name"])
+                    lookup = table_lookup.get(table_name.lower())
+                    if lookup is None:
+                        continue
+                    table_id = lookup[0]
+                    column_map_lower.setdefault(table_id, set()).add(column_name.lower())
             for table_name, columns in table_columns.items():
                 normalized_name = table_name.strip()
                 if not normalized_name:
                     continue
-                table_id = table_ids.get(normalized_name)
-                if table_id is None:
+                lookup_key = normalized_name.lower()
+                lookup_entry = table_lookup.get(lookup_key)
+                if lookup_entry is None:
                     cursor = self._conn.execute(
                         "INSERT INTO sql_tables (instance_id, name) VALUES (?, ?)",
                         (instance_id, normalized_name),
                     )
                     table_id = cursor.lastrowid
-                    table_ids[normalized_name] = table_id
-                    column_map[table_id] = set()
+                    table_lookup[lookup_key] = (table_id, normalized_name)
+                    column_map_lower[table_id] = set()
                     new_tables += 1
-                existing_columns = column_map.setdefault(table_id, set())
-                for column_name in columns:
+                else:
+                    table_id = lookup_entry[0]
+                existing_columns_lower = column_map_lower.setdefault(table_id, set())
+                seen_batch: set[str] = set()
+                for column_name in sorted(columns, key=lambda value: value.lower()):
                     normalized_column = column_name.strip()
-                    if not normalized_column or normalized_column in existing_columns:
+                    if not normalized_column:
+                        continue
+                    column_key = normalized_column.lower()
+                    if column_key in existing_columns_lower or column_key in seen_batch:
                         continue
                     self._conn.execute(
                         "INSERT INTO sql_columns (table_id, name) VALUES (?, ?)",
                         (table_id, normalized_column),
                     )
-                    existing_columns.add(normalized_column)
+                    existing_columns_lower.add(column_key)
+                    seen_batch.add(column_key)
                     new_columns += 1
             if new_tables or new_columns:
                 self._conn.execute(
