@@ -26,17 +26,9 @@ from ...models import (
 class SqlAssistView(ttk.Frame):
     """SQL Assist workspace guarded by a simple PIN until the feature ships."""
 
-    _PIN_CODE = "12345"
-
     def __init__(self, master: tk.Misc, db: Database) -> None:
         super().__init__(master, padding=(16, 16))
         self.db = db
-
-        self._locked = True
-        self._lock_overlay: Optional[tk.Frame] = None
-        self._pin_entry: Optional[ttk.Entry] = None
-        self._pin_var = tk.StringVar(value="")
-        self._lock_error_var = tk.StringVar(value="")
 
         self.instances: list[SqlInstance] = []
         self.current_instance_id: Optional[int] = None
@@ -44,7 +36,7 @@ class SqlAssistView(ttk.Frame):
         self._last_import_instance_id: Optional[int] = None
 
         self.instance_var = tk.StringVar()
-        self.summary_var = tk.StringVar(value="Unlock the tab to manage SQL metadata.")
+        self.summary_var = tk.StringVar(value="Select or import an instance to begin.")
         self.search_field_var = tk.StringVar(value="Table")
         self.search_text_var = tk.StringVar(value="")
         self.data_source_search_var = tk.StringVar(value="")
@@ -77,7 +69,7 @@ class SqlAssistView(ttk.Frame):
         self.query_name_var.trace_add("write", lambda *_: self._mark_query_dirty())
         self.query_description_var.trace_add("write", lambda *_: self._mark_query_dirty())
         self._update_query_controls()
-        self.after(0, self._show_lock_overlay)
+        self.after(0, self._initialize_contents)
 
     # ------------------------------------------------------------------ UI construction
     def _build_ui(self) -> None:
@@ -324,80 +316,7 @@ class SqlAssistView(ttk.Frame):
         self.table_palette.configure(yscrollcommand=palette_scroll.set)
         self.table_palette.bind("<Double-1>", self._on_palette_double_click)
 
-    # ------------------------------------------------------------------ Lock overlay
-    def _show_lock_overlay(self) -> None:
-        if not self._locked:
-            return
-        if self._lock_overlay is not None:
-            self._lock_overlay.destroy()
-        overlay = tk.Frame(self, bg="#111219")
-        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
-        overlay.lift()
-        self._lock_overlay = overlay
-
-        card = ttk.Frame(overlay, padding=24)
-        card.place(relx=0.5, rely=0.5, anchor="center")
-        ttk.Label(
-            card,
-            text="The SQL Assist tab is still under construction!",
-            style="SidebarHeading.TLabel",
-            justify="center",
-            wraplength=420,
-        ).pack(anchor="center")
-        ttk.Label(
-            card,
-            text=(
-                "We are currently working to offer users the ability to keep track of their SQL database, "
-                "naming conventions, properties, and more to assist when writing queries."
-            ),
-            justify="center",
-            wraplength=420,
-        ).pack(anchor="center", pady=(12, 20))
-        ttk.Label(card, text="Enter PIN to unlock:", justify="center").pack(anchor="center")
-
-        self._pin_var.set("")
-        validate = (self.register(self._validate_pin), "%P")
-        entry = ttk.Entry(
-            card,
-            show="*",
-            width=12,
-            justify="center",
-            textvariable=self._pin_var,
-            validate="key",
-            validatecommand=validate,
-        )
-        entry.pack(anchor="center", pady=(6, 0))
-        entry.bind("<Return>", self._attempt_unlock)
-        entry.focus_set()
-        self._pin_entry = entry
-
-        ttk.Button(card, text="Unlock", command=self._attempt_unlock).pack(anchor="center", pady=(10, 0))
-        ttk.Label(card, textvariable=self._lock_error_var, foreground="#F36C6C").pack(anchor="center", pady=(8, 0))
-
-    def _validate_pin(self, proposed: str) -> bool:
-        if not proposed:
-            return True
-        if not proposed.isdigit():
-            return False
-        return len(proposed) <= len(self._PIN_CODE)
-
-    def _attempt_unlock(self, event: Optional[tk.Event] = None) -> Optional[str]:
-        value = self._pin_var.get()
-        if value == self._PIN_CODE:
-            self._unlock()
-            return "break"
-        self._lock_error_var.set("Incorrect PIN. Try again.")
-        self._pin_var.set("")
-        if self._pin_entry is not None:
-            self._pin_entry.focus_set()
-        return "break"
-
-    def _unlock(self) -> None:
-        self._locked = False
-        if self._lock_overlay is not None:
-            self._lock_overlay.destroy()
-            self._lock_overlay = None
-        self._lock_error_var.set("")
+    def _initialize_contents(self) -> None:
         self.refresh_instances()
         self._refresh_data_sources()
         self._refresh_saved_queries()
