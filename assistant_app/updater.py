@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 import os
 import shutil
 import subprocess
@@ -12,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
-from .environment import get_update_asset_name, get_update_repo
+from .environment import ensure_user_data_dir, get_update_asset_name, get_update_repo
 
 
 class UpdateError(RuntimeError):
@@ -29,29 +30,48 @@ class AvailableUpdate:
 
 
 def should_check_for_updates() -> bool:
-    return bool(get_update_repo()) and _is_packaged_executable() and sys.platform.startswith("win")
+    repo = get_update_repo()
+    if not repo:
+        _python_log("Update check skipped: no repository configured.")
+        return False
+    if not _is_packaged_executable():
+        _python_log("Update check skipped: not a packaged executable.")
+        return False
+    if not sys.platform.startswith("win"):
+        _python_log(f"Update check skipped: unsupported platform {sys.platform}.")
+        return False
+    return True
 
 
 def check_for_update(current_version: str) -> Optional[AvailableUpdate]:
     repo = get_update_repo()
     if not repo or not _is_packaged_executable():
+        if not repo:
+            _python_log("Update check aborted: repository not configured.")
+        if not _is_packaged_executable():
+            _python_log("Update check aborted: not running packaged executable.")
         return None
+    _python_log(f"Checking for updates against {repo} (current version {current_version}).")
     try:
         data = _fetch_latest_release(repo)
-    except Exception:
+    except Exception as exc:  # pragma: no cover - network failure
+        _python_log(f"Failed to fetch latest release: {exc}")
         return None
 
     tag = str(data.get("tag_name") or "").strip()
     if not tag:
+        _python_log("Latest release did not include a tag name.")
         return None
     latest_version = tag.lstrip("v")
     if not _is_remote_newer(latest_version, current_version):
+        _python_log(f"No update available. Remote={latest_version}, current={current_version}.")
         return None
 
     asset_name = get_update_asset_name()
     asset_url = _find_asset_url(data, asset_name)
     if not asset_url:
         raise UpdateError(f"Latest release is missing an asset named {asset_name!r}.")
+    _python_log(f"Update available: version {latest_version}, asset {asset_name}.")
     return AvailableUpdate(
         version=latest_version,
         notes=str(data.get("body") or ""),
@@ -64,11 +84,26 @@ def check_for_update(current_version: str) -> Optional[AvailableUpdate]:
 ProgressCallback = Callable[[int, int], None]
 
 
+# --------------------------------------------------------------------------- logging helpers
+
+_LOG_DIR = ensure_user_data_dir() / "Logs"
+_LOG_DIR.mkdir(parents=True, exist_ok=True)
+_PYTHON_LOG_PATH = _LOG_DIR / f"pa-update-python-{datetime.now():%Y%m%d-%H%M%S-%f}.log"
+
+
+def _python_log(message: str) -> None:
+    timestamp = datetime.now().isoformat(timespec="seconds")
+    with _PYTHON_LOG_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(f"{timestamp} {message}\n")
+
+
 def prepare_and_schedule_restart(update: AvailableUpdate, progress: Optional[ProgressCallback] = None) -> None:
     executable = _current_executable()
     if executable is None:
         raise UpdateError("Updates are only supported in packaged builds.")
+    _python_log(f"Preparing update {update.version}; current executable {executable}.")
     download_path = _download_asset(update.asset_url, update.asset_name, progress)
+    _python_log(f"Scheduling replacement using payload {download_path}.")
     _schedule_replace_and_restart(executable, download_path)
 
 
@@ -130,6 +165,7 @@ def _find_asset_url(release_data: dict, asset_name: str) -> Optional[str]:
 def _download_asset(url: str, asset_name: str, progress: Optional[ProgressCallback]) -> Path:
     tmp_dir = Path(tempfile.mkdtemp(prefix="pa-update-"))
     target = tmp_dir / asset_name
+    _python_log(f"Downloading {asset_name} from {url} to {target}.")
     try:
         with urllib.request.urlopen(url, timeout=60) as response, open(target, "wb") as handle:
             total_header = response.info().get("Content-Length")
@@ -148,7 +184,9 @@ def _download_asset(url: str, asset_name: str, progress: Optional[ProgressCallba
                     progress(downloaded, total_size)
             if progress:
                 progress(downloaded, total_size)
+            _python_log(f"Download complete: {downloaded} bytes.")
     except urllib.error.URLError as exc:
+        _python_log(f"Download failed: {exc}")
         raise UpdateError(f"Failed to download update: {exc.reason}") from exc
     return target
 
@@ -288,6 +326,7 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
     script_content = "\r\n".join(script_lines)
     script_path = Path(tempfile.mkdtemp(prefix="pa-update-script-")) / "apply-update.ps1"
     script_path.write_text(script_content, encoding="utf-8")
+    _python_log(f"Update script written to {script_path}.")
     powershell = (
         shutil.which("powershell.exe")
         or shutil.which("powershell")
@@ -301,6 +340,7 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
             if candidate.exists():
                 powershell = str(candidate)
     if not powershell:
+        _python_log("Unable to locate PowerShell executable; aborting update.")
         raise UpdateError("PowerShell is required to apply updates on Windows.")
     arguments_json = json.dumps(sys.argv[1:])
     creation_flags = 0
@@ -315,8 +355,9 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW  # type: ignore[attr-defined]
         if hasattr(subprocess, "SW_HIDE"):
             startupinfo.wShowWindow = subprocess.SW_HIDE  # type: ignore[attr-defined]
+    _python_log(f"Launching update script via {powershell}.")
     try:
-        subprocess.Popen(
+        proc = subprocess.Popen(
             [
                 powershell,
                 "-NoProfile",
@@ -342,5 +383,7 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
             creationflags=creation_flags,
             startupinfo=startupinfo,
         )
+        _python_log(f"Update script launched (PID {proc.pid}).")
     except FileNotFoundError as exc:
+        _python_log(f'Failed to spawn update script: {exc}')
         raise UpdateError("PowerShell is required to apply updates on Windows.") from exc
