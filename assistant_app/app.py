@@ -63,6 +63,7 @@ class PersonalAssistantApp(tk.Tk):
             desktop_enabled=self.settings.desktop_shortcut and manage_shortcuts,
             start_menu_enabled=self.settings.start_menu_shortcut and manage_shortcuts,
             on_shortcut_toggle=self._handle_shortcut_toggle,
+            app_version=__version__,
         )
         self.settings_tab.pack(fill=tk.BOTH, expand=True)
         self.settings_tab_frame.place_forget()
@@ -72,7 +73,7 @@ class PersonalAssistantApp(tk.Tk):
         self.log_tab = LogTab(self.notebook, self.db)
         self.email_tab = EmailIngestView(self.notebook, self.email_manager)
         self.sql_assist_tab = SqlAssistView(self.notebook, self.db)
-        self.contact_tab = ContactTab(self.notebook, self.data_root)
+        self.contact_tab = ContactTab(self.notebook, self.data_root, app_version=__version__)
 
         self.notebook.add(self.calendar_tab, text="Production Calendar")
         self.notebook.add(self.log_tab, text="Daily Update Log")

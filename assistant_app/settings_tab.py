@@ -13,6 +13,7 @@ class SettingsTab(ttk.Frame):
         desktop_enabled: bool,
         start_menu_enabled: bool,
         on_shortcut_toggle: Callable[[str, bool], None],
+        app_version: str,
     ) -> None:
         super().__init__(master, padding=(20, 20))
         self._callback = on_shortcut_toggle
@@ -34,6 +35,10 @@ class SettingsTab(ttk.Frame):
             variable=self.start_menu_var,
             command=lambda: self._on_shortcut_toggled("start_menu"),
         ).pack(anchor="w", pady=(6, 0))
+
+        footer = ttk.Frame(self)
+        footer.pack(fill=tk.BOTH, expand=True)
+        ttk.Label(footer, text=f"Version: {app_version}").pack(anchor="se", pady=(0, 4))
 
     def _on_shortcut_toggled(self, kind: str) -> None:
         value = bool(self.desktop_var.get()) if kind == "desktop" else bool(self.start_menu_var.get())

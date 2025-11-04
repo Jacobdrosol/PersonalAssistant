@@ -6,8 +6,8 @@ import smtplib
 import threading
 import traceback
 from dataclasses import dataclass
-from email.message import EmailMessage
 from datetime import datetime
+from email.message import EmailMessage
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
@@ -15,6 +15,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from .environment import ensure_user_data_dir
+from .version import __version__
 
 
 @dataclass(frozen=True)
@@ -35,11 +36,12 @@ class ContactTab(ttk.Frame):
 
     SUPPORT_RECIPIENT = "jacobdrosol@hotmail.com"
 
-    def __init__(self, master: tk.Misc, data_root: Path) -> None:
+    def __init__(self, master: tk.Misc, data_root: Path, *, app_version: Optional[str] = None) -> None:
         super().__init__(master, padding=(16, 16, 16, 12))
         self.data_root = data_root
         self.log_path = ensure_user_data_dir() / "contact-submissions.log"
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
+        self.app_version = app_version or __version__
 
         self.name_var = tk.StringVar()
         self.email_var = tk.StringVar()
@@ -191,7 +193,7 @@ class ContactTab(ttk.Frame):
             return
 
         self._sending = True
-        self.status_var.set("Sending message…")
+        self.status_var.set("Sending message...")
         self._update_attachment_controls()
         self._log(f"Submission initiated by {name} <{email}> with {len(self.attachments)} attachment(s).")
 
@@ -210,12 +212,13 @@ class ContactTab(ttk.Frame):
         description: str,
         attachments: Iterable[Path],
     ) -> None:
+        sent_at = datetime.now().astimezone()
         try:
-            if self._send_via_outlook(name, email, description, attachments):
+            if self._send_via_outlook(name, email, description, attachments, sent_at):
                 self._log("Submission sent through Outlook automation.")
             else:
                 settings = self._load_smtp_settings()
-                message = self._build_message(settings, name, email, description, attachments)
+                message = self._build_message(settings, name, email, description, attachments, sent_at)
                 self._deliver_via_smtp(settings, message)
         except Exception as exc:  # pragma: no cover - UI code
             self._log(f"Submission failed: {exc}\n{traceback.format_exc()}")
@@ -264,6 +267,7 @@ class ContactTab(ttk.Frame):
         email: str,
         description: str,
         attachments: Iterable[Path],
+        sent_at: datetime,
     ) -> EmailMessage:
         message = EmailMessage()
         message["Subject"] = "PERSONAL ASSISTANT USER SUBMISSION"
@@ -271,12 +275,7 @@ class ContactTab(ttk.Frame):
         message["To"] = self.SUPPORT_RECIPIENT
         message["Reply-To"] = email
 
-        body = (
-            f"New submission from Personal Assistant:\n\n"
-            f"Name: {name}\n"
-            f"Email: {email}\n\n"
-            f"Description:\n{description}\n"
-        )
+        body = self._compose_body(name, email, description, sent_at)
         message.set_content(body)
 
         for path in attachments:
@@ -360,12 +359,26 @@ class ContactTab(ttk.Frame):
                 # Best-effort logging; ignore filesystem errors.
                 pass
 
+    def _compose_body(self, name: str, email: str, description: str, sent_at: datetime) -> str:
+        timestamp = sent_at.strftime("%Y-%m-%d %H:%M:%S %Z").strip()
+        if not timestamp:
+            timestamp = sent_at.strftime("%Y-%m-%d %H:%M:%S")
+        return (
+            "New submission from Personal Assistant:\n\n"
+            f"Name: {name}\n"
+            f"Email: {email}\n"
+            f"Sent at: {timestamp}\n"
+            f"App version: {self.app_version}\n\n"
+            f"Description:\n{description}\n"
+        )
+
     def _send_via_outlook(
         self,
         name: str,
         email: str,
         description: str,
         attachments: Iterable[Path],
+        sent_at: datetime,
     ) -> bool:
         try:
             import win32com.client  # type: ignore[import]
@@ -382,12 +395,7 @@ class ContactTab(ttk.Frame):
 
         mail.To = self.SUPPORT_RECIPIENT
         mail.Subject = "PERSONAL ASSISTANT USER SUBMISSION"
-        mail.Body = (
-            f"New submission from Personal Assistant:\n\n"
-            f"Name: {name}\n"
-            f"Email: {email}\n\n"
-            f"Description:\n{description}\n"
-        )
+        mail.Body = self._compose_body(name, email, description, sent_at)
         for path in attachments:
             try:
                 mail.Attachments.Add(str(path))
