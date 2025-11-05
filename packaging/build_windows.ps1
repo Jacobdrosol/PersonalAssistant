@@ -89,6 +89,7 @@ $pyInstallerArgs = @(
     "--noconsole",
     "--onefile",
     "--clean",
+    "--noconfirm",
     "--icon", $iconPath,
     "--add-data", "$iconPath;."
 )
