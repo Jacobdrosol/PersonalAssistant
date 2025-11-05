@@ -1,295 +1,471 @@
-#!/usr/bin/env python3
-"""
-Robust Windows updater & relauncher (full rewrite)
---------------------------------------------------
-Purpose:
-  - Reliably replace an installed EXE (PyInstaller or any EXE) with an updated payload.
-  - Then relaunch the updated app with a CLEAN environment to avoid the "cannot find python DLL" error.
-  - Provide logs, retries, and optional backup/rollback.
+from __future__ import annotations
 
-How it works:
-  - Your app should spawn this updater (preferably from a temporary location) and then EXIT.
-  - The updater writes and executes a PowerShell script that:
-      * Waits for the target EXE to be unlocked
-      * Backs it up (optional)
-      * Replaces it atomically
-      * Waits a short settle delay
-      * Launches the updated EXE using .NET ProcessStartInfo with a minimal environment
-      * Retries a few times if the first launch fails
-  - The PowerShell script writes detailed logs.
-
-Example (from your app, before exiting):
-  updater.exe --target "C:\Program Files\MyApp\MyApp.exe" --payload "C:\Path\To\downloaded\MyApp.new" --args "--minimized" --backup --appdata-name "MyApp"
-
-Notes:
-  - This script is Windows-only. It requires PowerShell (present by default on supported Windows versions).
-  - If you need hash verification, pass --sha256 "<hex>" and the updater will validate the payload before replacing.
-"""
-import argparse
-import hashlib
+import json
+from datetime import datetime
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
-from datetime import datetime
+import urllib.error
+import urllib.request
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable, Optional
 
-# ---------------------------
-# Helpers
-# ---------------------------
+from .environment import ensure_user_data_dir, get_update_asset_name, get_update_repo
 
-def compute_sha256(file_path: Path) -> str:
-    h = hashlib.sha256()
-    with file_path.open('rb') as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b''):
-            h.update(chunk)
-    return h.hexdigest()
 
-def default_log_dir(app_name: str) -> Path:
-    # Use %APPDATA%\<AppName>\Logs by default
-    appdata = os.environ.get("APPDATA") or os.environ.get("LOCALAPPDATA") or str(Path.home())
-    log_dir = Path(appdata) / app_name / "Logs"
-    log_dir.mkdir(parents=True, exist_ok=True)
-    return log_dir
+class UpdateError(RuntimeError):
+    """Raised when an update cannot be prepared."""
 
-def write_ps_script(*, ps_path: Path, target: Path, payload: Path, working_dir: Path,
-                    log_file: Path, backup: bool, launch_args: str, settle_seconds: int):
-    """Writes the robust PowerShell script that does the file swap and clean-env relaunch."""
-    ps = f"""Param(
-    [Parameter(Mandatory=$true)][string]$TargetPath,
-    [Parameter(Mandatory=$true)][string]$PayloadPath,
-    [Parameter(Mandatory=$true)][string]$WorkingDirectory,
-    [Parameter(Mandatory=$true)][string]$LogFile,
-    [Parameter(Mandatory=$false)][switch]$DoBackup,
-    [Parameter(Mandatory=$false)][string]$LaunchArgs = "",
-    [Parameter(Mandatory=$false)][int]$SettleSeconds = {settle_seconds}
-)
 
-$ErrorActionPreference = 'Stop'
+@dataclass(slots=True)
+class AvailableUpdate:
+    version: str
+    notes: str
+    asset_url: str
+    asset_name: str
+    release_name: str
 
-function Write-Log($msg) {{
-    $timestamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff')
-    $line = "[$timestamp] $msg"
-    Add-Content -LiteralPath $LogFile -Value $line -Encoding UTF8
-}}
 
-function Wait-For-UnlockedFile($path, $timeoutSec) {{
-    $sw = [Diagnostics.Stopwatch]::StartNew()
-    while ($true) {{
-        try {{
-            $fs = [System.IO.File]::Open($path, 'Open', 'ReadWrite', 'None')
-            $fs.Close()
-            return $true
-        }} catch {{
-            if ($sw.Elapsed.TotalSeconds -ge $timeoutSec) {{ return $false }}
-            Start-Sleep -Milliseconds 200
-        }}
-    }}
-}}
+def should_check_for_updates() -> bool:
+    repo = get_update_repo()
+    if not repo:
+        _python_log("Update check skipped: no repository configured.")
+        return False
+    if not _is_packaged_executable():
+        _python_log("Update check skipped: not a packaged executable.")
+        return False
+    if not sys.platform.startswith("win"):
+        _python_log(f"Update check skipped: unsupported platform {sys.platform}.")
+        return False
+    return True
 
-function Safe-Copy-Replace($src, $dst, $doBackup) {{
-    # Ensure dest directory exists
-    $dstDir = Split-Path -LiteralPath $dst -Parent
-    if (!(Test-Path -LiteralPath $dstDir)) {{
-        New-Item -ItemType Directory -Path $dstDir -Force | Out-Null
-    }}
 
-    $tmpDst = Join-Path -Path $dstDir -ChildPath ("." + [IO.Path]::GetFileName($dst) + ".tmp_" + [Guid]::NewGuid().ToString("N"))
+def check_for_update(current_version: str) -> Optional[AvailableUpdate]:
+    repo = get_update_repo()
+    if not repo or not _is_packaged_executable():
+        if not repo:
+            _python_log("Update check aborted: repository not configured.")
+        if not _is_packaged_executable():
+            _python_log("Update check aborted: not running packaged executable.")
+        return None
+    _python_log(f"Checking for updates against {repo} (current version {current_version}).")
+    try:
+        data = _fetch_latest_release(repo)
+    except Exception as exc:  # pragma: no cover - network failure
+        _python_log(f"Failed to fetch latest release: {exc}")
+        return None
 
-    Write-Log "Copying payload to temporary file: $tmpDst"
-    Copy-Item -LiteralPath $src -Destination $tmpDst -Force
+    tag = str(data.get("tag_name") or "").strip()
+    if not tag:
+        _python_log("Latest release did not include a tag name.")
+        return None
+    latest_version = tag.lstrip("v")
+    if not _is_remote_newer(latest_version, current_version):
+        _python_log(f"No update available. Remote={latest_version}, current={current_version}.")
+        return None
 
-    if ($doBackup -and (Test-Path -LiteralPath $dst)) {{
-        $bak = $dst + ".bak"
-        try {{
-            Write-Log "Creating backup: $bak"
-            Copy-Item -LiteralPath $dst -Destination $bak -Force
-        }} catch {{
-            Write-Log "WARNING: Backup failed: $($_.Exception.Message)"
-        }}
-    }}
-
-    Write-Log "Replacing: $dst"
-    Move-Item -LiteralPath $tmpDst -Destination $dst -Force
-}}
-
-function Launch-With-CleanEnv($exePath, $args, $workDir) {{
-    # Build a minimal, stable environment
-    $cleanEnv = @{{}}
-    $cleanEnv["SystemRoot"] = $env:SystemRoot
-    $cleanEnv["WINDIR"]     = $env:WINDIR
-    $cleanEnv["COMSPEC"]    = $env:Comspec
-    $cleanEnv["TEMP"]       = $env:TEMP
-    $cleanEnv["TMP"]        = $env:TMP
-    $cleanEnv["PYI_SAFE_MODE"] = "1"
-    # Ensure app dir first in PATH, then core system dirs
-    $appDir = Split-Path -LiteralPath $exePath -Parent
-    $cleanEnv["Path"] = "$appDir;$([Environment]::GetFolderPath('Windows'))\System32;$([Environment]::GetFolderPath('Windows'))"
-
-    # Use .NET ProcessStartInfo for deterministic env
-    $psi = New-Object System.Diagnostics.ProcessStartInfo
-    $psi.FileName = $exePath
-    $psi.WorkingDirectory = $workDir
-    $psi.UseShellExecute = $false  # required to set Environment
-    if ($args -ne $null -and $args.Trim() -ne "") {{ $psi.Arguments = $args }}
-    foreach ($k in $cleanEnv.Keys) {{ $psi.Environment[$k] = $cleanEnv[$k] }}
-
-    $proc = [System.Diagnostics.Process]::Start($psi)
-    if ($null -eq $proc) {{ throw "Failed to start process via ProcessStartInfo." }}
-    return $proc.Id
-}}
-
-try {{
-    Write-Log "Updater started."
-    Write-Log "TargetPath: $TargetPath"
-    Write-Log "PayloadPath: $PayloadPath"
-    Write-Log "WorkingDirectory: $WorkingDirectory"
-    Write-Log "Backup: $($DoBackup.IsPresent)"
-    Write-Log "SettleSeconds: $SettleSeconds"
-    if ($LaunchArgs) {{ Write-Log "LaunchArgs: $LaunchArgs" }}
-
-    if (!(Test-Path -LiteralPath $PayloadPath)) {{ throw "Payload not found: $PayloadPath" }}
-
-    # Wait for target to unlock (in case parent hasn't exited yet)
-    if (Test-Path -LiteralPath $TargetPath) {{
-        if (-not (Wait-For-UnlockedFile -path $TargetPath -timeoutSec 30)) {{
-            Write-Log "Target still locked after 30s; proceeding anyway."
-        }}
-    }}
-
-    Safe-Copy-Replace -src $PayloadPath -dst $TargetPath -doBackup:$DoBackup.IsPresent
-
-    # Small settle delay to dodge AV/SmartScreen timing
-    if ($SettleSeconds -gt 0) {{
-        Write-Log "Sleeping $SettleSeconds second(s) before relaunch."
-        Start-Sleep -Seconds $SettleSeconds
-    }}
-
-    # Advisory check: DLL presence next to EXE (useful for PyInstaller)
-    try {{
-        $appDir = Split-Path -LiteralPath $TargetPath -Parent
-        $pyDlls = Get-ChildItem -LiteralPath $appDir -Filter 'python*.dll' -ErrorAction SilentlyContinue
-        if ($pyDlls) {{ Write-Log ("Found python DLL(s): " + ($pyDlls | ForEach-Object {{ $_.Name }}) -join ', ') }}
-        else {{ Write-Log "NOTE: No local python*.dll found; may be embedded or not required." }}
-    }} catch {{ Write-Log "DLL check failed: $($_.Exception.Message)" }}
-
-    $maxAttempts = 3
-    $delays = @(0, 2, 5) # extra waits between attempts
-    for ($i = 0; $i -lt $maxAttempts; $i++) {{
-        if ($delays[$i] -gt 0) {{
-            Write-Log ("Extra delay before attempt {0}: {1}s" -f ($i+1), $delays[$i])
-            Start-Sleep -Seconds $delays[$i]
-        }}
-        try {{
-            Write-Log ("Launching updated app (attempt {0})..." -f ($i+1))
-            $pid = Launch-With-CleanEnv -exePath $TargetPath -args $LaunchArgs -workDir $WorkingDirectory
-            Write-Log ("Launched. PID={0}" -f $pid)
-            exit 0
-        }} catch {{
-            Write-Log ("Launch attempt {0} failed: {1}" -f ($i+1), $_.Exception.Message)
-        }}
-    }}
-
-    throw "Failed to launch the updated app after $maxAttempts attempts."
-}} catch {{
-    Write-Log ("FATAL: {0}" -f $_.Exception.Message)
-    exit 1
-}}
-"""
-    ps_path.write_text(ps, encoding="utf-8")
-
-def main():
-    parser = argparse.ArgumentParser(description="Robust Windows updater & relauncher (full rewrite)")
-    parser.add_argument("--target", required=True, help="Path to the installed target executable to replace (e.g., C:\\Program Files\\MyApp\\MyApp.exe)")
-    parser.add_argument("--payload", required=True, help="Path to the downloaded new executable to install (temporary file)")
-    parser.add_argument("--args", default="", help="Arguments to pass when launching the updated app (single string)")
-    parser.add_argument("--backup", action="store_true", help="Keep a .bak of the previous executable")
-    parser.add_argument("--sha256", default=None, help="If provided, verify payload SHA-256 before replacing")
-    parser.add_argument("--settle-seconds", type=int, default=3, help="Seconds to sleep after replace before launching")
-    parser.add_argument("--appdata-name", default=None, help="Name for %APPDATA%\\<name>\\Logs; default = stem of target exe")
-    parser.add_argument("--log-dir", default=None, help="Override log directory path (if not using appdata-name)")
-
-    args = parser.parse_args()
-
-    target = Path(args.target).resolve()
-    payload = Path(args.payload).resolve()
-    if not payload.exists():
-        print(f"[Updater] Payload does not exist: {payload}", file=sys.stderr)
-        sys.exit(2)
-
-    app_name = args.appdata_name or target.stem
-    if args.log_dir:
-        log_dir = Path(args.log_dir).resolve()
-        log_dir.mkdir(parents=True, exist_ok=True)
-    else:
-        log_dir = default_log_dir(app_name)
-
-    log_file = log_dir / f"updater-ps-{datetime.now().strftime('%Y%m%d-%H%M%S')}.log"
-
-    # Optional SHA-256 verify
-    if args.sha256:
-        actual = compute_sha256(payload)
-        if actual.lower() != args.sha256.lower():
-            print(f"[Updater] SHA-256 mismatch. Expected {args.sha256}, got {actual}", file=sys.stderr)
-            sys.exit(3)
-
-    # Prepare PowerShell script
-    tmp_dir = Path(tempfile.mkdtemp(prefix="app_update_"))
-    ps_path = tmp_dir / "do_update.ps1"
-    working_dir = target.parent
-
-    write_ps_script(
-        ps_path=ps_path,
-        target=target,
-        payload=payload,
-        working_dir=working_dir,
-        log_file=log_file,
-        backup=args.backup,
-        launch_args=args.args,
-        settle_seconds=args.settle_seconds,
+    asset_name = get_update_asset_name()
+    asset_url = _find_asset_url(data, asset_name)
+    if not asset_url:
+        raise UpdateError(f"Latest release is missing an asset named {asset_name!r}.")
+    _python_log(f"Update available: version {latest_version}, asset {asset_name}.")
+    return AvailableUpdate(
+        version=latest_version,
+        notes=str(data.get("body") or ""),
+        asset_url=asset_url,
+        asset_name=asset_name,
+        release_name=str(data.get("name") or tag),
     )
 
-    # Build PowerShell command
-    ps_cmd = [
-        "powershell.exe",
-        "-NoProfile",
-        "-ExecutionPolicy", "Bypass",
-        "-File", str(ps_path),
-        "-TargetPath", str(target),
-        "-PayloadPath", str(payload),
-        "-WorkingDirectory", str(working_dir),
-        "-LogFile", str(log_file),
-    ]
-    if args.backup:
-        ps_cmd.append("-DoBackup")
-    if args.args:
-        ps_cmd.extend(["-LaunchArgs", args.args])
-    if args.settle_seconds is not None:
-        ps_cmd.extend(["-SettleSeconds", str(args.settle_seconds)])
 
-    # Run PowerShell helper
+ProgressCallback = Callable[[int, int], None]
+
+
+# --------------------------------------------------------------------------- logging helpers
+
+_LOG_DIR = ensure_user_data_dir() / "Logs"
+_LOG_DIR.mkdir(parents=True, exist_ok=True)
+_PYTHON_LOG_PATH = _LOG_DIR / f"pa-update-python-{datetime.now():%Y%m%d-%H%M%S-%f}.log"
+
+
+def _python_log(message: str) -> None:
+    timestamp = datetime.now().isoformat(timespec="seconds")
+    with _PYTHON_LOG_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(f"{timestamp} {message}\n")
+
+
+def prepare_and_schedule_restart(update: AvailableUpdate, progress: Optional[ProgressCallback] = None) -> None:
+    executable = _current_executable()
+    if executable is None:
+        raise UpdateError("Updates are only supported in packaged builds.")
+    _python_log(f"Preparing update {update.version}; current executable {executable}.")
+    download_path = _download_asset(update.asset_url, update.asset_name, progress)
+    _python_log(f"Scheduling replacement using payload {download_path}.")
+    _schedule_replace_and_restart(executable, download_path)
+
+
+# --------------------------------------------------------------------------- helpers
+
+def _is_packaged_executable() -> bool:
+    return bool(getattr(sys, "frozen", False))
+
+
+def _current_executable() -> Optional[Path]:
+    if not _is_packaged_executable():
+        return None
+    return Path(sys.executable).resolve()
+
+
+def _fetch_latest_release(repo: str) -> dict:
+    url = f"https://api.github.com/repos/{repo}/releases/latest"
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "PersonalAssistantUpdater/1.0",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=10) as response:
+        payload = response.read().decode("utf-8")
+        return json.loads(payload)
+
+
+def _is_remote_newer(remote: str, current: str) -> bool:
+    return _normalize_version(remote) > _normalize_version(current)
+
+
+def _normalize_version(value: str) -> tuple[int, ...]:
+    cleaned = value.strip().lower()
+    if cleaned.startswith("v"):
+        cleaned = cleaned[1:]
+    tokens = []
+    for chunk in cleaned.replace("-", ".").split("."):
+        if not chunk:
+            continue
+        numeric = "".join(ch for ch in chunk if ch.isdigit())
+        if numeric:
+            tokens.append(int(numeric))
+        else:
+            tokens.append(0)
+    while tokens and tokens[-1] == 0:
+        tokens.pop()
+    return tuple(tokens or [0])
+
+
+def _find_asset_url(release_data: dict, asset_name: str) -> Optional[str]:
+    for asset in release_data.get("assets") or []:
+        if str(asset.get("name")) == asset_name:
+            return str(asset.get("browser_download_url"))
+    return None
+
+
+def _download_asset(url: str, asset_name: str, progress: Optional[ProgressCallback]) -> Path:
+    tmp_dir = Path(tempfile.mkdtemp(prefix="pa-update-"))
+    target = tmp_dir / asset_name
+    _python_log(f"Downloading {asset_name} from {url} to {target}.")
     try:
-        completed = subprocess.run(ps_cmd, capture_output=True, text=True, check=False)
-    except FileNotFoundError:
-        print("[Updater] PowerShell not found. This updater requires PowerShell on Windows.", file=sys.stderr)
-        sys.exit(4)
+        with urllib.request.urlopen(url, timeout=60) as response, open(target, "wb") as handle:
+            total_header = response.info().get("Content-Length")
+            total_size = int(total_header) if total_header and total_header.isdigit() else -1
+            downloaded = 0
+            if progress:
+                progress(downloaded, total_size)
+            chunk_size = 1024 * 64
+            while True:
+                chunk = response.read(chunk_size)
+                if not chunk:
+                    break
+                handle.write(chunk)
+                downloaded += len(chunk)
+                if progress:
+                    progress(downloaded, total_size)
+            if progress:
+                progress(downloaded, total_size)
+            _python_log(f"Download complete: {downloaded} bytes.")
+    except urllib.error.URLError as exc:
+        _python_log(f"Download failed: {exc}")
+        raise UpdateError(f"Failed to download update: {exc.reason}") from exc
+    return target
 
-    # Bubble up useful stdout/stderr for diagnostics
-    if completed.stdout:
-        print(completed.stdout.strip())
-    if completed.stderr:
-        print(completed.stderr.strip(), file=sys.stderr)
 
-    # Exit code 0 => success (launched), 1 => fatal error in PS
-    if completed.returncode == 0:
-        sys.exit(0)
-    else:
-        print(f"[Updater] PowerShell updater failed with exit code {completed.returncode}. See log: {log_file}", file=sys.stderr)
-        sys.exit(5)
-
-if __name__ == "__main__":
-    if os.name != "nt":
-        print("This updater is intended for Windows (nt) only.", file=sys.stderr)
-        sys.exit(9)
-    main()
+def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    primary_log = _LOG_DIR / f"pa-update-ps-{timestamp}.log"
+    secondary_log = Path(tempfile.gettempdir()) / f"pa-update-ps-{timestamp}.log"
+    try:
+        primary_log.parent.mkdir(parents=True, exist_ok=True)
+        secondary_log.parent.mkdir(parents=True, exist_ok=True)
+        primary_log.touch(exist_ok=True)
+        secondary_log.touch(exist_ok=True)
+    except OSError as exc:
+        _python_log(f"Failed to prime PowerShell log files: {exc}")
+    _python_log(
+        f"Preparing PowerShell helper; primary log {primary_log}, secondary log {secondary_log}."
+    )
+    script_lines = [
+        "param(",
+        "    [Parameter(Mandatory = $true)][string]$TargetPath,",
+        "    [Parameter(Mandatory = $true)][string]$SourcePath,",
+        "    [Parameter(Mandatory = $true)][int]$ParentPid,",
+        "    [Parameter(Mandatory = $true)][string]$PrimaryLogPath,",
+        "    [Parameter(Mandatory = $true)][string]$SecondaryLogPath,",
+        "    [Parameter(Mandatory = $true)][string]$ScriptPath,",
+        "    [string]$ArgumentsJson = '[]'",
+        ")",
+        "$ErrorActionPreference = 'SilentlyContinue'",
+        "$maxRetries = 10",
+        "$retryDelayMs = 1500",
+        "$logPath = $PrimaryLogPath",
+        "$secondaryLogPath = $SecondaryLogPath",
+        "$logDir = Split-Path -LiteralPath $logPath -Parent",
+        "if ($logDir -and -not (Test-Path -LiteralPath $logDir)) {",
+        "    try { New-Item -ItemType Directory -Path $logDir -Force | Out-Null } catch {}",
+        "}",
+        "$secondaryDir = Split-Path -LiteralPath $secondaryLogPath -Parent",
+        "if ($secondaryDir -and -not (Test-Path -LiteralPath $secondaryDir)) {",
+        "    try { New-Item -ItemType Directory -Path $secondaryDir -Force | Out-Null } catch {}",
+        "}",
+        "function Write-Log([string]$Message) {",
+        "    $timestamped = \"{0:o} {1}\" -f (Get-Date), $Message",
+        "    Write-Host $timestamped",
+        "    try {",
+        "        Add-Content -LiteralPath $logPath -Value $timestamped -Force",
+        "    } catch {",
+        "        try { [System.IO.File]::AppendAllText($logPath, $timestamped + [Environment]::NewLine) } catch {}",
+        "    }",
+        "    if ($secondaryLogPath) {",
+        "        try {",
+        "            Add-Content -LiteralPath $secondaryLogPath -Value $timestamped -Force",
+        "        } catch {",
+        "            try { [System.IO.File]::AppendAllText($secondaryLogPath, $timestamped + [Environment]::NewLine) } catch {}",
+        "        }",
+        "    }",
+        "}",
+        "Write-Log ('Logging to {0}' -f $logPath)",
+        "Write-Log ('Updater started. Target={0} Source={1} ParentPid={2}' -f $TargetPath, $SourcePath, $ParentPid)",
+        "Write-Log ('Primary log: {0}' -f $logPath)",
+        "Write-Log ('Secondary log: {0}' -f $secondaryLogPath)",
+        "try {",
+        "    $sourceInfo = Get-Item -LiteralPath $SourcePath -ErrorAction Stop",
+        "    Write-Log ('Source size: {0} bytes' -f $sourceInfo.Length)",
+        "} catch {",
+        "    Write-Log ('Failed to stat source file: {0}' -f $_.Exception.Message)",
+        "}",
+        "Write-Log 'Waiting for parent process to exit.'",
+        "for ($i = 0; $i -lt 120; $i++) {",
+        "    if (-not (Get-Process -Id $ParentPid -ErrorAction SilentlyContinue)) { break }",
+        "    Start-Sleep -Milliseconds 500",
+        "    if ($i -eq 0 -or ($i % 10) -eq 0) { Write-Log ('Still waiting for parent PID {0}.' -f $ParentPid) }",
+        "}",
+        "Write-Log 'Parent process exited. Proceeding with update.'",
+        "if (-not (Test-Path -LiteralPath $SourcePath)) { Write-Log 'Source file missing.'; exit 1 }",
+        "$sourceHash = Get-FileHash -LiteralPath $SourcePath -Algorithm SHA256",
+        "$backupPath = \"$TargetPath.bak\"",
+        "$argumentList = @()",
+        "if ($ArgumentsJson -and $ArgumentsJson.Trim().Length -gt 0) {",
+        "    try {",
+        "        $parsed = ConvertFrom-Json -InputObject $ArgumentsJson",
+        "        if ($parsed -is [System.Collections.IEnumerable]) { $argumentList = @($parsed) }",
+        "        Write-Log ('Restored argument list: {0}' -f ($argumentList -join ' '))",
+        "    } catch {",
+        "        Write-Log ('Failed to parse ArgumentsJson: {0}' -f $_.Exception.Message)",
+        "        $argumentList = @()",
+        "    }",
+        "}",
+        "$success = $false",
+        "$launchSuccess = $false",
+        "for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {",
+        "    Write-Log (\"Attempt {0} beginning.\" -f $attempt)",
+        "    $restoreNeeded = $false",
+        "    try {",
+        "        if (Test-Path -LiteralPath $backupPath) {",
+        "            Write-Log 'Removing stale backup before attempting update.'",
+        "            try { Remove-Item -LiteralPath $backupPath -Force } catch { Write-Log ('Failed to remove stale backup: {0}' -f $_.Exception.Message) }",
+        "        }",
+        "        if (Test-Path -LiteralPath $TargetPath) {",
+        "            Move-Item -LiteralPath $TargetPath -Destination $backupPath -Force",
+        "            Write-Log 'Existing target renamed to .bak.'",
+        "        }",
+        "        Copy-Item -LiteralPath $SourcePath -Destination $TargetPath -Force",
+        "        try {",
+        "            Unblock-File -LiteralPath $TargetPath -ErrorAction Stop",
+        "            Write-Log 'Removed Zone.Identifier from target executable.'",
+        "        } catch {",
+        "            Write-Log ('Unblock-File failed: {0}' -f $_.Exception.Message)",
+        "        }",
+        "        $targetHash = Get-FileHash -LiteralPath $TargetPath -Algorithm SHA256",
+        "        if ($targetHash.Hash -eq $sourceHash.Hash) {",
+        "            Write-Log 'Hash match. Update successful.'",
+        "            $success = $true",
+        "            break",
+        "        } else {",
+        "            Write-Log ('Hash mismatch (target {0} vs source {1}). Retrying.' -f $targetHash.Hash, $sourceHash.Hash)",
+        "            $restoreNeeded = $true",
+        "        }",
+        "    } catch {",
+        "        Write-Log ('Error during copy: {0}' -f $_.Exception.Message)",
+        "        $restoreNeeded = $true",
+        "    }",
+        "    if ($restoreNeeded) {",
+        "        try {",
+        "            if (Test-Path -LiteralPath $backupPath) {",
+        "                Move-Item -LiteralPath $backupPath -Destination $TargetPath -Force",
+        "                Write-Log 'Backup restored after failed attempt.'",
+        "            }",
+        "        } catch {",
+        "            Write-Log ('Failed to restore backup: {0}' -f $_.Exception.Message)",
+        "        }",
+        "    }",
+        "    Start-Sleep -Milliseconds $retryDelayMs",
+        "}",
+        "if (-not $success) {",
+        "    Write-Log 'Failed to copy update after maximum retries.'",
+        "    try {",
+        "        if (Test-Path -LiteralPath $backupPath) {",
+        "            Move-Item -LiteralPath $backupPath -Destination $TargetPath -Force",
+        "            Write-Log 'Backup restored after exhausting retries.'",
+        "        }",
+        "    } catch {",
+        "        Write-Log ('Failed to restore backup after retries: {0}' -f $_.Exception.Message)",
+        "    }",
+        "    exit 2",
+        "}",
+        "try { Remove-Item -LiteralPath $SourcePath -Force } catch {}",
+        "Write-Log 'Launching updated executable.'",
+        "Start-Sleep -Seconds 3",
+        "# Preserve PyInstaller environment variables for dependency resolution",
+        "[Environment]::SetEnvironmentVariable('PYI_SAFE_MODE','0','Process')",
+        "$workingDirectory = Split-Path -LiteralPath $TargetPath",
+        "if (-not $workingDirectory) { $workingDirectory = [System.IO.Path]::GetDirectoryName($TargetPath) }",
+        "try {",
+        "    $maxLaunchAttempts = 3",
+        "    for ($launchAttempt = 1; $launchAttempt -le $maxLaunchAttempts; $launchAttempt++) {",
+        "        Write-Log ('Launch attempt {0}.' -f $launchAttempt)",
+        "        try {",
+        "            if ($argumentList.Count -gt 0) {",
+        "                $proc = Start-Process -FilePath $TargetPath -ArgumentList $argumentList -WorkingDirectory $workingDirectory -WindowStyle Normal -PassThru -ErrorAction Stop",
+        "            } else {",
+        "                $proc = Start-Process -FilePath $TargetPath -WorkingDirectory $workingDirectory -WindowStyle Normal -PassThru -ErrorAction Stop",
+        "            }",
+        "        } catch {",
+        "            Write-Log ('Process start failed: {0}' -f $_.Exception.Message)",
+        "            $proc = $null",
+        "        }",
+        "        if ($null -eq $proc) {",
+        "            if ($launchAttempt -lt $maxLaunchAttempts) {",
+        "                Start-Sleep -Milliseconds 2000",
+        "                continue",
+        "            }",
+            "            break",
+        "        }",
+        "        Write-Log ('Launched updated executable (PID {0}).' -f $proc.Id)",
+        "        Start-Sleep -Milliseconds 3000",
+        "        if ($proc.HasExited) {",
+        "            Write-Log ('Child exited early with code {0}.' -f $proc.ExitCode)",
+        "            try { $proc.Dispose() } catch {}",
+        "            if ($launchAttempt -lt $maxLaunchAttempts) {",
+        "                Write-Log 'Retrying launch after delay due to early exit.'",
+        "                Start-Sleep -Milliseconds 2000",
+        "                continue",
+        "            }",
+        "            break",
+        "        }",
+        "        try { $proc.Dispose() } catch {}",
+        "        $launchSuccess = $true",
+        "        break",
+        "    }",
+        "    if ($launchSuccess -and (Test-Path -LiteralPath $backupPath)) {",
+        "        try { Remove-Item -LiteralPath $backupPath -Force } catch {}",
+        "    }",
+        "    if (-not $launchSuccess) {",
+        "        Write-Log 'Unable to launch updated executable after retries.'",
+        "        if (Test-Path -LiteralPath $backupPath) {",
+        "            try {",
+        "                Move-Item -LiteralPath $backupPath -Destination $TargetPath -Force",
+        "                Write-Log 'Backup restored after launch retries.'",
+        "            } catch {",
+        "                Write-Log ('Failed to restore backup after retries: {0}' -f $_.Exception.Message)",
+        "            }",
+        "        }",
+        "    }",
+        "} catch {",
+        "    Write-Log ('Failed to launch updated executable: {0}' -f $_.Exception.Message)",
+        "    try {",
+        "        if (Test-Path -LiteralPath $backupPath) {",
+        "            Move-Item -LiteralPath $backupPath -Destination $TargetPath -Force",
+        "            Write-Log 'Backup restored after launch failure.'",
+        "        }",
+        "    } catch {",
+        "        Write-Log ('Failed to restore backup after launch failure: {0}' -f $_.Exception.Message)",
+        "    }",
+        "}",
+        "Start-Sleep -Milliseconds 2000",
+        "try { Remove-Item -LiteralPath $ScriptPath -Force } catch {}",
+        "Write-Log 'Update script completed.'",
+        "if (-not $success -or -not $launchSuccess) {",
+        "    Write-Log 'Update encountered an error. Waiting for user acknowledgement.'",
+        "    try { [void](Read-Host 'Press Enter to close this window. Review console output above for details.') } catch {}",
+        "} else {",
+        "    Start-Sleep -Milliseconds 1500",
+        "}",
+    ]
+    script_content = "\r\n".join(script_lines)
+    script_path = Path(tempfile.mkdtemp(prefix="pa-update-script-")) / "apply-update.ps1"
+    script_path.write_text(script_content, encoding="utf-8")
+    _python_log(f"Update script written to {script_path}.")
+    powershell = (
+        shutil.which("powershell.exe")
+        or shutil.which("powershell")
+        or shutil.which("pwsh.exe")
+        or shutil.which("pwsh")
+    )
+    if not powershell:
+        system_root = os.environ.get("SystemRoot")
+        if system_root:
+            candidate = Path(system_root) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+            if candidate.exists():
+                powershell = str(candidate)
+    if not powershell:
+        _python_log("Unable to locate PowerShell executable; aborting update.")
+        raise UpdateError("PowerShell is required to apply updates on Windows.")
+    arguments_json = json.dumps(sys.argv[1:])
+    creation_flags = 0
+    startupinfo = None
+    _python_log(f"Launching update script via {powershell}.")
+    try:
+        proc = subprocess.Popen(
+            [
+                powershell,
+                "-NoLogo",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(script_path),
+                "-TargetPath",
+                str(executable),
+                "-SourcePath",
+                str(downloaded),
+                "-ParentPid",
+                str(os.getpid()),
+                "-PrimaryLogPath",
+                str(primary_log),
+                "-SecondaryLogPath",
+                str(secondary_log),
+                "-ScriptPath",
+                str(script_path),
+                "-ArgumentsJson",
+                arguments_json,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=creation_flags,
+            startupinfo=startupinfo,
+        )
+        _python_log(f"Update script launched (PID {proc.pid}).")
+    except FileNotFoundError as exc:
+        _python_log(f'Failed to spawn update script: {exc}')
+        raise UpdateError("PowerShell is required to apply updates on Windows.") from exc
