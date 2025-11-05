@@ -341,7 +341,7 @@ def _schedule_replace_and_restart(executable: Path, downloaded: Path) -> None:
         "try {",
         "    $resetCmd = 'set \"_MEIPASS=\" & set \"_MEIPASS2=\" & set \"_PYI_TEMP_DIR=\" & set \"_PYI_SHIMS_CACHE_DIR=\" & set \"_PYI_CACHE_DIR=\" & set \"PYI_SAFE_MODE=1\" & set \"PYI_ENV_CLEANED=1\"'",
         "    $quotedTarget = '\"' + $TargetPath.Replace('\"', '\"\"') + '\"'",
-        "    $launchCmd = \"$resetCmd & start \"\" $quotedTarget\"",
+        "    $launchCmd = \"$resetCmd & start \"\" /B $quotedTarget\"",
         "    if ($argumentList.Count -gt 0) {",
         "        $quotedArgs = $argumentList | ForEach-Object { '\"' + $_.Replace('\"', '\"\"') + '\"' }",
         "        $launchCmd += ' ' + ($quotedArgs -join ' ')",
