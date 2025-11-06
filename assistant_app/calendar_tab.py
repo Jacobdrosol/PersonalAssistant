@@ -97,11 +97,29 @@ class CalendarTab(ttk.Frame):
         container.columnconfigure(0, weight=1)
         container.rowconfigure(0, weight=1)
 
-        sidebar = ttk.Frame(paned, padding=(12, 0))
-        sidebar.rowconfigure(3, weight=1)
+        sidebar_outer = ttk.Frame(paned)
+        sidebar_outer.columnconfigure(0, weight=1)
+        sidebar_outer.rowconfigure(0, weight=1)
 
-        paned.add(container, weight=3)
-        paned.add(sidebar, weight=2)
+        paned.add(container, weight=3, minsize=480)
+        paned.add(sidebar_outer, weight=2, minsize=260)
+
+        sidebar_canvas = tk.Canvas(sidebar_outer, highlightthickness=0, bd=0, background=self.bg_color)
+        sidebar_canvas.grid(row=0, column=0, sticky="nsew")
+        sidebar_scroll = ttk.Scrollbar(sidebar_outer, orient=tk.VERTICAL, command=sidebar_canvas.yview)
+        sidebar_scroll.grid(row=0, column=1, sticky="ns")
+        sidebar_canvas.configure(yscrollcommand=sidebar_scroll.set)
+
+        sidebar = ttk.Frame(sidebar_canvas, padding=(12, 0))
+        sidebar_window = sidebar_canvas.create_window((0, 0), window=sidebar, anchor="nw")
+
+        def _resize_sidebar(_event: tk.Event | None = None) -> None:
+            sidebar_canvas.configure(scrollregion=sidebar_canvas.bbox("all"))
+            width = sidebar_outer.winfo_width() - sidebar_scroll.winfo_width() - 24
+            sidebar_canvas.itemconfigure(sidebar_window, width=max(width, 220))
+
+        sidebar.bind("<Configure>", _resize_sidebar)
+        sidebar_outer.bind("<Configure>", _resize_sidebar)
 
         # Left: calendar grid --------------------------------------------------
         left = ttk.Frame(container)

@@ -51,11 +51,21 @@ class ScrumTab(ttk.Frame):
     def _on_columns_container_configure(self, event: tk.Event) -> None:
         if not hasattr(self, "_board_canvas"):
             return
-        self._board_canvas.configure(scrollregion=self._board_canvas.bbox("all"))  # type: ignore[attr-defined]
-        canvas_width = self._board_canvas.winfo_width()  # type: ignore[attr-defined]
-        self._board_canvas.itemconfigure(  # type: ignore[attr-defined]
-            self._board_window, width=max(canvas_width, event.width)  # type: ignore[attr-defined]
-        )
+        container = self._columns_container  # type: ignore[attr-defined]
+        container.update_idletasks()
+        children = container.winfo_children()
+        required = 0
+        gap = 12
+        for idx, child in enumerate(children):
+            width = max(child.winfo_reqwidth(), self._column_min_width)  # type: ignore[attr-defined]
+            required += width
+            if idx < len(children) - 1:
+                required += gap
+        required += 24
+        canvas = self._board_canvas  # type: ignore[attr-defined]
+        canvas.configure(scrollregion=canvas.bbox("all"))
+        current = canvas.winfo_width()
+        canvas.itemconfigure(self._board_window, width=max(required, event.width, current))  # type: ignore[attr-defined]
 
     def _on_board_canvas_configure(self, _event: tk.Event) -> None:
         if not hasattr(self, "_board_canvas"):
@@ -85,6 +95,8 @@ class ScrumTab(ttk.Frame):
         header.pack(fill=tk.X, pady=(0, 12))
         ttk.Label(header, text="Scrum Dashboard", style="SidebarHeading.TLabel").pack(side=tk.LEFT)
         ttk.Button(header, text="New Item", command=self._open_new_task).pack(side=tk.RIGHT)
+
+        self._column_min_width = 320
 
         board_wrapper = ttk.Frame(self)
         board_wrapper.pack(fill=tk.BOTH, expand=True)
@@ -222,8 +234,27 @@ class ScrumTab(ttk.Frame):
         overlay = tk.Frame(self, bg="#000000", bd=0)
         overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
         overlay.lift()
+
+        canvas = tk.Canvas(overlay, bg="#000000", bd=0, highlightthickness=0)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll_y = ttk.Scrollbar(overlay, orient=tk.VERTICAL, command=canvas.yview)
+        scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
+        canvas.configure(yscrollcommand=scroll_y.set)
+
+        holder = ttk.Frame(canvas, padding=(0, 20))
+        holder.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        window_id = canvas.create_window((0, 0), window=holder, anchor="n")
+
+        def _resize_holder(_event: tk.Event | None = None) -> None:
+            overlay.update_idletasks()
+            width_available = overlay.winfo_width() - scroll_y.winfo_width() - 40
+            canvas.itemconfigure(window_id, width=max(width_available, 420))
+
+        overlay.bind("<Configure>", _resize_holder)
+        self.after(10, _resize_holder)
+
         dialog = ScrumTaskDialog(
-            overlay,
+            holder,
             task=task,
             statuses=[title for _, title in self.STATUSES],
             status_title_map=self.status_title_map,
@@ -457,7 +488,7 @@ class ScrumTaskDialog(tk.Frame):
         self._date_picker: Optional[DatePickerPopup] = None
         self._notes_map: Dict[int, ScrumNote] = {}
 
-        self.place(relx=0.5, rely=0.5, anchor="center")
+        self.pack(fill=tk.BOTH, expand=True, padx=24, pady=24)
         container = self._build_form()
 
         ttk.Label(container, text="Title").grid(row=1, column=0, sticky="w", pady=(12, 0))
