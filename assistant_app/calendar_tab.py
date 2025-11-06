@@ -60,6 +60,7 @@ class CalendarTab(ttk.Frame):
         self._suspend_production_callback = False
         self._modal_overlay: tk.Frame | None = None
         self._modal_panel: tk.Frame | None = None
+        self.month_label: Optional[ttk.Label] = None
         self._calendar_checkbuttons: List[ttk.Checkbutton] = []
         self._calendar_edit_buttons: List[ttk.Button] = []
         self._interactive_buttons: List[tk.Widget] = []
@@ -110,11 +111,6 @@ class CalendarTab(ttk.Frame):
 
         paned.add(container, weight=3)
         paned.add(sidebar_outer, weight=2)
-        try:
-            paned.paneconfig(container, minsize=440)
-            paned.paneconfig(sidebar_outer, minsize=260)
-        except tk.TclError:
-            pass
         self.after(150, lambda: self._init_paned_position(paned))
 
         sidebar_canvas = tk.Canvas(sidebar_outer, highlightthickness=0, bd=0, background=self.bg_color)
@@ -139,12 +135,14 @@ class CalendarTab(ttk.Frame):
         if width <= 1:
             self.after(150, lambda: self._init_paned_position(paned))
             return
-        sidebar_min = 260
-        left_min = 440
-        target = max(left_min, int(width * 0.62))
-        if target > width - sidebar_min:
-            target = max(left_min, width - sidebar_min)
-        target = max(left_min, target)
+        sidebar_min = 320
+        left_min = 520
+        ideal = int(width * 0.58)
+        if width <= left_min + sidebar_min:
+            target = max(int(width * 0.55), width - sidebar_min)
+        else:
+            target = max(left_min, min(ideal, width - sidebar_min))
+        target = max(220, min(target, width - 160))
         try:
             paned.sashpos(0, target)
         except tk.TclError:
@@ -543,7 +541,8 @@ class CalendarTab(ttk.Frame):
         month_start = self.current_month
         cal_obj = cal.Calendar(firstweekday=6)
         weeks = cal_obj.monthdatescalendar(month_start.year, month_start.month)
-        self.month_label.configure(text=month_start.strftime("%B %Y"))
+        if self.month_label is not None:
+            self.month_label.configure(text=month_start.strftime("%B %Y"))
         self.occurrences_by_day = defaultdict(list)
 
         if self.events:

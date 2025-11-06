@@ -206,7 +206,7 @@ class PersonalAssistantApp(tk.Tk):
             preview = notes if len(notes) <= max_preview else notes[: max_preview - 3] + "..."
             summary_lines.append(preview)
         summary_lines.append("")
-        summary_lines.append("Install now? The app will download the update and restart.")
+        summary_lines.append("Install now? The app will download the update, close, and you'll reopen it manually once finished.")
         if not messagebox.askyesno("Update Available", "\n".join(summary_lines), parent=self):
             return
         self._begin_update_install(info)
@@ -233,7 +233,7 @@ class PersonalAssistantApp(tk.Tk):
     def _restart_for_update(self) -> None:
         messagebox.showinfo(
             "Update Ready",
-            "The application will close now to complete the update.",
+            "Personal Assistant will close so the update can be installed.\nAfter it finishes, reopen the app from your shortcut.",
             parent=self,
         )
         self.after(100, self.on_close)
@@ -576,17 +576,22 @@ class UpdateProgressWindow(tk.Toplevel):
         self.configure(bg="#1d1e2c")
         self.resizable(False, False)
         self.transient(master)
-        self.title("Updating Personal Assistant")
+        self.title("Installing Update")
         self.progress_mode = "indeterminate"
 
         container = ttk.Frame(self, padding=20)
         container.pack(fill=tk.BOTH, expand=True)
 
         title = update_info.release_name or f"Version {update_info.version}"
-        ttk.Label(container, text=f"Downloading {title}", style="SidebarHeading.TLabel").pack(anchor="w")
+        ttk.Label(container, text=f"Updating to {title}", style="SidebarHeading.TLabel").pack(anchor="w")
 
         self.status_var = tk.StringVar(value="Preparing download...")
-        ttk.Label(container, textvariable=self.status_var, wraplength=320).pack(anchor="w", pady=(10, 12))
+        ttk.Label(container, textvariable=self.status_var, wraplength=320).pack(anchor="w", pady=(10, 6))
+
+        self.instructions_var = tk.StringVar(
+            value="Once the download finishes, Personal Assistant will close so the update can be installed. Reopen it from your shortcut afterwards."
+        )
+        ttk.Label(container, textvariable=self.instructions_var, wraplength=320, foreground="#9FA8DA").pack(anchor="w", pady=(0, 12))
 
         self.progress = ttk.Progressbar(container, mode="indeterminate", length=320)
         self.progress.pack(fill=tk.X)
@@ -641,7 +646,8 @@ class UpdateProgressWindow(tk.Toplevel):
                 self.progress["value"] = self.progress["maximum"]
             self.progress_mode = "determinate"
             self.percent_var.set("100%")
-            self.status_var.set("Download complete. Restarting to apply update...")
+            self.status_var.set("Download complete. Closing to install update...")
+            self.instructions_var.set("Personal Assistant will close now and finish installing the update. Reopen it from your shortcut once the window disappears.")
             self.after(800, lambda: (self.close(), callback()))
 
         self.after(0, _apply)
