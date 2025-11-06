@@ -9,6 +9,7 @@ from pathlib import Path
 class AppSettings:
     desktop_shortcut: bool = True
     start_menu_shortcut: bool = True
+    daily_update_notifications: bool = True
 
 
 def load_settings(path: Path) -> AppSettings:
@@ -24,6 +25,7 @@ def load_settings(path: Path) -> AppSettings:
     return AppSettings(
         desktop_shortcut=bool(payload.get("desktop_shortcut", True)),
         start_menu_shortcut=bool(payload.get("start_menu_shortcut", True)),
+        daily_update_notifications=bool(payload.get("daily_update_notifications", True)),
     )
 
 

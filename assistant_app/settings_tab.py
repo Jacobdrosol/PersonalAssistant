@@ -12,13 +12,15 @@ class SettingsTab(ttk.Frame):
         *,
         desktop_enabled: bool,
         start_menu_enabled: bool,
-        on_shortcut_toggle: Callable[[str, bool], None],
+        daily_notifications_enabled: bool,
+        on_setting_toggle: Callable[[str, bool], None],
         app_version: str,
     ) -> None:
         super().__init__(master, padding=(20, 20))
-        self._callback = on_shortcut_toggle
+        self._callback = on_setting_toggle
         self.desktop_var = tk.BooleanVar(value=desktop_enabled)
         self.start_menu_var = tk.BooleanVar(value=start_menu_enabled)
+        self.daily_notifications_var = tk.BooleanVar(value=daily_notifications_enabled)
 
         ttk.Label(self, text="Settings", style="SidebarHeading.TLabel").pack(anchor="w")
         body = ttk.Frame(self, padding=(0, 12))
@@ -27,14 +29,20 @@ class SettingsTab(ttk.Frame):
             body,
             text="Show desktop shortcut",
             variable=self.desktop_var,
-            command=lambda: self._on_shortcut_toggled("desktop"),
+            command=lambda: self._on_setting_toggled("desktop"),
         ).pack(anchor="w", pady=(6, 0))
         ttk.Checkbutton(
             body,
             text="Show Start Menu shortcut",
             variable=self.start_menu_var,
-            command=lambda: self._on_shortcut_toggled("start_menu"),
+            command=lambda: self._on_setting_toggled("start_menu"),
         ).pack(anchor="w", pady=(6, 0))
+        ttk.Checkbutton(
+            body,
+            text="Daily Update Log reminders",
+            variable=self.daily_notifications_var,
+            command=lambda: self._on_setting_toggled("daily_notifications"),
+        ).pack(anchor="w", pady=(12, 0))
 
         footer = ttk.Frame(self)
         footer.pack(fill=tk.BOTH, expand=True)
@@ -44,8 +52,13 @@ class SettingsTab(ttk.Frame):
         version_label = ttk.Label(footer, text=f"Version: {app_version}")
         version_label.grid(row=1, column=0, sticky="se", padx=4, pady=4)
 
-    def _on_shortcut_toggled(self, kind: str) -> None:
-        value = bool(self.desktop_var.get()) if kind == "desktop" else bool(self.start_menu_var.get())
+    def _on_setting_toggled(self, kind: str) -> None:
+        if kind == "desktop":
+            value = bool(self.desktop_var.get())
+        elif kind == "start_menu":
+            value = bool(self.start_menu_var.get())
+        else:
+            value = bool(self.daily_notifications_var.get())
         self._callback(kind, value)
 
     def update_shortcut_state(self, kind: str, enabled: bool) -> None:
@@ -53,3 +66,6 @@ class SettingsTab(ttk.Frame):
             self.desktop_var.set(enabled)
         else:
             self.start_menu_var.set(enabled)
+
+    def update_daily_notification_state(self, enabled: bool) -> None:
+        self.daily_notifications_var.set(enabled)

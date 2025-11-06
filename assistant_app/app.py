@@ -69,7 +69,8 @@ class PersonalAssistantApp(tk.Tk):
             self.settings_tab_frame,
             desktop_enabled=self.settings.desktop_shortcut and manage_shortcuts,
             start_menu_enabled=self.settings.start_menu_shortcut and manage_shortcuts,
-            on_shortcut_toggle=self._handle_shortcut_toggle,
+            daily_notifications_enabled=self.settings.daily_update_notifications,
+            on_setting_toggle=self._handle_setting_toggle,
             app_version=__version__,
         )
         self.settings_tab.pack(fill=tk.BOTH, expand=True)
@@ -106,6 +107,7 @@ class PersonalAssistantApp(tk.Tk):
 
         self.notifications: List[NotificationWindow] = []
         self.notification_manager = NotificationManager(self.db, self._handle_notification)
+        self.notification_manager.set_standing_reminders_enabled(self.settings.daily_update_notifications)
         self.after(1000, self.notification_manager.start)
         self.after(2000, self._check_for_updates_async)
         self.after(250, self._ensure_shortcuts)
@@ -328,7 +330,14 @@ class PersonalAssistantApp(tk.Tk):
             return remove_desktop_shortcut()
         return remove_start_menu_shortcut()
 
-    def _handle_shortcut_toggle(self, kind: str, enabled: bool) -> None:
+    def _handle_setting_toggle(self, kind: str, enabled: bool) -> None:
+        if kind == "daily_notifications":
+            self.settings.daily_update_notifications = bool(enabled)
+            self.notification_manager.set_standing_reminders_enabled(bool(enabled))
+            self.settings_tab.update_daily_notification_state(bool(enabled))
+            save_settings(self.settings_path, self.settings)
+            return
+
         label = "Desktop" if kind == "desktop" else "Start Menu"
         if not self._should_manage_shortcut():
             messagebox.showinfo(

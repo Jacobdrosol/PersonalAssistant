@@ -37,6 +37,7 @@ class NotificationManager:
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
         self._notified: Dict[str, datetime] = {}
+        self._standing_reminders_enabled = True
         self._standing_reminders: List[StandingReminder] = [
             StandingReminder(
                 name="update-log-hourly",
@@ -70,6 +71,9 @@ class NotificationManager:
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=1.5)
 
+    def set_standing_reminders_enabled(self, enabled: bool) -> None:
+        self._standing_reminders_enabled = bool(enabled)
+
     def _run(self) -> None:
         while not self._stop_event.is_set():
             now = datetime.now()
@@ -77,7 +81,8 @@ class NotificationManager:
                 events = self.db.get_events()
                 self._process_event_reminders(events, now)
                 self._process_scrum_alerts(now)
-                self._process_standing_reminders(now)
+                if self._standing_reminders_enabled:
+                    self._process_standing_reminders(now)
                 self._prune_old(now)
             except Exception:
                 time_module.sleep(5)
