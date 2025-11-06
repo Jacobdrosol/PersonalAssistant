@@ -99,7 +99,6 @@ class CalendarTab(ttk.Frame):
 
         paned = ttk.Panedwindow(self, orient=tk.HORIZONTAL)
         paned.pack(fill=tk.BOTH, expand=True)
-        self.after(50, lambda: paned.sashpos(0, int(max(360, self.winfo_width() * 0.62))))
 
         container = ttk.Frame(paned)
         container.columnconfigure(0, weight=1)
@@ -111,6 +110,12 @@ class CalendarTab(ttk.Frame):
 
         paned.add(container, weight=3)
         paned.add(sidebar_outer, weight=2)
+        try:
+            paned.paneconfig(container, minsize=440)
+            paned.paneconfig(sidebar_outer, minsize=260)
+        except tk.TclError:
+            pass
+        self.after(150, lambda: self._init_paned_position(paned))
 
         sidebar_canvas = tk.Canvas(sidebar_outer, highlightthickness=0, bd=0, background=self.bg_color)
         sidebar_canvas.grid(row=0, column=0, sticky="nsew")
@@ -128,6 +133,22 @@ class CalendarTab(ttk.Frame):
 
         sidebar.bind("<Configure>", _resize_sidebar)
         sidebar_outer.bind("<Configure>", _resize_sidebar)
+
+    def _init_paned_position(self, paned: ttk.Panedwindow) -> None:
+        width = paned.winfo_width()
+        if width <= 1:
+            self.after(150, lambda: self._init_paned_position(paned))
+            return
+        sidebar_min = 260
+        left_min = 440
+        target = max(left_min, int(width * 0.62))
+        if target > width - sidebar_min:
+            target = max(left_min, width - sidebar_min)
+        target = max(left_min, target)
+        try:
+            paned.sashpos(0, target)
+        except tk.TclError:
+            pass
 
         # Left: calendar grid --------------------------------------------------
         left = ttk.Frame(container)
@@ -591,7 +612,7 @@ class CalendarTab(ttk.Frame):
                 )
                 ev_label.pack(fill=tk.X, pady=1)
                 ev_label.bind("<Button-1>", lambda e, date_obj=day: self.select_day(date_obj))
-                ev_label.bind("<Double-1>", lambda e, evt=event: self.edit_event(evt))
+                ev_label.bind("<Double-1>", lambda e, entry=occ_entry: self._open_occurrence_customizer(entry))
 
             if len(occurrences) > 4:
                 more_label = tk.Label(
@@ -835,19 +856,23 @@ class CalendarTab(ttk.Frame):
         occ_entry = self._day_occurrence_index.get(iid)
         if occ_entry is None:
             return
+        self._open_occurrence_customizer(occ_entry)
+
+    def _open_occurrence_customizer(self, occ_entry: DayOccurrence) -> None:
+        occurrence_date = occ_entry.occurrence.date()
 
         def builder(parent: tk.Frame) -> tk.Frame:
-            override = self.db.get_event_override(occ_entry.event.id, occ_entry.occurrence.date())
+            override = self.db.get_event_override(occ_entry.event.id, occurrence_date)
             return EventOccurrencePanel(
                 parent,
                 event=occ_entry.event,
                 occurrence=occ_entry.occurrence,
                 override=override,
                 on_submit=lambda payload: self._handle_occurrence_override_submit(
-                    occ_entry.event, occ_entry.occurrence.date(), payload
+                    occ_entry.event, occurrence_date, payload
                 ),
                 on_clear=lambda: self._handle_occurrence_override_clear(
-                    occ_entry.event, occ_entry.occurrence.date()
+                    occ_entry.event, occurrence_date
                 ),
                 on_cancel=self._close_modal,
             )
