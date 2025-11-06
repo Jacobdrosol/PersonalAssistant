@@ -62,6 +62,7 @@ class CalendarTab(ttk.Frame):
         self._modal_panel: tk.Frame | None = None
         self.month_label: Optional[ttk.Label] = None
         self.calendars_frame: Optional[ttk.Frame] = None
+        self.day_value_label: Optional[ttk.Label] = None
         self._calendar_checkbuttons: List[ttk.Checkbutton] = []
         self._calendar_edit_buttons: List[ttk.Button] = []
         self._interactive_buttons: List[tk.Widget] = []
@@ -702,6 +703,8 @@ class CalendarTab(ttk.Frame):
                     child.configure(bg=bg)
 
     def _update_selected_day_label(self) -> None:
+        if self.day_value_label is None:
+            return
         self.day_value_label.configure(text=self.selected_day.strftime("%A, %B %d, %Y"))
 
     # ---------------------------------------------------------------- Events
