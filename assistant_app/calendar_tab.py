@@ -703,9 +703,10 @@ class CalendarTab(ttk.Frame):
                     child.configure(bg=bg)
 
     def _update_selected_day_label(self) -> None:
-        if self.day_value_label is None:
+        label = getattr(self, "day_value_label", None)
+        if label is None:
             return
-        self.day_value_label.configure(text=self.selected_day.strftime("%A, %B %d, %Y"))
+        label.configure(text=self.selected_day.strftime("%A, %B %d, %Y"))
 
     # ---------------------------------------------------------------- Events
     def _on_cell_click(self, index: int) -> None:
