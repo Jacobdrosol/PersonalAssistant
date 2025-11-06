@@ -94,7 +94,11 @@ $pyInstallerArgs = @(
     "--clean",
     "--noconfirm",
     "--icon", $iconPath,
-    "--add-data", "$iconPath;."
+    "--add-data", "$iconPath;.",
+    "--collect-all", "transformers",
+    "--collect-all", "torch",
+    "--collect-data", "sentencepiece",
+    "--collect-data", "safetensors"
 )
 
 & $Python -m PyInstaller @pyInstallerArgs

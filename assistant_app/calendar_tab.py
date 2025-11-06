@@ -101,8 +101,8 @@ class CalendarTab(ttk.Frame):
         sidebar_outer.columnconfigure(0, weight=1)
         sidebar_outer.rowconfigure(0, weight=1)
 
-        paned.add(container, weight=3, minsize=480)
-        paned.add(sidebar_outer, weight=2, minsize=260)
+        paned.add(container, weight=3)
+        paned.add(sidebar_outer, weight=2)
 
         sidebar_canvas = tk.Canvas(sidebar_outer, highlightthickness=0, bd=0, background=self.bg_color)
         sidebar_canvas.grid(row=0, column=0, sticky="nsew")
