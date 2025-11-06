@@ -28,6 +28,8 @@ data/*
 
 # PyInstaller build artifacts
 *.spec
+build/
+dist/
 
 # OS / editor junk
 .DS_Store
