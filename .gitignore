@@ -26,6 +26,9 @@ data/*
 *.tmp
 *.bak
 
+# PyInstaller build artifacts
+*.spec
+
 # OS / editor junk
 .DS_Store
 Thumbs.db
