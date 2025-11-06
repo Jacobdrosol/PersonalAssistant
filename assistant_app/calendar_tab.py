@@ -853,23 +853,15 @@ class CalendarTab(ttk.Frame):
         self._open_event_editor(default_date=self.selected_day)
 
     def edit_selected_event(self) -> None:
-        selection = self.day_events_tree.selection()
-        if not selection:
-            return
-        iid = selection[0]
-        occ_entry = self._day_occurrence_index.get(iid)
+        occ_entry = self._get_selected_occurrence()
         if occ_entry is None:
             return
         self.edit_event(occ_entry.event)
 
     def customize_selected_occurrence(self) -> None:
-        selection = self.day_events_tree.selection()
-        if not selection:
-            messagebox.showinfo("Customize Event", "Select an event first.", parent=self)
-            return
-        iid = selection[0]
-        occ_entry = self._day_occurrence_index.get(iid)
+        occ_entry = self._get_selected_occurrence()
         if occ_entry is None:
+            messagebox.showinfo("Customize Event", "Select an event first.", parent=self)
             return
         self._open_occurrence_customizer(occ_entry)
 
@@ -961,23 +953,33 @@ class CalendarTab(ttk.Frame):
             self._select_event_in_day(reselect_id)
 
     def _select_event_in_day(self, event_id: int) -> None:
+        tree = getattr(self, "day_events_tree", None)
+        if tree is None:
+            return
         for iid, occ_entry in getattr(self, "_day_occurrence_index", {}).items():
             if occ_entry.event.id == event_id:
-                self.day_events_tree.selection_set(iid)
-                self.day_events_tree.see(iid)
+                tree.selection_set(iid)
+                tree.see(iid)
                 break
 
     def delete_selected_event(self) -> None:
-        selection = self.day_events_tree.selection()
-        if not selection:
-            return
-        iid = selection[0]
-        occ_entry = self._day_occurrence_index.get(iid)
+        occ_entry = self._get_selected_occurrence()
         if occ_entry is None:
             return
         if messagebox.askyesno("Delete Event", f"Delete '{occ_entry.event.title}' from all future occurrences?"):
             self.db.delete_event(occ_entry.event.id)
             self.refresh()
+            self.select_day(self.selected_day)
+
+    def _get_selected_occurrence(self) -> Optional[DayOccurrence]:
+        tree = getattr(self, "day_events_tree", None)
+        if tree is None:
+            return None
+        selection = tree.selection()
+        if not selection:
+            return None
+        iid = selection[0]
+        return self._day_occurrence_index.get(iid)
 
     def add_calendar(self) -> None:
         production = self._current_production()
