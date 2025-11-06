@@ -115,42 +115,6 @@ class CalendarTab(ttk.Frame):
 
         paned.add(container, weight=3)
         paned.add(sidebar_outer, weight=2)
-        self.after(150, lambda: self._init_paned_position(paned))
-
-        sidebar_canvas = tk.Canvas(sidebar_outer, highlightthickness=0, bd=0, background=self.bg_color)
-        sidebar_canvas.grid(row=0, column=0, sticky="nsew")
-        sidebar_scroll = ttk.Scrollbar(sidebar_outer, orient=tk.VERTICAL, command=sidebar_canvas.yview)
-        sidebar_scroll.grid(row=0, column=1, sticky="ns")
-        sidebar_canvas.configure(yscrollcommand=sidebar_scroll.set)
-
-        sidebar = ttk.Frame(sidebar_canvas, padding=(12, 0))
-        sidebar_window = sidebar_canvas.create_window((0, 0), window=sidebar, anchor="nw")
-
-        def _resize_sidebar(_event: tk.Event | None = None) -> None:
-            sidebar_canvas.configure(scrollregion=sidebar_canvas.bbox("all"))
-            width = sidebar_outer.winfo_width() - sidebar_scroll.winfo_width() - 24
-            sidebar_canvas.itemconfigure(sidebar_window, width=max(width, 220))
-
-        sidebar.bind("<Configure>", _resize_sidebar)
-        sidebar_outer.bind("<Configure>", _resize_sidebar)
-
-    def _init_paned_position(self, paned: ttk.Panedwindow) -> None:
-        width = paned.winfo_width()
-        if width <= 1:
-            self.after(150, lambda: self._init_paned_position(paned))
-            return
-        sidebar_min = 320
-        left_min = 520
-        ideal = int(width * 0.58)
-        if width <= left_min + sidebar_min:
-            target = max(int(width * 0.55), width - sidebar_min)
-        else:
-            target = max(left_min, min(ideal, width - sidebar_min))
-        target = max(220, min(target, width - 160))
-        try:
-            paned.sashpos(0, target)
-        except tk.TclError:
-            pass
 
         # Left: calendar grid --------------------------------------------------
         left = ttk.Frame(container)
@@ -228,45 +192,65 @@ class CalendarTab(ttk.Frame):
                 cell = DayCell(frame=frame, day_label=day_label, events_container=events_container)
                 self.day_cells.append(cell)
 
-        # Right: calendar list + event details --------------------------------
-        calendars_label = ttk.Label(sidebar, text="Calendars", style="SidebarHeading.TLabel")
+        sidebar = ttk.Frame(sidebar_outer, padding=(12, 0))
+        sidebar.grid(row=0, column=0, sticky="nsew")
+        sidebar_outer.columnconfigure(0, weight=1)
+        sidebar_outer.rowconfigure(0, weight=1)
+
+        sidebar.columnconfigure(0, weight=1)
+        sidebar.rowconfigure(0, weight=0)
+        sidebar.rowconfigure(1, weight=1, minsize=16)
+        sidebar.rowconfigure(2, weight=0)
+
+        self.sidebar = sidebar
+
+        top_container = ttk.Frame(sidebar)
+        top_container.grid(row=0, column=0, sticky="ew")
+        top_container.columnconfigure(0, weight=1)
+
+        calendars_label = ttk.Label(top_container, text="Calendars", style="SidebarHeading.TLabel")
         calendars_label.grid(row=0, column=0, sticky="w")
 
-        self.calendars_frame = ttk.Frame(sidebar)
+        self.calendars_frame = ttk.Frame(top_container)
         self.calendars_frame.grid(row=1, column=0, sticky="ew", pady=(6, 12))
         self.calendars_frame.columnconfigure(1, weight=1)
 
-        add_calendar_btn = ttk.Button(sidebar, text="Add Calendar", command=self.add_calendar)
-        add_calendar_btn.grid(row=2, column=0, sticky="ew", pady=(0, 12))
+        add_calendar_btn = ttk.Button(top_container, text="Add Calendar", command=self.add_calendar)
+        add_calendar_btn.grid(row=2, column=0, sticky="ew")
 
-        day_label = ttk.Label(sidebar, text="Selected Day", style="SidebarHeading.TLabel")
-        day_label.grid(row=3, column=0, sticky="w")
+        spacer = ttk.Frame(sidebar)
+        spacer.grid(row=1, column=0, sticky="nsew")
 
-        self.day_value_label = ttk.Label(sidebar, text="", style="SelectedDay.TLabel")
-        self.day_value_label.grid(row=4, column=0, sticky="w", pady=(0, 8))
+        selected_container = ttk.Frame(sidebar, padding=(0, 0))
+        selected_container.grid(row=2, column=0, sticky="sew", pady=(24, 0))
+        selected_container.columnconfigure(0, weight=1)
+        selected_container.rowconfigure(2, weight=1)
 
-        columns = ("time", "title", "note", "calendar")
+        day_label = ttk.Label(selected_container, text="Selected Day", style="SidebarHeading.TLabel")
+        day_label.grid(row=0, column=0, sticky="w")
+
+        self.day_value_label = ttk.Label(selected_container, text="", style="SelectedDay.TLabel")
+        self.day_value_label.grid(row=1, column=0, sticky="w", pady=(0, 8))
+
+        columns = ("time", "title", "calendar")
         self.day_events_tree = ttk.Treeview(
-            sidebar,
+            selected_container,
             columns=columns,
             show="headings",
             selectmode="browse",
-            height=12,
+            height=10,
         )
         self.day_events_tree.heading("time", text="Time")
         self.day_events_tree.heading("title", text="Title")
-        self.day_events_tree.heading("note", text="Note")
         self.day_events_tree.heading("calendar", text="Calendar")
         self.day_events_tree.column("time", width=80, anchor="w")
         self.day_events_tree.column("title", width=180, anchor="w")
-        self.day_events_tree.column("note", width=120, anchor="w")
-        self.day_events_tree.column("calendar", width=120, anchor="w")
-        self.day_events_tree.grid(row=5, column=0, sticky="nsew", pady=(0, 8))
-        sidebar.rowconfigure(5, weight=1)
+        self.day_events_tree.column("calendar", width=140, anchor="w")
+        self.day_events_tree.grid(row=2, column=0, sticky="nsew", pady=(0, 8))
         self.day_events_tree.bind("<Double-1>", lambda e: self.edit_selected_event())
 
-        buttons = ttk.Frame(sidebar)
-        buttons.grid(row=6, column=0, sticky="ew")
+        buttons = ttk.Frame(selected_container)
+        buttons.grid(row=3, column=0, sticky="ew")
         self.day_add_btn = ttk.Button(buttons, text="Add", command=self.add_event_for_selected_day)
         self.day_add_btn.grid(row=0, column=0, padx=(0, 6))
         self.day_customize_btn = ttk.Button(buttons, text="Customize", command=self.customize_selected_occurrence)
@@ -292,6 +276,26 @@ class CalendarTab(ttk.Frame):
         ]
         self._interactive_comboboxes = [self.production_combo]
         self._interactive_treeviews = [self.day_events_tree]
+
+        self.after(150, lambda: self._init_paned_position(paned))
+
+    def _init_paned_position(self, paned: ttk.Panedwindow) -> None:
+        width = paned.winfo_width()
+        if width <= 1:
+            self.after(150, lambda: self._init_paned_position(paned))
+            return
+        sidebar_min = 320
+        left_min = 520
+        ideal = int(width * 0.58)
+        if width <= left_min + sidebar_min:
+            target = max(int(width * 0.55), width - sidebar_min)
+        else:
+            target = max(left_min, min(ideal, width - sidebar_min))
+        target = max(220, min(target, width - 160))
+        try:
+            paned.sashpos(0, target)
+        except tk.TclError:
+            pass
 
     # ---------------------------------------------------------------- Refresh
     def refresh(self) -> None:
@@ -688,13 +692,11 @@ class CalendarTab(ttk.Frame):
                 if occ_entry.override and occ_entry.override.title
                 else occ_entry.event.title
             )
-            note_text = (occ_entry.override.note or "").strip() if occ_entry.override else ""
-            note_display = shorten(note_text, width=40, placeholder="...") if note_text else ""
             tree.insert(
                 "",
                 tk.END,
                 iid=iid,
-                values=(time_str, title_text, note_display, occ_entry.event.calendar_name),
+                values=(time_str, title_text, occ_entry.event.calendar_name),
             )
             self._day_occurrence_index[iid] = occ_entry
 
