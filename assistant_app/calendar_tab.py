@@ -301,19 +301,15 @@ class CalendarTab(ttk.Frame):
             self.occurrences_by_day = defaultdict(list)
             self._populate_calendar()
             self._rebuild_calendar_filters()
-            if hasattr(self, "day_value_label"):
-                self._update_selected_day_label()
-            if hasattr(self, "day_events_tree"):
-                self._populate_day_events()
+            self._update_selected_day_label()
+            self._populate_day_events()
             return
         self._load_calendars()
         self._load_events()
         self._populate_calendar()
         self._rebuild_calendar_filters()
-        if hasattr(self, "day_value_label"):
-            self._update_selected_day_label()
-        if hasattr(self, "day_events_tree"):
-            self._populate_day_events()
+        self._update_selected_day_label()
+        self._populate_day_events()
 
     def _load_production_calendars(self) -> None:
         try:
