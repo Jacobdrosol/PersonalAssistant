@@ -77,6 +77,9 @@ if (-not (Test-Path $iconPath)) {
 
 & $Python -m pip install --upgrade pip
 & $Python -m pip install -r requirements.txt pyinstaller
+# Optional-heavy dependencies required for the bundled summarizer stack
+$packagingExtras = @('transformers', 'torch', 'sentencepiece', 'safetensors')
+& $Python -m pip install @packagingExtras
 
 $distDir = Join-Path -Path (Get-Location) -ChildPath "dist"
 if (Test-Path $distDir) {
