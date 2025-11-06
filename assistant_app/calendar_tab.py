@@ -63,6 +63,8 @@ class CalendarTab(ttk.Frame):
         self.month_label: Optional[ttk.Label] = None
         self.calendars_frame: Optional[ttk.Frame] = None
         self.day_value_label: Optional[ttk.Label] = None
+        self.day_events_tree: Optional[ttk.Treeview] = None
+        self._day_occurrence_index: Dict[str, DayOccurrence] = {}
         self._calendar_checkbuttons: List[ttk.Checkbutton] = []
         self._calendar_edit_buttons: List[ttk.Button] = []
         self._interactive_buttons: List[tk.Widget] = []
@@ -670,18 +672,25 @@ class CalendarTab(ttk.Frame):
             self.calendar_vars[calendar_model.id] = var
 
     def _populate_day_events(self) -> None:
-        for item in self.day_events_tree.get_children():
-            self.day_events_tree.delete(item)
+        tree = getattr(self, "day_events_tree", None)
+        if tree is None:
+            return
+        for item in tree.get_children():
+            tree.delete(item)
         day = self.selected_day
         occurrences = self.occurrences_by_day.get(day, [])
-        self._day_occurrence_index: Dict[str, DayOccurrence] = {}
+        self._day_occurrence_index = {}
         for occ_entry in occurrences:
             time_str = occ_entry.occurrence.strftime("%I:%M %p").lstrip("0")
             iid = f"{occ_entry.event.id}:{occ_entry.occurrence.isoformat()}"
-            title_text = occ_entry.override.title if occ_entry.override and occ_entry.override.title else occ_entry.event.title
+            title_text = (
+                occ_entry.override.title
+                if occ_entry.override and occ_entry.override.title
+                else occ_entry.event.title
+            )
             note_text = (occ_entry.override.note or "").strip() if occ_entry.override else ""
             note_display = shorten(note_text, width=40, placeholder="...") if note_text else ""
-            self.day_events_tree.insert(
+            tree.insert(
                 "",
                 tk.END,
                 iid=iid,
