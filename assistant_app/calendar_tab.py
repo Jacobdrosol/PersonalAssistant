@@ -13,7 +13,7 @@ from tkinter import ttk
 from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 from .database import Database
-from .models import Calendar, Event, ProductionCalendar
+from .models import Calendar, Event, EventOverride, ProductionCalendar
 from . import utils
 
 WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
@@ -32,6 +32,13 @@ class DayCell:
     day_label: tk.Label
     events_container: tk.Frame
     date: Optional[date] = None
+
+
+@dataclass
+class DayOccurrence:
+    occurrence: datetime
+    event: Event
+    override: Optional[EventOverride]
 
 
 class CalendarTab(ttk.Frame):
@@ -92,6 +99,7 @@ class CalendarTab(ttk.Frame):
 
         paned = ttk.Panedwindow(self, orient=tk.HORIZONTAL)
         paned.pack(fill=tk.BOTH, expand=True)
+        self.after(50, lambda: paned.sashpos(0, int(max(360, self.winfo_width() * 0.62))))
 
         container = ttk.Frame(paned)
         container.columnconfigure(0, weight=1)
@@ -214,7 +222,7 @@ class CalendarTab(ttk.Frame):
         self.day_value_label = ttk.Label(sidebar, text="", style="SelectedDay.TLabel")
         self.day_value_label.grid(row=4, column=0, sticky="w", pady=(0, 8))
 
-        columns = ("time", "title", "calendar")
+        columns = ("time", "title", "note", "calendar")
         self.day_events_tree = ttk.Treeview(
             sidebar,
             columns=columns,
@@ -224,9 +232,11 @@ class CalendarTab(ttk.Frame):
         )
         self.day_events_tree.heading("time", text="Time")
         self.day_events_tree.heading("title", text="Title")
+        self.day_events_tree.heading("note", text="Note")
         self.day_events_tree.heading("calendar", text="Calendar")
         self.day_events_tree.column("time", width=80, anchor="w")
-        self.day_events_tree.column("title", width=200, anchor="w")
+        self.day_events_tree.column("title", width=180, anchor="w")
+        self.day_events_tree.column("note", width=120, anchor="w")
         self.day_events_tree.column("calendar", width=120, anchor="w")
         self.day_events_tree.grid(row=5, column=0, sticky="nsew", pady=(0, 8))
         sidebar.rowconfigure(5, weight=1)
@@ -236,14 +246,15 @@ class CalendarTab(ttk.Frame):
         buttons.grid(row=6, column=0, sticky="ew")
         self.day_add_btn = ttk.Button(buttons, text="Add", command=self.add_event_for_selected_day)
         self.day_add_btn.grid(row=0, column=0, padx=(0, 6))
+        self.day_customize_btn = ttk.Button(buttons, text="Customize", command=self.customize_selected_occurrence)
+        self.day_customize_btn.grid(row=0, column=1, padx=(0, 6))
         self.day_edit_btn = ttk.Button(buttons, text="Edit", command=self.edit_selected_event)
-        self.day_edit_btn.grid(row=0, column=1, padx=(0, 6))
+        self.day_edit_btn.grid(row=0, column=2, padx=(0, 6))
         self.day_delete_btn = ttk.Button(buttons, text="Delete", command=self.delete_selected_event)
-        self.day_delete_btn.grid(row=0, column=2)
+        self.day_delete_btn.grid(row=0, column=3)
 
-        buttons.columnconfigure(0, weight=1)
-        buttons.columnconfigure(1, weight=1)
-        buttons.columnconfigure(2, weight=1)
+        for idx in range(4):
+            buttons.columnconfigure(idx, weight=1)
 
         self._interactive_buttons = [
             self.prev_btn,
@@ -252,6 +263,7 @@ class CalendarTab(ttk.Frame):
             self.add_event_button,
             self.recap_button,
             self.day_add_btn,
+            self.day_customize_btn,
             self.day_edit_btn,
             self.day_delete_btn,
         ]
@@ -516,11 +528,23 @@ class CalendarTab(ttk.Frame):
         if self.events:
             start_dt = datetime.combine(weeks[0][0], datetime.min.time())
             end_dt = datetime.combine(weeks[-1][-1], datetime.max.time())
+            overrides = self.db.get_event_overrides(
+                (event.id for event in self.events),
+                start_dt.date(),
+                end_dt.date(),
+            )
             for event in self.events:
                 for occurrence in event.occurrences_between(start_dt, end_dt):
-                    self.occurrences_by_day[occurrence.date()].append((occurrence, event))
+                    key = (event.id, occurrence.date())
+                    self.occurrences_by_day[occurrence.date()].append(
+                        DayOccurrence(
+                            occurrence=occurrence,
+                            event=event,
+                            override=overrides.get(key),
+                        )
+                    )
             for occs in self.occurrences_by_day.values():
-                occs.sort(key=lambda item: item[0])
+                occs.sort(key=lambda item: item.occurrence)
 
         for idx, day in enumerate(d for week in weeks for d in week):
             if idx >= len(self.day_cells):
@@ -538,11 +562,22 @@ class CalendarTab(ttk.Frame):
                 widget.destroy()
 
             occurrences = self.occurrences_by_day.get(day, [])
-            for occurrence, event in occurrences[:4]:
-                label_bg = event.calendar_color or "#607D8B"
+            for occ_entry in occurrences[:4]:
+                occurrence = occ_entry.occurrence
+                event = occ_entry.event
+                override = occ_entry.override
+                label_bg = (
+                    override.calendar_color
+                    if override and override.calendar_color
+                    else event.calendar_color
+                    or "#607D8B"
+                )
                 fg = utils.ideal_text_color(label_bg)
+                display_title = override.title if override and override.title else event.title
                 time_str = occurrence.strftime("%H:%M")
-                text = f"{time_str} {event.title}" if occurrence.time() != datetime.min.time() else event.title
+                text = f"{time_str} {display_title}" if occurrence.time() != datetime.min.time() else display_title
+                if override and override.note:
+                    text += " \u270E"
                 display_text = shorten(text, width=32, placeholder="...")
                 ev_label = tk.Label(
                     cell.events_container,
@@ -615,17 +650,20 @@ class CalendarTab(ttk.Frame):
             self.day_events_tree.delete(item)
         day = self.selected_day
         occurrences = self.occurrences_by_day.get(day, [])
-        self._day_occurrence_index: Dict[str, Tuple[datetime, Event]] = {}
-        for occurrence, event in occurrences:
-            time_str = occurrence.strftime("%I:%M %p").lstrip("0")
-            iid = f"{event.id}:{occurrence.isoformat()}"
+        self._day_occurrence_index: Dict[str, DayOccurrence] = {}
+        for occ_entry in occurrences:
+            time_str = occ_entry.occurrence.strftime("%I:%M %p").lstrip("0")
+            iid = f"{occ_entry.event.id}:{occ_entry.occurrence.isoformat()}"
+            title_text = occ_entry.override.title if occ_entry.override and occ_entry.override.title else occ_entry.event.title
+            note_text = (occ_entry.override.note or "").strip() if occ_entry.override else ""
+            note_display = shorten(note_text, width=40, placeholder="...") if note_text else ""
             self.day_events_tree.insert(
                 "",
                 tk.END,
                 iid=iid,
-                values=(time_str, event.title, event.calendar_name),
+                values=(time_str, title_text, note_display, occ_entry.event.calendar_name),
             )
-            self._day_occurrence_index[iid] = (occurrence, event)
+            self._day_occurrence_index[iid] = occ_entry
 
     def _highlight_selected_day(self) -> None:
         if not self.day_cells:
@@ -783,8 +821,70 @@ class CalendarTab(ttk.Frame):
         if not selection:
             return
         iid = selection[0]
-        occurrence, event = self._day_occurrence_index[iid]
-        self.edit_event(event)
+        occ_entry = self._day_occurrence_index.get(iid)
+        if occ_entry is None:
+            return
+        self.edit_event(occ_entry.event)
+
+    def customize_selected_occurrence(self) -> None:
+        selection = self.day_events_tree.selection()
+        if not selection:
+            messagebox.showinfo("Customize Event", "Select an event first.", parent=self)
+            return
+        iid = selection[0]
+        occ_entry = self._day_occurrence_index.get(iid)
+        if occ_entry is None:
+            return
+
+        def builder(parent: tk.Frame) -> tk.Frame:
+            override = self.db.get_event_override(occ_entry.event.id, occ_entry.occurrence.date())
+            return EventOccurrencePanel(
+                parent,
+                event=occ_entry.event,
+                occurrence=occ_entry.occurrence,
+                override=override,
+                on_submit=lambda payload: self._handle_occurrence_override_submit(
+                    occ_entry.event, occ_entry.occurrence.date(), payload
+                ),
+                on_clear=lambda: self._handle_occurrence_override_clear(
+                    occ_entry.event, occ_entry.occurrence.date()
+                ),
+                on_cancel=self._close_modal,
+            )
+
+        self._open_modal(builder)
+
+    def _handle_occurrence_override_submit(
+        self,
+        event: Event,
+        occurrence_date: date,
+        payload: dict[str, Optional[str]],
+    ) -> None:
+        try:
+            self.db.upsert_event_override(
+                event_id=event.id,
+                occurrence_date=occurrence_date,
+                title=payload.get("title") or None,
+                description=payload.get("description") or None,
+                calendar_color=payload.get("color") or None,
+                note=payload.get("note") or None,
+            )
+        except Exception as exc:
+            messagebox.showerror("Customize Event", f"Could not save customization: {exc}", parent=self)
+            return
+        self._close_modal()
+        self.refresh()
+        self.select_day(occurrence_date)
+
+    def _handle_occurrence_override_clear(self, event: Event, occurrence_date: date) -> None:
+        try:
+            self.db.delete_event_override(event.id, occurrence_date)
+        except Exception as exc:
+            messagebox.showerror("Customize Event", f"Could not clear customization: {exc}", parent=self)
+            return
+        self._close_modal()
+        self.refresh()
+        self.select_day(occurrence_date)
 
     def edit_event(self, event: Event) -> None:
         self._open_event_editor(event=event)
@@ -821,8 +921,8 @@ class CalendarTab(ttk.Frame):
             self._select_event_in_day(reselect_id)
 
     def _select_event_in_day(self, event_id: int) -> None:
-        for iid, (occurrence, event) in getattr(self, "_day_occurrence_index", {}).items():
-            if event.id == event_id:
+        for iid, occ_entry in getattr(self, "_day_occurrence_index", {}).items():
+            if occ_entry.event.id == event_id:
                 self.day_events_tree.selection_set(iid)
                 self.day_events_tree.see(iid)
                 break
@@ -832,9 +932,11 @@ class CalendarTab(ttk.Frame):
         if not selection:
             return
         iid = selection[0]
-        occurrence, event = self._day_occurrence_index[iid]
-        if messagebox.askyesno("Delete Event", f"Delete '{event.title}' from all future occurrences?"):
-            self.db.delete_event(event.id)
+        occ_entry = self._day_occurrence_index.get(iid)
+        if occ_entry is None:
+            return
+        if messagebox.askyesno("Delete Event", f"Delete '{occ_entry.event.title}' from all future occurrences?"):
+            self.db.delete_event(occ_entry.event.id)
             self.refresh()
 
     def add_calendar(self) -> None:
@@ -1074,6 +1176,104 @@ class ProductionCalendarPanel(tk.Frame):
     def _cancel(self) -> None:
         self._on_cancel()
 
+
+class EventOccurrencePanel(tk.Frame):
+    def __init__(
+        self,
+        parent: tk.Misc,
+        *,
+        event: Event,
+        occurrence: datetime,
+        override: Optional[EventOverride],
+        on_submit: Callable[[dict[str, Optional[str]]], None],
+        on_clear: Callable[[], None],
+        on_cancel: Callable[[], None],
+    ) -> None:
+        super().__init__(parent, bg="#1d1e2c", bd=1, relief="ridge")
+        self._event = event
+        self._occurrence = occurrence
+        self._override = override
+        self._on_submit = on_submit
+        self._on_clear = on_clear
+        self._on_cancel = on_cancel
+        self._color_value = override.calendar_color if override else ""
+
+        self.place(relx=0.5, rely=0.5, anchor="center")
+
+        container = ttk.Frame(self, padding=16)
+        container.grid(row=0, column=0, sticky="nsew")
+        container.columnconfigure(1, weight=1)
+
+        ttk.Label(
+            container,
+            text="Customize Occurrence",
+            style="SidebarHeading.TLabel",
+        ).grid(row=0, column=0, columnspan=2, sticky="w")
+
+        ttk.Label(container, text="Event").grid(row=1, column=0, sticky="w", pady=(12, 0))
+        ttk.Label(
+            container,
+            text=f"{event.title} — {occurrence.strftime('%A, %B %d, %Y %I:%M %p').lstrip('0')}",
+        ).grid(row=1, column=1, sticky="w", pady=(12, 0))
+
+        ttk.Label(container, text="Custom Title").grid(row=2, column=0, sticky="w", pady=(12, 0))
+        self.title_var = tk.StringVar(value=(override.title if override and override.title else ""))
+        ttk.Entry(container, textvariable=self.title_var).grid(row=2, column=1, sticky="ew", pady=(12, 0))
+
+        ttk.Label(container, text="Custom Color").grid(row=3, column=0, sticky="w", pady=(12, 0))
+        color_row = ttk.Frame(container)
+        color_row.grid(row=3, column=1, sticky="w", pady=(12, 0))
+        self.color_preview = tk.Label(
+            color_row,
+            width=4,
+            height=2,
+            relief="groove",
+            bg=self._color_value or event.calendar_color or "#607D8B",
+        )
+        self.color_preview.pack(side=tk.LEFT)
+        ttk.Button(color_row, text="Choose...", command=self._pick_color).pack(side=tk.LEFT, padx=(8, 0))
+        ttk.Button(color_row, text="Clear", command=self._clear_color).pack(side=tk.LEFT, padx=(6, 0))
+
+        ttk.Label(container, text="Notes").grid(row=4, column=0, sticky="nw", pady=(12, 0))
+        self.note_text = tk.Text(container, height=5, wrap="word", bg="#ffffff", fg="#1c1d2b")
+        if override and override.note:
+            self.note_text.insert("1.0", override.note)
+        self.note_text.grid(row=4, column=1, sticky="ew", pady=(12, 0))
+
+        button_row = ttk.Frame(container)
+        button_row.grid(row=5, column=0, columnspan=2, sticky="e", pady=(18, 0))
+        ttk.Button(button_row, text="Cancel", command=self._on_cancel).pack(side=tk.RIGHT, padx=(8, 0))
+        ttk.Button(button_row, text="Save", command=self._save).pack(side=tk.RIGHT, padx=(8, 0))
+        ttk.Button(button_row, text="Clear Override", command=self._clear_override).pack(side=tk.LEFT)
+
+    def _pick_color(self) -> None:
+        initial = self._color_value or self._event.calendar_color or "#607D8B"
+        color = colorchooser.askcolor(initialcolor=initial)[1]
+        if color:
+            self._color_value = color
+            self.color_preview.configure(bg=color)
+
+    def _clear_color(self) -> None:
+        self._color_value = ""
+        self.color_preview.configure(bg=self._event.calendar_color or "#607D8B")
+
+    def _save(self) -> None:
+        title = self.title_var.get().strip()
+        note = self.note_text.get("1.0", tk.END).strip()
+        payload = {
+            "title": title or None,
+            "description": None,
+            "color": self._color_value or None,
+            "note": note or None,
+        }
+        if not payload["title"] and not payload["note"] and payload["color"] is None:
+            self._on_clear()
+        else:
+            self._on_submit(payload)
+
+    def _clear_override(self) -> None:
+        if messagebox.askyesno("Clear Customization", "Remove the customizations for this occurrence?", parent=self):
+            self._on_clear()
 
 class EventEditorPanel(tk.Frame):
     def __init__(

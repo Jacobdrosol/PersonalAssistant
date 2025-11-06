@@ -119,6 +119,17 @@ class Event:
 
 
 @dataclass(slots=True)
+class EventOverride:
+    id: int
+    event_id: int
+    occurrence_date: date
+    title: Optional[str]
+    description: Optional[str]
+    calendar_color: Optional[str]
+    note: Optional[str]
+
+
+@dataclass(slots=True)
 class LogEntry:
     id: int
     parent_id: Optional[int]

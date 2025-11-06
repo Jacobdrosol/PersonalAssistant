@@ -66,11 +66,15 @@ class ScrumTab(ttk.Frame):
         canvas.configure(scrollregion=canvas.bbox("all"))
         current = canvas.winfo_width()
         canvas.itemconfigure(self._board_window, width=max(required, event.width, current))  # type: ignore[attr-defined]
+        canvas_height = canvas.winfo_height()
+        canvas.itemconfigure(self._board_window, height=max(canvas_height, container.winfo_reqheight()))  # type: ignore[attr-defined]
 
     def _on_board_canvas_configure(self, _event: tk.Event) -> None:
         if not hasattr(self, "_board_canvas"):
             return
-        self._board_canvas.configure(scrollregion=self._board_canvas.bbox("all"))  # type: ignore[attr-defined]
+        canvas = self._board_canvas  # type: ignore[attr-defined]
+        canvas.configure(scrollregion=canvas.bbox("all"))
+        canvas.itemconfigure(self._board_window, height=canvas.winfo_height())  # type: ignore[attr-defined]
 
     # ------------------------------------------------------------------ UI
     def _configure_styles(self) -> None:

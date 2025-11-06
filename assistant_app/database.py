@@ -11,6 +11,7 @@ from . import utils
 from .models import (
     Calendar,
     Event,
+    EventOverride,
     LogEntry,
     ProductionCalendar,
     ScrumNote,
@@ -69,6 +70,17 @@ class Database:
                     repeat_interval INTEGER NOT NULL DEFAULT 1,
                     repeat_until TEXT,
                     reminder_minutes_before INTEGER DEFAULT 0
+                );
+
+                CREATE TABLE IF NOT EXISTS event_overrides (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+                    occurrence_date TEXT NOT NULL,
+                    title TEXT,
+                    description TEXT,
+                    calendar_color TEXT,
+                    note TEXT,
+                    UNIQUE(event_id, occurrence_date)
                 );
 
                 CREATE TABLE IF NOT EXISTS log_entries (
@@ -467,7 +479,7 @@ class Database:
             for cal_row in calendars:
                 events = self._conn.execute(
                     """
-                    SELECT title, description, start_time, duration_minutes,
+                    SELECT id, title, description, start_time, duration_minutes,
                            repeat, repeat_interval, repeat_until, reminder_minutes_before
                     FROM events
                     WHERE calendar_id = ?
@@ -480,21 +492,41 @@ class Database:
                         "name": cal_row["name"],
                         "color": cal_row["color"],
                         "is_visible": bool(cal_row["is_visible"]),
-                        "events": [
-                            {
-                                "title": event_row["title"],
-                                "description": event_row["description"] or "",
-                                "start_time": event_row["start_time"],
-                                "duration_minutes": event_row["duration_minutes"],
-                                "repeat": event_row["repeat"],
-                                "repeat_interval": event_row["repeat_interval"],
-                                "repeat_until": event_row["repeat_until"],
-                                "reminder_minutes_before": event_row["reminder_minutes_before"],
-                            }
-                            for event_row in events
-                        ],
+                        "events": [],
                     }
                 )
+                for event_row in events:
+                    overrides = self._conn.execute(
+                        """
+                        SELECT occurrence_date, title, description, calendar_color, note
+                        FROM event_overrides
+                        WHERE event_id = ?
+                        ORDER BY occurrence_date
+                        """,
+                        (event_row["id"],),
+                    ).fetchall()
+                    payload_calendars[-1]["events"].append(
+                        {
+                            "title": event_row["title"],
+                            "description": event_row["description"] or "",
+                            "start_time": event_row["start_time"],
+                            "duration_minutes": event_row["duration_minutes"],
+                            "repeat": event_row["repeat"],
+                            "repeat_interval": event_row["repeat_interval"],
+                            "repeat_until": event_row["repeat_until"],
+                            "reminder_minutes_before": event_row["reminder_minutes_before"],
+                            "overrides": [
+                                {
+                                    "occurrence_date": ovr["occurrence_date"],
+                                    "title": ovr["title"],
+                                    "description": ovr["description"],
+                                    "calendar_color": ovr["calendar_color"],
+                                    "note": ovr["note"],
+                                }
+                                for ovr in overrides
+                            ],
+                        }
+                    )
             payload: dict[str, object] = {
                 "schema": "production_calendar/v1",
                 "exported_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
@@ -568,7 +600,7 @@ class Database:
                         reminder_value = None
                     else:
                         reminder_value = int(reminder_minutes_before)
-                    self._conn.execute(
+                    cursor = self._conn.execute(
                         """
                         INSERT INTO events (
                             calendar_id, title, description, start_time, duration_minutes,
@@ -587,6 +619,29 @@ class Database:
                             reminder_value,
                         ),
                     )
+                    new_event_id = cursor.lastrowid
+                    for override_payload in event_payload.get("overrides", []) or []:
+                        occ_raw = str(override_payload.get("occurrence_date") or "").strip()
+                        if not occ_raw:
+                            continue
+                        try:
+                            occ_date = date.fromisoformat(occ_raw)
+                        except ValueError:
+                            continue
+                        self._conn.execute(
+                            """
+                            INSERT INTO event_overrides (event_id, occurrence_date, title, description, calendar_color, note)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                new_event_id,
+                                occ_date.isoformat(),
+                                str(override_payload.get("title") or None),
+                                str(override_payload.get("description") or None),
+                                str(override_payload.get("calendar_color") or None),
+                                str(override_payload.get("note") or None),
+                            ),
+                        )
             self._conn.commit()
             return production_calendar_id
 
@@ -693,6 +748,103 @@ class Database:
                 )
             )
         return events
+
+    def get_event_overrides(
+        self,
+        event_ids: Iterable[int],
+        start_date: date,
+        end_date: date,
+    ) -> Dict[tuple[int, date], EventOverride]:
+        ids = list(event_ids)
+        if not ids:
+            return {}
+        placeholders = ",".join("?" for _ in ids)
+        with self._lock:
+            rows = self._conn.execute(
+                f"""
+                SELECT id, event_id, occurrence_date, title, description, calendar_color, note
+                FROM event_overrides
+                WHERE event_id IN ({placeholders})
+                  AND occurrence_date BETWEEN ? AND ?
+                """,
+                (*ids, start_date.isoformat(), end_date.isoformat()),
+            ).fetchall()
+        result: Dict[tuple[int, date], EventOverride] = {}
+        for row in rows:
+            occ_date = date.fromisoformat(row["occurrence_date"])
+            result[(row["event_id"], occ_date)] = EventOverride(
+                id=row["id"],
+                event_id=row["event_id"],
+                occurrence_date=occ_date,
+                title=row["title"],
+                description=row["description"],
+                calendar_color=row["calendar_color"],
+                note=row["note"],
+            )
+        return result
+
+    def get_event_override(self, event_id: int, occurrence_date: date) -> Optional[EventOverride]:
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT id, event_id, occurrence_date, title, description, calendar_color, note
+                FROM event_overrides
+                WHERE event_id = ? AND occurrence_date = ?
+                """,
+                (event_id, occurrence_date.isoformat()),
+            ).fetchone()
+        if row is None:
+            return None
+        return EventOverride(
+            id=row["id"],
+            event_id=row["event_id"],
+            occurrence_date=date.fromisoformat(row["occurrence_date"]),
+            title=row["title"],
+            description=row["description"],
+            calendar_color=row["calendar_color"],
+            note=row["note"],
+        )
+
+    def upsert_event_override(
+        self,
+        *,
+        event_id: int,
+        occurrence_date: date,
+        title: Optional[str],
+        description: Optional[str],
+        calendar_color: Optional[str],
+        note: Optional[str],
+    ) -> None:
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO event_overrides (event_id, occurrence_date, title, description, calendar_color, note)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(event_id, occurrence_date)
+                DO UPDATE SET
+                    title = excluded.title,
+                    description = excluded.description,
+                    calendar_color = excluded.calendar_color,
+                    note = excluded.note
+                """,
+                (
+                    event_id,
+                    occurrence_date.isoformat(),
+                    title,
+                    description,
+                    calendar_color,
+                    note,
+                ),
+            )
+            self._conn.commit()
+
+    def delete_event_override(self, event_id: int, occurrence_date: date) -> None:
+        with self._lock:
+            self._conn.execute(
+                "DELETE FROM event_overrides WHERE event_id = ? AND occurrence_date = ?",
+                (event_id, occurrence_date.isoformat()),
+            )
+            self._conn.commit()
 
     def get_event(self, event_id: int) -> Optional[Event]:
         with self._lock:
