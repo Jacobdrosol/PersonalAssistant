@@ -61,6 +61,7 @@ class CalendarTab(ttk.Frame):
         self._modal_overlay: tk.Frame | None = None
         self._modal_panel: tk.Frame | None = None
         self.month_label: Optional[ttk.Label] = None
+        self.calendars_frame: Optional[ttk.Frame] = None
         self._calendar_checkbuttons: List[ttk.Checkbutton] = []
         self._calendar_edit_buttons: List[ttk.Button] = []
         self._interactive_buttons: List[tk.Widget] = []
@@ -628,6 +629,8 @@ class CalendarTab(ttk.Frame):
         self._highlight_selected_day()
 
     def _rebuild_calendar_filters(self) -> None:
+        if self.calendars_frame is None:
+            return
         for child in self.calendars_frame.winfo_children():
             child.destroy()
         self.calendar_vars.clear()
