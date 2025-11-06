@@ -40,7 +40,27 @@ class ScrumTab(ttk.Frame):
         self._drag_data: Dict[str, object] = {"card": None, "task": None, "moved": False, "start": (0, 0)}
         self._build_ui()
         self._bind_mousewheel_support()
+        self._board_canvas.bind("<Shift-MouseWheel>", self._on_board_mousewheel, add="+")  # type: ignore[attr-defined]
         self.refresh()
+
+    def _on_board_mousewheel(self, event: tk.Event) -> str:
+        direction = -1 if event.delta > 0 else 1
+        self._board_canvas.xview_scroll(direction, "units")  # type: ignore[attr-defined]
+        return "break"
+
+    def _on_columns_container_configure(self, event: tk.Event) -> None:
+        if not hasattr(self, "_board_canvas"):
+            return
+        self._board_canvas.configure(scrollregion=self._board_canvas.bbox("all"))  # type: ignore[attr-defined]
+        canvas_width = self._board_canvas.winfo_width()  # type: ignore[attr-defined]
+        self._board_canvas.itemconfigure(  # type: ignore[attr-defined]
+            self._board_window, width=max(canvas_width, event.width)  # type: ignore[attr-defined]
+        )
+
+    def _on_board_canvas_configure(self, _event: tk.Event) -> None:
+        if not hasattr(self, "_board_canvas"):
+            return
+        self._board_canvas.configure(scrollregion=self._board_canvas.bbox("all"))  # type: ignore[attr-defined]
 
     # ------------------------------------------------------------------ UI
     def _configure_styles(self) -> None:
@@ -66,13 +86,27 @@ class ScrumTab(ttk.Frame):
         ttk.Label(header, text="Scrum Dashboard", style="SidebarHeading.TLabel").pack(side=tk.LEFT)
         ttk.Button(header, text="New Item", command=self._open_new_task).pack(side=tk.RIGHT)
 
-        columns_container = ttk.Frame(self)
-        columns_container.pack(fill=tk.BOTH, expand=True)
-        columns_container.rowconfigure(0, weight=1)
+        board_wrapper = ttk.Frame(self)
+        board_wrapper.pack(fill=tk.BOTH, expand=True)
+        board_wrapper.rowconfigure(0, weight=1)
+        board_wrapper.columnconfigure(0, weight=1)
+
+        self._board_canvas = tk.Canvas(board_wrapper, highlightthickness=0, bg=self.base_bg, bd=0)
+        self._board_canvas.grid(row=0, column=0, sticky="nsew")
+        h_scroll = ttk.Scrollbar(board_wrapper, orient=tk.HORIZONTAL, command=self._board_canvas.xview)
+        h_scroll.grid(row=1, column=0, sticky="ew")
+        self._board_canvas.configure(xscrollcommand=h_scroll.set)
+
+        self._columns_container = ttk.Frame(self._board_canvas)
+        self._board_window = self._board_canvas.create_window((0, 0), window=self._columns_container, anchor="nw")
+        self._columns_container.bind("<Configure>", self._on_columns_container_configure)
+        self._board_canvas.bind("<Configure>", self._on_board_canvas_configure)
+
+        self._columns_container.rowconfigure(0, weight=1)
         for idx, (status, title) in enumerate(self.STATUSES):
-            column = ttk.Frame(columns_container, padding=(0, 0))
+            column = ttk.Frame(self._columns_container, padding=(0, 0))
             column.grid(row=0, column=idx, sticky="nsew", padx=(0 if idx == 0 else 12, 0))
-            columns_container.columnconfigure(idx, weight=1, uniform="board")
+            self._columns_container.columnconfigure(idx, weight=1, uniform="board")
 
             ttk.Label(column, text=title, style="SidebarHeading.TLabel").grid(row=0, column=0, sticky="w")
             column.columnconfigure(0, weight=1)

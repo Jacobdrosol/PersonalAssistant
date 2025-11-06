@@ -90,11 +90,18 @@ class CalendarTab(ttk.Frame):
         ttk.Button(selector, text="Export...", command=self.export_current_production_calendar).pack(side=tk.LEFT, padx=(6, 0))
         ttk.Button(selector, text="Import...", command=self.import_production_calendar).pack(side=tk.LEFT, padx=(6, 0))
 
-        container = ttk.Frame(self)
-        container.pack(fill=tk.BOTH, expand=True)
-        container.columnconfigure(0, weight=5)
-        container.columnconfigure(1, weight=2)
+        paned = ttk.Panedwindow(self, orient=tk.HORIZONTAL)
+        paned.pack(fill=tk.BOTH, expand=True)
+
+        container = ttk.Frame(paned)
+        container.columnconfigure(0, weight=1)
         container.rowconfigure(0, weight=1)
+
+        sidebar = ttk.Frame(paned, padding=(12, 0))
+        sidebar.rowconfigure(3, weight=1)
+
+        paned.add(container, weight=3)
+        paned.add(sidebar, weight=2)
 
         # Left: calendar grid --------------------------------------------------
         left = ttk.Frame(container)
@@ -173,10 +180,6 @@ class CalendarTab(ttk.Frame):
                 self.day_cells.append(cell)
 
         # Right: calendar list + event details --------------------------------
-        sidebar = ttk.Frame(container, padding=(12, 0))
-        sidebar.grid(row=0, column=1, sticky="nsew")
-        sidebar.rowconfigure(3, weight=1)
-
         calendars_label = ttk.Label(sidebar, text="Calendars", style="SidebarHeading.TLabel")
         calendars_label.grid(row=0, column=0, sticky="w")
 

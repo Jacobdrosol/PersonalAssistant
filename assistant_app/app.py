@@ -38,9 +38,16 @@ class PersonalAssistantApp(tk.Tk):
     def __init__(self, db_path: Path, data_root: Path, settings: AppSettings, settings_path: Path) -> None:
         super().__init__()
         self.title(APP_NAME)
-        self.geometry("1280x820")
         self.configure(bg="#111219")
-        self.minsize(1024, 720)
+
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        default_w = min(1380, max(1100, screen_w - 160))
+        default_h = min(900, max(760, screen_h - 200))
+        self.geometry(f"{default_w}x{default_h}")
+        min_w = max(960, min(default_w, screen_w - 240))
+        min_h = max(700, min(default_h, screen_h - 220))
+        self.minsize(min_w, min_h)
 
         self.project_root = Path(__file__).resolve().parent.parent
         self.data_root = data_root
