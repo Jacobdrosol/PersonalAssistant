@@ -439,8 +439,12 @@ class Database:
             )
             self._conn.commit()
 
-    def delete_production_calendar(self, production_calendar_id: int) -> None:
+    def delete_production_calendar(self, production_calendar_id: int, *, force: bool = False) -> None:
         with self._lock:
+            if force:
+                self._delete_production_calendar_force(production_calendar_id)
+                self._conn.commit()
+                return
             count_row = self._conn.execute(
                 "SELECT COUNT(*) AS total FROM calendars WHERE production_calendar_id = ?",
                 (production_calendar_id,),

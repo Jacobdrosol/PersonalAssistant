@@ -454,8 +454,40 @@ class CalendarTab(ttk.Frame):
         try:
             self.db.delete_production_calendar(production.id)
         except ValueError as exc:
-            messagebox.showerror("Cannot Delete", str(exc), parent=self)
-            return
+            warning_text = (
+                "Please remove or reassign calendars before deleting this production calendar.\n\n"
+                "This action cannot be reversed. Delete this production calendar and all of its contents?"
+            )
+            proceed = messagebox.askyesno("Delete Production Calendar", warning_text, icon="warning", parent=self)
+            if not proceed:
+                return
+            confirm = messagebox.askyesno(
+                "Confirm Permanent Delete",
+                "Are you sure? This will permanently delete the production calendar plus every calendar and event inside it.",
+                icon="warning",
+                parent=self,
+            )
+            if not confirm:
+                return
+            try:
+                self.db.delete_production_calendar(production.id, force=True)
+            except Exception as final_exc:
+                messagebox.showerror(
+                    "Error",
+                    f"Could not delete production calendar: {final_exc}",
+                    parent=self,
+                )
+                return
+            else:
+                messagebox.showinfo(
+                    "Production Calendar Deleted",
+                    "The production calendar and all of its calendars/events were deleted.",
+                    parent=self,
+                )
+                self._close_modal()
+                self.current_production_id = None
+                self.refresh()
+                return
         except Exception as exc:
             messagebox.showerror("Error", f"Could not delete production calendar: {exc}", parent=self)
             return
