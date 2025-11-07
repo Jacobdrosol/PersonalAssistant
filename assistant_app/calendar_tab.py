@@ -70,6 +70,11 @@ class CalendarTab(ttk.Frame):
         self._interactive_buttons: List[tk.Widget] = []
         self._interactive_comboboxes: List[ttk.Combobox] = []
         self._interactive_treeviews: List[ttk.Treeview] = []
+        self.search_var: tk.StringVar | None = None
+        self.search_entry: ttk.Entry | None = None
+        self._search_popup: tk.Toplevel | None = None
+        self._search_listbox: tk.Listbox | None = None
+        self._search_result_events: List[Optional[Event]] = []
 
         self.bg_color = "#171821"
         self.cell_bg = "#232337"
@@ -82,6 +87,7 @@ class CalendarTab(ttk.Frame):
 
     # ------------------------------------------------------------------ UI
     def _build_ui(self) -> None:
+        self._destroy_search_popup()
         for child in self.winfo_children():
             child.destroy()
 
@@ -101,6 +107,7 @@ class CalendarTab(ttk.Frame):
         ttk.Button(selector, text="Edit...", command=self.edit_current_production_calendar).pack(side=tk.LEFT, padx=(6, 0))
         ttk.Button(selector, text="Export...", command=self.export_current_production_calendar).pack(side=tk.LEFT, padx=(6, 0))
         ttk.Button(selector, text="Import...", command=self.import_production_calendar).pack(side=tk.LEFT, padx=(6, 0))
+        self._create_search_bar(selector)
 
         paned = ttk.Panedwindow(self, orient=tk.HORIZONTAL)
         paned.pack(fill=tk.BOTH, expand=True)
@@ -224,7 +231,7 @@ class CalendarTab(ttk.Frame):
         selected_container = ttk.Frame(sidebar, padding=(0, 0))
         selected_container.grid(row=2, column=0, sticky="sew", pady=(24, 0))
         selected_container.columnconfigure(0, weight=1)
-        selected_container.rowconfigure(2, weight=1)
+        selected_container.rowconfigure(2, weight=1, minsize=260)
 
         day_label = ttk.Label(selected_container, text="Selected Day", style="SidebarHeading.TLabel")
         day_label.grid(row=0, column=0, sticky="w")
@@ -238,7 +245,7 @@ class CalendarTab(ttk.Frame):
             columns=columns,
             show="headings",
             selectmode="browse",
-            height=10,
+            height=16,
         )
         self.day_events_tree.heading("time", text="Time")
         self.day_events_tree.heading("title", text="Title")
@@ -297,6 +304,176 @@ class CalendarTab(ttk.Frame):
         except tk.TclError:
             pass
 
+    def _destroy_search_popup(self) -> None:
+        if self._search_popup is not None:
+            try:
+                self._search_popup.destroy()
+            except tk.TclError:
+                pass
+        self._search_popup = None
+        self._search_listbox = None
+        self._search_result_events = []
+
+    def _create_search_bar(self, parent: tk.Widget) -> None:
+        search_container = ttk.Frame(parent)
+        search_container.pack(side=tk.LEFT, padx=(12, 0))
+        ttk.Label(search_container, text="Search", style="SidebarHeading.TLabel").pack(side=tk.LEFT, padx=(0, 6))
+        self.search_var = tk.StringVar()
+        entry = ttk.Entry(search_container, textvariable=self.search_var, width=44)
+        entry.pack(side=tk.LEFT)
+        self.search_entry = entry
+        self.search_var.trace_add("write", lambda *_: self._update_search_results())
+        entry.bind("<Escape>", lambda _: self._clear_search_results(clear_text=True))
+        entry.bind("<Return>", lambda _: self._activate_first_search_result())
+        entry.bind("<Down>", self._focus_search_results)
+        entry.bind("<FocusOut>", lambda _: self.after(120, self._maybe_hide_search_popup))
+        self._initialize_search_popup()
+
+    def _initialize_search_popup(self) -> None:
+        if self._search_popup is not None:
+            return
+        popup = tk.Toplevel(self)
+        popup.withdraw()
+        popup.overrideredirect(True)
+        popup.transient(self.winfo_toplevel())
+        popup.attributes("-topmost", True)
+        listbox = tk.Listbox(
+            popup,
+            activestyle="none",
+            exportselection=False,
+            bg="#202233",
+            fg="#f8f8f2",
+            selectbackground="#4B6EF5",
+            selectforeground="#ffffff",
+            highlightthickness=1,
+            bd=0,
+            relief="solid",
+            font=("Segoe UI", 10),
+        )
+        listbox.pack(fill=tk.BOTH, expand=True)
+        listbox.bind("<ButtonRelease-1>", lambda _: self._handle_search_result_click())
+        listbox.bind("<Return>", lambda _: self._handle_search_result_click())
+        listbox.bind("<Escape>", lambda _: self._clear_search_results())
+        listbox.bind("<FocusOut>", lambda _: self.after(120, self._maybe_hide_search_popup))
+        listbox.bind("<Up>", self._search_listbox_nav_up)
+        listbox.bind("<Down>", self._search_listbox_nav_down)
+        self._search_popup = popup
+        self._search_listbox = listbox
+
+    def _focus_search_results(self, event: tk.Event) -> str:
+        if self._search_listbox and self._search_popup and self._search_popup.state() != "withdrawn":
+            self._search_listbox.focus_set()
+            if self._search_listbox.size():
+                self._search_listbox.selection_clear(0, tk.END)
+                self._search_listbox.selection_set(0)
+                self._search_listbox.activate(0)
+        return "break"
+
+    def _search_listbox_nav_up(self, event: tk.Event) -> str:
+        if not self._search_listbox:
+            return "break"
+        selection = self._search_listbox.curselection()
+        if selection and selection[0] == 0:
+            if self.search_entry:
+                self.search_entry.focus_set()
+                self.search_entry.icursor(tk.END)
+            return "break"
+        return None
+
+    def _search_listbox_nav_down(self, event: tk.Event) -> None:
+        return None
+
+    def _update_search_results(self) -> None:
+        if not self.search_var or not self.search_entry:
+            return
+        query = self.search_var.get().strip()
+        if not query:
+            self._hide_search_popup()
+            return
+        key = query.lower()
+        matches: List[Event] = []
+        seen_ids: set[int] = set()
+        for event in self.events:
+            if event.id in seen_ids:
+                continue
+            title = (event.title or "").lower()
+            if key in title:
+                matches.append(event)
+                seen_ids.add(event.id)
+            if len(matches) >= 15:
+                break
+        if not matches:
+            self._populate_search_results([(None, f'No results for "{query}"')])
+        else:
+            items = []
+            for ev in matches:
+                calendar_name = ev.calendar_name or "Unknown"
+                items.append((ev, f"{ev.title} — {calendar_name}"))
+            self._populate_search_results(items)
+
+    def _populate_search_results(self, items: List[tuple[Optional[Event], str]]) -> None:
+        if not self._search_popup or not self._search_listbox or not self.search_entry:
+            return
+        self._search_listbox.delete(0, tk.END)
+        self._search_result_events = []
+        for event_obj, label in items:
+            self._search_listbox.insert(tk.END, label)
+            self._search_result_events.append(event_obj)
+        count = len(items)
+        if count == 0:
+            self._hide_search_popup()
+            return
+        height_rows = max(1, min(count, 8))
+        self._search_listbox.configure(height=height_rows)
+        entry_width = self.search_entry.winfo_width()
+        x = self.search_entry.winfo_rootx()
+        y = self.search_entry.winfo_rooty() + self.search_entry.winfo_height()
+        self._search_popup.geometry(f"{entry_width}x{height_rows * 24}+{x}+{y}")
+        self._search_popup.deiconify()
+        self._search_popup.lift()
+        self._search_listbox.selection_clear(0, tk.END)
+        self._search_listbox.selection_set(0)
+        self._search_listbox.activate(0)
+
+    def _handle_search_result_click(self) -> None:
+        if not self._search_listbox:
+            return
+        selection = self._search_listbox.curselection()
+        if not selection:
+            return
+        idx = selection[0]
+        event_obj = self._search_result_events[idx] if idx < len(self._search_result_events) else None
+        if event_obj is not None:
+            self.edit_event(event_obj)
+        self._hide_search_popup()
+        if self.search_entry:
+            self.search_entry.focus_set()
+            self.search_entry.icursor(tk.END)
+
+    def _activate_first_search_result(self) -> None:
+        if not self._search_listbox or not self._search_result_events:
+            return
+        if self._search_listbox.size() == 0:
+            return
+        self._search_listbox.selection_set(0)
+        self._handle_search_result_click()
+
+    def _hide_search_popup(self) -> None:
+        if self._search_popup:
+            self._search_popup.withdraw()
+        if self._search_listbox:
+            self._search_listbox.selection_clear(0, tk.END)
+
+    def _maybe_hide_search_popup(self) -> None:
+        widget = self.focus_get()
+        if widget not in {self.search_entry, self._search_listbox}:
+            self._hide_search_popup()
+
+    def _clear_search_results(self, clear_text: bool = False) -> None:
+        if clear_text and self.search_var is not None:
+            self.search_var.set("")
+        self._hide_search_popup()
+
     # ---------------------------------------------------------------- Refresh
     def refresh(self) -> None:
         self._load_production_calendars()
@@ -309,6 +486,7 @@ class CalendarTab(ttk.Frame):
             self._rebuild_calendar_filters()
             self._update_selected_day_label()
             self._populate_day_events()
+            self._clear_search_results()
             return
         self._load_calendars()
         self._load_events()
@@ -316,6 +494,7 @@ class CalendarTab(ttk.Frame):
         self._rebuild_calendar_filters()
         self._update_selected_day_label()
         self._populate_day_events()
+        self._clear_search_results()
 
     def _load_production_calendars(self) -> None:
         try:
