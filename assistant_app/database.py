@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from datetime import datetime, date
+import re
 from pathlib import Path
 from threading import RLock
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -356,7 +357,8 @@ class Database:
                 name TEXT NOT NULL UNIQUE,
                 description TEXT,
                 content TEXT NOT NULL,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                instance_id INTEGER REFERENCES sql_instances(id)
             );
             """
         )
@@ -403,16 +405,142 @@ class Database:
         self._ensure_column("sql_saved_queries", "description", "TEXT")
         self._ensure_column("sql_saved_queries", "content", "TEXT")
         self._ensure_column("sql_saved_queries", "updated_at", "TEXT")
-        with self._lock:
-            self._conn.execute(
-                """
-                UPDATE sql_instances
-                SET updated_at = COALESCE(updated_at, created_at, ?)
-                WHERE updated_at IS NULL
-                """,
-                (utils.to_iso(datetime.now()),),
+        self._ensure_column("sql_saved_queries", "instance_id", "INTEGER")
+        self._conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_sql_saved_queries_instance_name
+            ON sql_saved_queries(instance_id, name COLLATE NOCASE)
+            """
+        )
+        self._assign_saved_queries_to_instances()
+        self._ensure_saved_query_unique_scope()
+
+    def _assign_saved_queries_to_instances(self) -> None:
+        rows = self._conn.execute(
+            "SELECT id, content FROM sql_saved_queries WHERE instance_id IS NULL"
+        ).fetchall()
+        if not rows:
+            return
+        self._conn.execute("DROP TABLE IF EXISTS sql_saved_queries_old")
+        table_rows = self._conn.execute(
+            "SELECT name, instance_id FROM sql_tables WHERE instance_id IS NOT NULL"
+        ).fetchall()
+        table_map: Dict[str, set[int]] = {}
+        for row in table_rows:
+            key = (row["name"] or "").lower()
+            if not key:
+                continue
+            table_map.setdefault(key, set()).add(row["instance_id"])
+        default_instance_id = self._default_sql_instance_id()
+        table_pattern = re.compile(r"\b(from|join)\s+([A-Za-z0-9_]+)", re.IGNORECASE)
+        for row in rows:
+            content = row["content"] or ""
+            matches: set[int] = set()
+            for match in table_pattern.finditer(content):
+                table_name = match.group(2).lower()
+                instances = table_map.get(table_name)
+                if instances:
+                    matches.update(instances)
+            target_id: Optional[int]
+            if len(matches) == 1:
+                target_id = next(iter(matches))
+            else:
+                target_id = default_instance_id
+            if target_id is not None:
+                self._conn.execute(
+                    "UPDATE sql_saved_queries SET instance_id = ? WHERE id = ?",
+                    (target_id, row["id"]),
+                )
+        self._conn.commit()
+
+    def _ensure_saved_query_unique_scope(self) -> None:
+        indexes = self._conn.execute("PRAGMA index_list(sql_saved_queries)").fetchall()
+        needs_rebuild = False
+        has_instance_scope = False
+        for idx in indexes:
+            idx_name = idx["name"]
+            cols = [
+                info["name"]
+                for info in self._conn.execute(f"PRAGMA index_info({idx_name})").fetchall()
+            ]
+            if idx["unique"]:
+                lowered = [col.lower() for col in cols]
+                if lowered == ["name"]:
+                    needs_rebuild = True
+                if lowered == ["instance_id", "name"]:
+                    has_instance_scope = True
+        if needs_rebuild or not has_instance_scope:
+            self._rebuild_saved_query_table()
+
+    def _rebuild_saved_query_table(self) -> None:
+        self._assign_saved_queries_to_instances()
+        default_instance = self._default_sql_instance_id()
+        if default_instance is None:
+            return
+        self._conn.execute("DROP TABLE IF EXISTS sql_saved_queries_old")
+        self._conn.execute("ALTER TABLE sql_saved_queries RENAME TO sql_saved_queries_old")
+        self._conn.execute(
+            """
+            CREATE TABLE sql_saved_queries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                instance_id INTEGER NOT NULL REFERENCES sql_instances(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                description TEXT,
+                content TEXT NOT NULL,
+                updated_at TEXT NOT NULL
             )
-            self._conn.commit()
+            """
+        )
+        self._conn.execute(
+            """
+            CREATE UNIQUE INDEX idx_sql_saved_queries_instance_name
+            ON sql_saved_queries(instance_id, name COLLATE NOCASE)
+            """
+        )
+        rows = self._conn.execute(
+            """
+            SELECT id,
+                   COALESCE(instance_id, ?) AS instance_id,
+                   name,
+                   description,
+                   content,
+                   updated_at
+            FROM sql_saved_queries_old
+            """,
+            (default_instance,),
+        ).fetchall()
+        self._conn.executemany(
+            """
+            INSERT OR REPLACE INTO sql_saved_queries (id, instance_id, name, description, content, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    row["id"],
+                    row["instance_id"],
+                    row["name"],
+                    row["description"],
+                    row["content"],
+                    row["updated_at"],
+                )
+                for row in rows
+            ],
+        )
+        self._conn.execute("DROP TABLE IF EXISTS sql_saved_queries_old")
+        self._conn.commit()
+    def _default_sql_instance_id(self) -> Optional[int]:
+        row = self._conn.execute(
+            "SELECT id FROM sql_instances ORDER BY created_at IS NULL, created_at, id LIMIT 1"
+        ).fetchone()
+        if row:
+            return row["id"]
+        now_iso = utils.to_iso(datetime.now())
+        cursor = self._conn.execute(
+            "INSERT INTO sql_instances (name, created_at, updated_at) VALUES (?, ?, ?)",
+            ("Default Instance", now_iso, now_iso),
+        )
+        self._conn.commit()
+        return cursor.lastrowid
 
     def update_production_calendar(
         self,
@@ -1583,14 +1711,23 @@ class Database:
             self._conn.commit()
 
     # Saved query operations -------------------------------------------------
-    def get_sql_saved_queries(self) -> List[SqlSavedQuery]:
+    def get_sql_saved_queries(self, instance_id: Optional[int]) -> List[SqlSavedQuery]:
+        if instance_id is None:
+            return []
         with self._lock:
             rows = self._conn.execute(
-                "SELECT id, name, description, content, updated_at FROM sql_saved_queries ORDER BY LOWER(name)"
+                """
+                SELECT id, name, description, content, updated_at, instance_id
+                FROM sql_saved_queries
+                WHERE instance_id = ?
+                ORDER BY LOWER(name)
+                """,
+                (instance_id,),
             ).fetchall()
         return [
             SqlSavedQuery(
                 id=row["id"],
+                instance_id=row["instance_id"],
                 name=row["name"],
                 description=row["description"],
                 content=row["content"],
@@ -1602,30 +1739,43 @@ class Database:
     def get_sql_saved_query(self, query_id: int) -> SqlSavedQuery:
         with self._lock:
             row = self._conn.execute(
-                "SELECT id, name, description, content, updated_at FROM sql_saved_queries WHERE id = ?",
+                """
+                SELECT id, name, description, content, updated_at, instance_id
+                FROM sql_saved_queries
+                WHERE id = ?
+                """,
                 (query_id,),
             ).fetchone()
         if row is None:
             raise ValueError("Saved query not found.")
         return SqlSavedQuery(
             id=row["id"],
+            instance_id=row["instance_id"],
             name=row["name"],
             description=row["description"],
             content=row["content"],
             updated_at=row["updated_at"],
         )
 
-    def create_sql_saved_query(self, name: str, description: Optional[str], content: str) -> int:
+    def create_sql_saved_query(
+        self,
+        name: str,
+        description: Optional[str],
+        content: str,
+        instance_id: int,
+    ) -> int:
         if not name.strip():
             raise ValueError("Query name cannot be empty.")
+        if not instance_id:
+            raise ValueError("A SQL instance must be selected before saving queries.")
         now = utils.to_iso(datetime.now())
         with self._lock:
             cursor = self._conn.execute(
                 """
-                INSERT INTO sql_saved_queries (name, description, content, updated_at)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO sql_saved_queries (name, description, content, updated_at, instance_id)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (name.strip(), description, content, now),
+                (name.strip(), description, content, now, instance_id),
             )
             self._conn.commit()
             return cursor.lastrowid

@@ -248,6 +248,7 @@ class SqlDataSourceDetail:
 @dataclass(slots=True)
 class SqlSavedQuery:
     id: Optional[int]
+    instance_id: Optional[int]
     name: str
     description: Optional[str]
     content: str

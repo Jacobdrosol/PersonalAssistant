@@ -380,12 +380,14 @@ class SqlAssistView(ttk.Frame):
                 self.search_text_var.set("")
             self.summary_var.set("Create or import an instance to begin.")
         self._update_instance_header(selected_instance if has_instance else None)
+        self._refresh_saved_queries()
 
     def _select_instance_by_name(self, name: str) -> None:
         for instance in self.instances:
             if instance.name == name:
                 self.current_instance_id = instance.id
                 self._load_tables(instance.id)
+                self._refresh_saved_queries(select_id=None)
                 self.export_btn.configure(state=tk.NORMAL)
                 self.import_tables_btn.configure(state=tk.NORMAL)
                 if (
@@ -404,6 +406,7 @@ class SqlAssistView(ttk.Frame):
         self._base_table_count = 0
         self._base_column_count = 0
         self._populate_tree([])
+        self._refresh_saved_queries(select_id=None)
         self.export_btn.configure(state=tk.DISABLED)
         self.import_tables_btn.configure(state=tk.DISABLED)
         self.delete_btn.configure(state=tk.DISABLED)
@@ -530,9 +533,18 @@ class SqlAssistView(ttk.Frame):
 
     # ------------------------------------------------------------------ Saved query management
     def _refresh_saved_queries(self, select_id: Optional[int] = None) -> None:
+        if self.current_instance_id is None:
+            self.saved_queries = []
+            self._filtered_queries = []
+            self.query_listbox.delete(0, tk.END)
+            self.query_listbox.configure(state=tk.DISABLED)
+            self.current_query_id = None
+            self._load_query_details(None)
+            self._update_query_controls()
+            return
         target_id = select_id if select_id is not None else self.current_query_id
         try:
-            self.saved_queries = self.db.get_sql_saved_queries()
+            self.saved_queries = self.db.get_sql_saved_queries(self.current_instance_id)
         except Exception as exc:  # pragma: no cover - UI error path
             self.saved_queries = []
             messagebox.showerror("Saved Queries", f"Unable to load saved queries: {exc}", parent=self)
@@ -550,6 +562,7 @@ class SqlAssistView(ttk.Frame):
 
     def _apply_query_filter(self, select_id: Optional[int] = None) -> None:
         search = self.query_search_var.get().strip().lower()
+        self.query_listbox.configure(state=tk.NORMAL)
         self.query_listbox.delete(0, tk.END)
         self._filtered_queries = []
         for query in self.saved_queries:
@@ -561,11 +574,19 @@ class SqlAssistView(ttk.Frame):
                 label = query.name if not query.description else f"{query.name} — {query.description}"
                 self.query_listbox.insert(tk.END, label)
         has_results = bool(self._filtered_queries)
-        self.query_listbox.configure(state=tk.NORMAL if has_results else tk.DISABLED)
+        if not has_results:
+            placeholder = "No saved queries yet." if not search else "No matching queries."
+            self.query_listbox.insert(tk.END, placeholder)
+            self.query_listbox.configure(state=tk.DISABLED)
+        else:
+            self.query_listbox.configure(state=tk.NORMAL)
         target_id = select_id if select_id is not None else (
             self.current_query_id if self.current_query_id in {q.id for q in self._filtered_queries} else None
         )
         self._select_query_by_id(target_id)
+        if not self._filtered_queries:
+            self.current_query_id = None
+            self._load_query_details(None)
         self._update_query_controls()
 
     def _on_select_query(self, event: Optional[tk.Event]) -> None:
@@ -664,9 +685,21 @@ class SqlAssistView(ttk.Frame):
             messagebox.showerror("Save Query", "Add some SQL before saving the query.", parent=self)
             self.query_text.focus_set()
             return
+        if self.current_instance_id is None:
+            messagebox.showinfo(
+                "Save Query",
+                "Select a SQL instance before saving queries.",
+                parent=self,
+            )
+            return
         try:
             if save_as or self.current_query_id is None:
-                query_id = self.db.create_sql_saved_query(name, description, content)
+                query_id = self.db.create_sql_saved_query(
+                    name,
+                    description,
+                    content,
+                    self.current_instance_id,
+                )
                 self.current_query_id = query_id
             else:
                 query_id = self.current_query_id
@@ -687,7 +720,14 @@ class SqlAssistView(ttk.Frame):
         try:
             saved = self.db.get_sql_saved_query(self.current_query_id)  # type: ignore[arg-type]
         except Exception:
-            saved = SqlSavedQuery(id=self.current_query_id, name=name, description=description, content=content, updated_at=None)
+            saved = SqlSavedQuery(
+                id=self.current_query_id,
+                instance_id=self.current_instance_id,
+                name=name,
+                description=description,
+                content=content,
+                updated_at=None,
+            )
         self.query_dirty = False
         self._set_query_validation("Query saved.", status="success")
         self._refresh_saved_queries(select_id=saved.id if saved else self.current_query_id)
@@ -743,16 +783,24 @@ class SqlAssistView(ttk.Frame):
         self._update_query_controls()
 
     def _update_query_controls(self) -> None:
+        has_instance = self.current_instance_id is not None
         name_present = bool(self.query_name_var.get().strip())
         sql_present = bool(self._get_query_text())
         if hasattr(self, "save_query_btn"):
-            can_save = (self.query_dirty or self.current_query_id is None) and name_present and sql_present
+            can_save = (
+                has_instance
+                and (self.query_dirty or self.current_query_id is None)
+                and name_present
+                and sql_present
+            )
             self.save_query_btn.configure(state=tk.NORMAL if can_save else tk.DISABLED)
         if hasattr(self, "save_as_query_btn"):
-            self.save_as_query_btn.configure(state=tk.NORMAL if name_present and sql_present else tk.DISABLED)
+            self.save_as_query_btn.configure(
+                state=tk.NORMAL if has_instance and name_present and sql_present else tk.DISABLED
+            )
         if hasattr(self, "validate_query_btn"):
             self.validate_query_btn.configure(state=tk.NORMAL if sql_present else tk.DISABLED)
-        has_selection = bool(self.query_listbox.curselection())
+        has_selection = bool(self.query_listbox.curselection()) and has_instance
         self.delete_query_btn.configure(state=tk.NORMAL if has_selection else tk.DISABLED)
 
     def _set_query_diagnostics(self, diagnostics: list[tuple[str, str]]) -> tuple[int, int]:
