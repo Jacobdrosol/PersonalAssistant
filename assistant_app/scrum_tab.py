@@ -11,6 +11,7 @@ from tkinter import ttk
 
 from .database import Database, SCRUM_PRIORITIES
 from .models import ScrumNote, ScrumTask
+from .theme import ThemePalette
 
 
 class ScrumTab(ttk.Frame):
@@ -21,9 +22,10 @@ class ScrumTab(ttk.Frame):
         ("done", "Done"),
     )
 
-    def __init__(self, master: tk.Misc, db: Database) -> None:
+    def __init__(self, master: tk.Misc, db: Database, theme: ThemePalette) -> None:
         super().__init__(master, padding=(16, 16))
         self.db = db
+        self.theme = theme
         self.status_title_map: Dict[str, str] = {status: title for status, title in self.STATUSES}
         self.status_key_map: Dict[str, str] = {title: status for status, title in self.STATUSES}
         self.status_frames: Dict[str, ttk.Frame] = {}
@@ -35,7 +37,7 @@ class ScrumTab(ttk.Frame):
         self._active_canvas: Optional[tk.Canvas] = None
 
         self._configure_styles()
-        self.base_bg = ttk.Style(self).lookup("TFrame", "background") or "#171821"
+        self.base_bg = self.theme.card_bg
         self._drag_preview: Optional[tk.Toplevel] = None
         self._drag_data: Dict[str, object] = {"card": None, "task": None, "moved": False, "start": (0, 0)}
         self._build_ui()
@@ -78,21 +80,29 @@ class ScrumTab(ttk.Frame):
 
     # ------------------------------------------------------------------ UI
     def _configure_styles(self) -> None:
+        palette = self.theme
         style = ttk.Style(self)
-        style.configure("ScrumCardNormal.TFrame", background="#1c1d2b", relief="ridge", borderwidth=1)
-        style.configure("ScrumCardNormal.TLabel", background="#1c1d2b", foreground="#E8EAF6", font=("Segoe UI", 10, "bold"))
-        style.configure("ScrumCardMeta.TLabel", background="#1c1d2b", foreground="#9FA8DA", font=("Segoe UI", 9))
+        normal_bg = palette.card_bg
+        normal_fg = palette.text_primary
+        meta_fg = palette.text_secondary
+        done_bg = palette.card_alt_bg
+        done_meta = palette.text_muted
+        dragging_bg = palette.accent_hover
+
+        style.configure("ScrumCardNormal.TFrame", background=normal_bg, relief="ridge", borderwidth=1)
+        style.configure("ScrumCardNormal.TLabel", background=normal_bg, foreground=normal_fg, font=("Segoe UI", 10, "bold"))
+        style.configure("ScrumCardMeta.TLabel", background=normal_bg, foreground=meta_fg, font=("Segoe UI", 9))
         style.configure("ScrumCardSoon.TFrame", background="#554822", relief="ridge", borderwidth=1)
         style.configure("ScrumCardSoon.TLabel", background="#554822", foreground="#f8f4d7", font=("Segoe UI", 10, "bold"))
         style.configure("ScrumCardSoonMeta.TLabel", background="#554822", foreground="#f8f4d7", font=("Segoe UI", 9))
         style.configure("ScrumCardOverdue.TFrame", background="#4c1f1f", relief="ridge", borderwidth=1)
         style.configure("ScrumCardOverdue.TLabel", background="#4c1f1f", foreground="#f5f5f5", font=("Segoe UI", 10, "bold"))
         style.configure("ScrumCardOverdueMeta.TLabel", background="#4c1f1f", foreground="#f5f5f5", font=("Segoe UI", 9))
-        style.configure("ScrumCardDone.TFrame", background="#2a2b33", relief="ridge", borderwidth=1)
-        style.configure("ScrumCardDone.TLabel", background="#2a2b33", foreground="#9fa8da", font=("Segoe UI", 10, "bold"))
-        style.configure("ScrumCardDoneMeta.TLabel", background="#2a2b33", foreground="#c0c4d6", font=("Segoe UI", 9))
-        style.configure("ScrumCardDragging.TFrame", background="#394055", relief="ridge", borderwidth=1)
-        style.configure("ScrumCardDragging.TLabel", background="#394055", foreground="#E8EAF6", font=("Segoe UI", 10, "bold"))
+        style.configure("ScrumCardDone.TFrame", background=done_bg, relief="ridge", borderwidth=1)
+        style.configure("ScrumCardDone.TLabel", background=done_bg, foreground=normal_fg, font=("Segoe UI", 10, "bold"))
+        style.configure("ScrumCardDoneMeta.TLabel", background=done_bg, foreground=done_meta, font=("Segoe UI", 9))
+        style.configure("ScrumCardDragging.TFrame", background=dragging_bg, relief="ridge", borderwidth=1)
+        style.configure("ScrumCardDragging.TLabel", background=dragging_bg, foreground=palette.text_primary, font=("Segoe UI", 10, "bold"))
 
     def _build_ui(self) -> None:
         header = ttk.Frame(self)
@@ -198,6 +208,19 @@ class ScrumTab(ttk.Frame):
         return "break"
 
     # ------------------------------------------------------------------ Data handling
+
+    def apply_theme(self, theme: ThemePalette) -> None:
+        self.theme = theme
+        self._configure_styles()
+        self.base_bg = theme.card_bg
+        if hasattr(self, "_board_canvas"):
+            self._board_canvas.configure(bg=self.base_bg)
+        for meta in self.status_columns_meta.values():
+            canvas = meta.get("canvas")
+            if isinstance(canvas, tk.Canvas):
+                canvas.configure(bg=self.base_bg)
+        if self._modal_panel is not None:
+            self._close_modal()
     def refresh(self) -> None:
         tasks = self.db.get_scrum_tasks()
         self.tasks: Dict[int, ScrumTask] = {task.id: task for task in tasks}
@@ -235,11 +258,11 @@ class ScrumTab(ttk.Frame):
 
     def _open_task_editor(self, task: Optional[ScrumTask]) -> None:
         self._close_modal()
-        overlay = tk.Frame(self, bg="#000000", bd=0)
+        overlay = tk.Frame(self, bg=self.theme.window_bg, bd=0)
         overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
         overlay.lift()
 
-        canvas = tk.Canvas(overlay, bg="#000000", bd=0, highlightthickness=0)
+        canvas = tk.Canvas(overlay, bg=self.theme.surface_bg, bd=0, highlightthickness=0)
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scroll_y = ttk.Scrollbar(overlay, orient=tk.VERTICAL, command=canvas.yview)
         scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
@@ -270,6 +293,7 @@ class ScrumTab(ttk.Frame):
             on_delete_note=self._handle_delete_note,
             load_notes=self._load_notes,
             on_cancel=self._close_modal,
+            theme=self.theme,
         )
         self._modal_overlay = overlay
         self._modal_panel = dialog
@@ -476,8 +500,9 @@ class ScrumTaskDialog(tk.Frame):
         on_delete_note: Callable[[int, int], None],
         load_notes: Callable[[int], List[ScrumNote]],
         on_cancel: Callable[[], None],
+        theme: ThemePalette,
     ) -> None:
-        super().__init__(parent, bg="#1d1e2c", bd=1, relief="ridge")
+        super().__init__(parent, bg=theme.card_bg, bd=1, relief="ridge")
         self.task = task
         self.status_title_map = status_title_map
         self.status_key_map = status_key_map
@@ -489,6 +514,7 @@ class ScrumTaskDialog(tk.Frame):
         self._load_notes_fn = load_notes
         self._on_cancel = on_cancel
         self.statuses = list(statuses)
+        self.theme = theme
         self._date_picker: Optional[DatePickerPopup] = None
         self._notes_map: Dict[int, ScrumNote] = {}
 
@@ -496,7 +522,8 @@ class ScrumTaskDialog(tk.Frame):
         container = self._build_form()
 
         ttk.Label(container, text="Title").grid(row=1, column=0, sticky="w", pady=(12, 0))
-        self.title_entry = tk.Entry(container, width=50, bg="#ffffff", fg="#1c1d2b")
+        self.title_entry = tk.Entry(container, width=50)
+        self._style_entry_widget(self.title_entry)
         self.title_entry.insert(0, self.task.title if self.task else "")
         self.title_entry.grid(row=1, column=1, sticky="ew", pady=(12, 0))
 
@@ -520,30 +547,35 @@ class ScrumTaskDialog(tk.Frame):
         target_row = ttk.Frame(container)
         target_row.grid(row=4, column=1, sticky="ew", pady=(12, 0))
         target_row.columnconfigure(0, weight=1)
-        self.target_entry = tk.Entry(target_row, bg="#ffffff", fg="#1c1d2b")
+        self.target_entry = tk.Entry(target_row)
+        self._style_entry_widget(self.target_entry)
         self.target_entry.insert(0, self.task.target_date.isoformat() if self.task and self.task.target_date else "")
         self.target_entry.grid(row=0, column=0, sticky="ew")
         ttk.Button(target_row, text="Pick", width=4, command=self._open_date_picker).grid(row=0, column=1, padx=(6, 0))
-        ttk.Label(target_row, text="Format: YYYY-MM-DD", foreground="#9FA8DA").grid(row=0, column=2, padx=(8, 0))
+        ttk.Label(target_row, text="Format: YYYY-MM-DD", foreground=self.theme.text_secondary).grid(row=0, column=2, padx=(8, 0))
 
         ttk.Label(container, text="Require Time (optional)").grid(row=5, column=0, sticky="w", pady=(12, 0))
-        self.require_time_entry = tk.Entry(container, bg="#ffffff", fg="#1c1d2b")
+        self.require_time_entry = tk.Entry(container)
+        self._style_entry_widget(self.require_time_entry)
         default_require_time = self.task.require_time if self.task and self.task.require_time else ""
         self.require_time_entry.insert(0, default_require_time)
         self.require_time_entry.grid(row=5, column=1, sticky="ew", pady=(12, 0))
 
         ttk.Label(container, text="Tags (comma separated)").grid(row=6, column=0, sticky="w", pady=(12, 0))
-        self.tags_entry = tk.Entry(container, bg="#ffffff", fg="#1c1d2b")
+        self.tags_entry = tk.Entry(container)
+        self._style_entry_widget(self.tags_entry)
         self.tags_entry.insert(0, ", ".join(self.task.tags) if self.task else "")
         self.tags_entry.grid(row=6, column=1, sticky="ew", pady=(12, 0))
 
         ttk.Label(container, text="Collaborators (comma separated)").grid(row=7, column=0, sticky="w", pady=(12, 0))
-        self.collaborators_entry = tk.Entry(container, bg="#ffffff", fg="#1c1d2b")
+        self.collaborators_entry = tk.Entry(container)
+        self._style_entry_widget(self.collaborators_entry)
         self.collaborators_entry.insert(0, ", ".join(self.task.collaborators) if self.task else "")
         self.collaborators_entry.grid(row=7, column=1, sticky="ew", pady=(12, 0))
 
         ttk.Label(container, text="Description").grid(row=8, column=0, sticky="nw", pady=(12, 0))
-        self.description_text = tk.Text(container, height=6, wrap="word", bg="#ffffff", fg="#1c1d2b")
+        self.description_text = tk.Text(container, height=6, wrap="word")
+        self._style_text_widget(self.description_text)
         if self.task and self.task.description:
             self.description_text.insert("1.0", self.task.description)
         self.description_text.grid(row=8, column=1, sticky="ew")
@@ -590,7 +622,8 @@ class ScrumTaskDialog(tk.Frame):
         new_note_frame.grid(row=3, column=0, sticky="ew", pady=(10, 0))
         new_note_frame.columnconfigure(0, weight=1)
         ttk.Label(new_note_frame, text="Add Note").grid(row=0, column=0, sticky="w")
-        self.new_note_text = tk.Text(new_note_frame, height=3, wrap="word", bg="#ffffff", fg="#1c1d2b")
+        self.new_note_text = tk.Text(new_note_frame, height=3, wrap="word")
+        self._style_text_widget(self.new_note_text)
         self.new_note_text.grid(row=1, column=0, sticky="ew", pady=(4, 0))
         self.add_note_button = ttk.Button(new_note_frame, text="Add Note", command=self._add_note)
         self.add_note_button.grid(row=2, column=0, sticky="e", pady=(6, 0))
@@ -622,6 +655,30 @@ class ScrumTaskDialog(tk.Frame):
         container.rowconfigure(10, weight=1)
         ttk.Label(container, text="Task Details", style="SidebarHeading.TLabel").grid(row=0, column=0, columnspan=2, sticky="w")
         return container
+
+    def _style_entry_widget(self, widget: tk.Entry) -> None:
+        widget.configure(
+            bg=self.theme.entry_bg,
+            fg=self.theme.entry_fg,
+            insertbackground=self.theme.entry_fg,
+            highlightthickness=1,
+            highlightbackground=self.theme.entry_border,
+            highlightcolor=self.theme.entry_border,
+            bd=1,
+            relief="solid",
+        )
+
+    def _style_text_widget(self, widget: tk.Text) -> None:
+        widget.configure(
+            bg=self.theme.entry_bg,
+            fg=self.theme.entry_fg,
+            insertbackground=self.theme.entry_fg,
+            highlightthickness=1,
+            highlightbackground=self.theme.entry_border,
+            highlightcolor=self.theme.entry_border,
+            bd=1,
+            relief="solid",
+        )
 
     def _parse_list(self, raw: str) -> List[str]:
         results: List[str] = []
@@ -811,12 +868,13 @@ class ScrumTaskDialog(tk.Frame):
         dialog.title("Edit Note")
         dialog.transient(self.winfo_toplevel())
         dialog.grab_set()
-        dialog.configure(bg="#1d1e2c")
+        dialog.configure(bg=self.theme.card_bg)
         dialog.resizable(False, False)
         dialog.columnconfigure(0, weight=1)
 
         ttk.Label(dialog, text="Note Content").grid(row=0, column=0, sticky="w", padx=12, pady=(12, 4))
-        text_widget = tk.Text(dialog, width=60, height=8, wrap="word", bg="#ffffff", fg="#1c1d2b")
+        text_widget = tk.Text(dialog, width=60, height=8, wrap="word")
+        self._style_text_widget(text_widget)
         text_widget.grid(row=1, column=0, padx=12, pady=(0, 12))
         text_widget.insert("1.0", content)
         text_widget.focus_set()
@@ -851,7 +909,13 @@ class ScrumTaskDialog(tk.Frame):
             except ValueError:
                 current = None
         self._close_date_picker()
-        self._date_picker = DatePickerPopup(self, current, on_select=self._set_target_date, on_close=self._close_date_picker)
+        self._date_picker = DatePickerPopup(
+            self,
+            current,
+            on_select=self._set_target_date,
+            on_close=self._close_date_picker,
+            theme=self.theme,
+        )
 
     def _set_target_date(self, value: Optional[date]) -> None:
         self.target_entry.delete(0, tk.END)
@@ -873,10 +937,12 @@ class DatePickerPopup(tk.Frame):
         *,
         on_select: Callable[[Optional[date]], None],
         on_close: Callable[[], None],
+        theme: ThemePalette,
     ) -> None:
-        super().__init__(parent, bg="#000000", bd=0)
+        super().__init__(parent, bg=theme.window_bg, bd=0)
         self._on_select = on_select
         self._on_close = on_close
+        self.theme = theme
         self.place(relx=0, rely=0, relwidth=1, relheight=1)
         self.lift()
 

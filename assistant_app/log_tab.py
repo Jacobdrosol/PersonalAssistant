@@ -32,17 +32,8 @@ class LogTab(ttk.Frame):
         self.refresh()
 
     def _configure_styles(self) -> None:
-        style = ttk.Style(self)
-        style.configure(
-            "Danger.TButton",
-            background="#ba1a1a",
-            foreground="#ffffff",
-            padding=(12, 6),
-        )
-        style.map(
-            "Danger.TButton",
-            background=[("active", "#d32f2f"), ("pressed", "#8c1c1c")],
-        )
+        # Styles are defined globally; no tab-specific overrides required.
+        return
 
     def _build_ui(self) -> None:
         header = ttk.Frame(self)

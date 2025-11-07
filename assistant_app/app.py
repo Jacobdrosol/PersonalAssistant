@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import sys
 import threading
+from datetime import datetime, time as dt_time
 from pathlib import Path
 from typing import Callable, List, Optional
 import tkinter as tk
@@ -32,13 +33,13 @@ from .shortcuts import (
 )
 from .version import __version__
 from . import updater
+from .theme import ThemePalette, get_theme, THEMES
 
 
 class PersonalAssistantApp(tk.Tk):
     def __init__(self, db_path: Path, data_root: Path, settings: AppSettings, settings_path: Path) -> None:
         super().__init__()
         self.title(APP_NAME)
-        self.configure(bg="#111219")
 
         screen_w = self.winfo_screenwidth()
         screen_h = self.winfo_screenheight()
@@ -53,11 +54,14 @@ class PersonalAssistantApp(tk.Tk):
         self.data_root = data_root
         self.settings = settings
         self.settings_path = settings_path
+        self.theme_name = settings.theme if settings.theme in THEMES else "dark"
+        self.theme: ThemePalette = get_theme(self.theme_name)
         self._icon_path = self._ensure_icon_file()
         self.email_manager = EmailIngestManager(self.data_root)
         self.db = Database(db_path)
         self.system_notifier = SystemNotifier()
-        self._configure_styles()
+        self.configure(bg=self.theme.window_bg)
+        self._configure_styles(self.theme)
         self._apply_window_icon()
 
         self.notebook = ttk.Notebook(self)
@@ -70,14 +74,19 @@ class PersonalAssistantApp(tk.Tk):
             desktop_enabled=self.settings.desktop_shortcut and manage_shortcuts,
             start_menu_enabled=self.settings.start_menu_shortcut and manage_shortcuts,
             daily_notifications_enabled=self.settings.daily_update_notifications,
+            daily_start=self.settings.daily_update_start,
+            daily_end=self.settings.daily_update_end,
             on_setting_toggle=self._handle_setting_toggle,
+            on_hours_change=self._handle_daily_hours_change,
+            on_theme_change=self._handle_theme_change,
+            theme_name=self.theme_name,
             app_version=__version__,
         )
         self.settings_tab.pack(fill=tk.BOTH, expand=True)
         self.settings_tab_frame.place_forget()
 
-        self.calendar_tab = CalendarTab(self.notebook, self.db)
-        self.scrum_tab = ScrumTab(self.notebook, self.db)
+        self.calendar_tab = CalendarTab(self.notebook, self.db, self.theme)
+        self.scrum_tab = ScrumTab(self.notebook, self.db, self.theme)
         self.log_tab = LogTab(self.notebook, self.db)
         self.email_tab = EmailIngestView(self.notebook, self.email_manager)
         self.sql_assist_tab = SqlAssistView(self.notebook, self.db)
@@ -107,6 +116,9 @@ class PersonalAssistantApp(tk.Tk):
 
         self.notifications: List[NotificationWindow] = []
         self.notification_manager = NotificationManager(self.db, self._handle_notification)
+        start_time = self._coerce_time_to_dt(self.settings.daily_update_start, "08:00")
+        end_time = self._coerce_time_to_dt(self.settings.daily_update_end, "17:00")
+        self.notification_manager.configure_daily_log_hours(start_time, end_time)
         self.notification_manager.set_standing_reminders_enabled(self.settings.daily_update_notifications)
         self.after(1000, self.notification_manager.start)
         self.after(2000, self._check_for_updates_async)
@@ -115,76 +127,86 @@ class PersonalAssistantApp(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
     # ---------------------------------------------------------------- Styles
-    def _configure_styles(self) -> None:
+    def _configure_styles(self, palette: ThemePalette) -> None:
         style = ttk.Style(self)
         try:
             style.theme_use("clam")
         except tk.TclError:
             pass
 
-        dark_bg = "#171821"
-        darker_bg = "#111219"
-        accent = "#4F75FF"
-        text_primary = "#E8EAF6"
-        text_secondary = "#9FA8DA"
-
-        style.configure("TFrame", background=dark_bg)
-        style.configure("TNotebook", background=darker_bg, borderwidth=0)
-        style.configure("TNotebook.Tab", background="#1d1f2f", foreground=text_secondary, padding=(16, 4))
+        style.configure("TFrame", background=palette.surface_bg)
+        style.configure("TNotebook", background=palette.window_bg, borderwidth=0)
+        style.configure("TNotebook.Tab", background=palette.surface_alt_bg, foreground=palette.text_secondary, padding=(16, 4))
         style.map(
             "TNotebook.Tab",
-            background=[("selected", "#2b2c42")],
-            foreground=[("selected", text_primary)],
+            background=[("selected", palette.card_alt_bg)],
+            foreground=[("selected", palette.text_primary)],
             padding=[("selected", (16, 10))],
         )
-        style.configure("TLabel", background=dark_bg, foreground=text_primary, font=("Segoe UI", 10))
-        style.configure("CalendarHeading.TLabel", font=("Segoe UI", 14, "bold"), foreground=text_primary, background=dark_bg)
-        style.configure("SidebarHeading.TLabel", font=("Segoe UI", 12, "bold"), foreground=accent, background=dark_bg)
-        style.configure("SelectedDay.TLabel", font=("Segoe UI", 11), foreground=text_secondary, background=dark_bg)
-        style.configure("TButton", background="#2a2d3e", foreground=text_primary, padding=(12, 6))
+        style.configure("TLabel", background=palette.surface_bg, foreground=palette.text_primary, font=("Segoe UI", 10))
+        style.configure("CalendarHeading.TLabel", font=("Segoe UI", 14, "bold"), foreground=palette.text_primary, background=palette.surface_bg)
+        style.configure("SidebarHeading.TLabel", font=("Segoe UI", 12, "bold"), foreground=palette.accent, background=palette.surface_bg)
+        style.configure("SelectedDay.TLabel", font=("Segoe UI", 11), foreground=palette.text_secondary, background=palette.surface_bg)
+        style.configure(
+            "TButton",
+            background=palette.list_alt_bg,
+            foreground=palette.text_primary,
+            padding=(12, 6),
+            bordercolor=palette.border,
+        )
         style.map(
             "TButton",
-            background=[("pressed", "#3a3d55"), ("active", "#3a3d55")],
+            background=[("pressed", palette.list_selected_bg), ("active", palette.list_selected_bg)],
         )
         style.configure(
             "SettingsTabInactive.TButton",
-            background="#1d1f2f",
-            foreground=text_secondary,
+            background=palette.surface_alt_bg,
+            foreground=palette.text_secondary,
             padding=(16, 4, 16, 4),
             relief="raised",
             borderwidth=1,
         )
         style.map(
             "SettingsTabInactive.TButton",
-            background=[("pressed", "#2b2c42"), ("active", "#2b2c42")],
+            background=[("pressed", palette.card_alt_bg), ("active", palette.card_alt_bg)],
         )
         style.configure(
             "SettingsTabActive.TButton",
-            background="#2b2c42",
-            foreground=text_primary,
+            background=palette.card_alt_bg,
+            foreground=palette.text_primary,
             padding=(16, 10, 16, 10),
             relief="sunken",
             borderwidth=1,
         )
         style.map(
             "SettingsTabActive.TButton",
-            background=[("active", "#2b2c42")],
+            background=[("active", palette.card_alt_bg)],
         )
         style.configure(
             "Treeview",
-            background="#1c1d2b",
-            fieldbackground="#1c1d2b",
-            foreground=text_primary,
+            background=palette.list_bg,
+            fieldbackground=palette.list_bg,
+            foreground=palette.text_primary,
             borderwidth=0,
             font=("Segoe UI", 10),
         )
         style.configure(
             "Treeview.Heading",
-            background="#222338",
-            foreground=text_secondary,
+            background=palette.list_alt_bg,
+            foreground=palette.text_secondary,
             font=("Segoe UI", 10, "bold"),
         )
-        style.map("Treeview", background=[("selected", "#3a3d55")])
+        style.map("Treeview", background=[("selected", palette.list_selected_bg)], foreground=[("selected", palette.list_selected_fg)])
+        style.configure(
+            "Danger.TButton",
+            background=palette.danger_bg,
+            foreground=palette.danger_fg,
+            padding=(12, 6),
+        )
+        style.map(
+            "Danger.TButton",
+            background=[("active", palette.danger_bg), ("pressed", palette.danger_bg)],
+        )
 
 
     def _check_for_updates_async(self) -> None:
@@ -214,7 +236,7 @@ class PersonalAssistantApp(tk.Tk):
         self._begin_update_install(info)
 
     def _begin_update_install(self, info: "updater.AvailableUpdate") -> None:
-        progress_window = UpdateProgressWindow(self, info)
+        progress_window = UpdateProgressWindow(self, info, self.theme)
 
         def worker() -> None:
             try:
@@ -334,6 +356,10 @@ class PersonalAssistantApp(tk.Tk):
         if kind == "daily_notifications":
             self.settings.daily_update_notifications = bool(enabled)
             self.notification_manager.set_standing_reminders_enabled(bool(enabled))
+            if enabled:
+                start_time = self._coerce_time_to_dt(self.settings.daily_update_start, "08:00")
+                end_time = self._coerce_time_to_dt(self.settings.daily_update_end, "17:00")
+                self.notification_manager.configure_daily_log_hours(start_time, end_time)
             self.settings_tab.update_daily_notification_state(bool(enabled))
             save_settings(self.settings_path, self.settings)
             return
@@ -380,6 +406,78 @@ class PersonalAssistantApp(tk.Tk):
         self.settings_tab.update_shortcut_state("desktop", desktop_shortcut_exists())
         self.settings_tab.update_shortcut_state("start_menu", start_menu_shortcut_exists())
         save_settings(self.settings_path, self.settings)
+
+    def _handle_daily_hours_change(self, start_text: str, end_text: str) -> None:
+        try:
+            start_time = self._parse_time_string(start_text)
+            end_time = self._parse_time_string(end_text)
+        except ValueError as exc:
+            messagebox.showerror("Daily Update Log Reminders", str(exc), parent=self)
+            self.settings_tab.update_daily_hours(
+                self.settings.daily_update_start,
+                self.settings.daily_update_end,
+            )
+            return
+        self.settings.daily_update_start = self._format_time_storage(start_time)
+        self.settings.daily_update_end = self._format_time_storage(end_time)
+        save_settings(self.settings_path, self.settings)
+        self.notification_manager.configure_daily_log_hours(start_time, end_time)
+        self.settings_tab.update_daily_hours(
+            self.settings.daily_update_start,
+            self.settings.daily_update_end,
+        )
+
+    def _handle_theme_change(self, theme_name: str) -> None:
+        normalized = theme_name.lower()
+        if normalized not in THEMES:
+            normalized = "dark"
+        if normalized == self.theme_name:
+            return
+        self.theme_name = normalized
+        self.theme = get_theme(normalized)
+        self.settings.theme = normalized
+        self._configure_styles(self.theme)
+        self._apply_theme_to_children()
+        save_settings(self.settings_path, self.settings)
+
+    def _apply_theme_to_children(self) -> None:
+        self.configure(bg=self.theme.window_bg)
+        self.settings_tab_frame.configure(style="TFrame")
+        self.settings_tab.update_theme_selection(self.theme_name)
+        for tab in (self.calendar_tab, self.scrum_tab):
+            if hasattr(tab, "apply_theme"):
+                tab.apply_theme(self.theme)
+        for window in list(self.notifications):
+            if hasattr(window, "apply_theme"):
+                window.apply_theme(self.theme)
+        self._sync_settings_button_state()
+
+    def _parse_time_string(self, value: str) -> dt_time:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Time value cannot be blank.")
+        normalized = cleaned.upper()
+        for fmt in ("%I:%M %p", "%I %p", "%I:%M%p", "%I%p"):
+            try:
+                return datetime.strptime(normalized, fmt).time().replace(second=0, microsecond=0)
+            except ValueError:
+                continue
+        for fmt in ("%H:%M", "%H"):
+            try:
+                return datetime.strptime(cleaned, fmt).time().replace(second=0, microsecond=0)
+            except ValueError:
+                continue
+        raise ValueError(f"Invalid time value '{value}'. Use formats like 8:00 AM or 17:00.")
+
+    def _coerce_time_to_dt(self, value: str, fallback: str) -> dt_time:
+        try:
+            return self._parse_time_string(value)
+        except ValueError:
+            return self._parse_time_string(fallback)
+
+    @staticmethod
+    def _format_time_storage(value: dt_time) -> str:
+        return f"{value.hour:02d}:{value.minute:02d}"
 
     def _register_email_shortcuts(self) -> None:
         bindings = {
@@ -439,7 +537,7 @@ class PersonalAssistantApp(tk.Tk):
         body_text = payload.body.strip() if payload.body else ""
         fallback = payload.occurs_at.strftime("%I:%M %p").lstrip("0")
         self.system_notifier.notify(payload.title, body_text or fallback)
-        window = NotificationWindow(self, payload)
+        window = NotificationWindow(self, payload, self.theme)
         self.notifications.append(window)
         self._rearrange_notifications()
 
@@ -579,10 +677,11 @@ class PersonalAssistantApp(tk.Tk):
         self.destroy()
 
 class UpdateProgressWindow(tk.Toplevel):
-    def __init__(self, master: PersonalAssistantApp, update_info: "updater.AvailableUpdate") -> None:
+    def __init__(self, master: PersonalAssistantApp, update_info: "updater.AvailableUpdate", theme: ThemePalette) -> None:
         super().__init__(master)
         self.master = master
-        self.configure(bg="#1d1e2c")
+        self.theme = theme
+        self.configure(bg=self.theme.card_bg)
         self.resizable(False, False)
         self.transient(master)
         self.title("Installing Update")
@@ -600,14 +699,14 @@ class UpdateProgressWindow(tk.Toplevel):
         self.instructions_var = tk.StringVar(
             value="Once the download finishes, Personal Assistant will close so the update can be installed. Reopen it from your shortcut afterwards."
         )
-        ttk.Label(container, textvariable=self.instructions_var, wraplength=320, foreground="#9FA8DA").pack(anchor="w", pady=(0, 12))
+        ttk.Label(container, textvariable=self.instructions_var, wraplength=320, foreground=self.theme.text_secondary).pack(anchor="w", pady=(0, 12))
 
         self.progress = ttk.Progressbar(container, mode="indeterminate", length=320)
         self.progress.pack(fill=tk.X)
         self.progress.start(10)
 
         self.percent_var = tk.StringVar(value="")
-        ttk.Label(container, textvariable=self.percent_var, foreground="#9FA8DA").pack(anchor="e", pady=(6, 0))
+        ttk.Label(container, textvariable=self.percent_var, foreground=self.theme.text_secondary).pack(anchor="e", pady=(6, 0))
 
         self.protocol("WM_DELETE_WINDOW", lambda: None)
         self.attributes("-topmost", True)
@@ -671,13 +770,16 @@ class UpdateProgressWindow(tk.Toplevel):
 
 
 class NotificationWindow(tk.Toplevel):
-    def __init__(self, master: PersonalAssistantApp, payload: NotificationPayload) -> None:
+    def __init__(self, master: PersonalAssistantApp, payload: NotificationPayload, theme: ThemePalette) -> None:
         super().__init__(master)
         self.master = master
         self.payload = payload
-        self.configure(bg="#1f2030")
+        self.theme = theme
+        self.configure(bg=self.theme.notification_bg)
         self.overrideredirect(True)
         self.attributes("-topmost", True)
+        self._body_label: ttk.Label | None = None
+        self._time_label: ttk.Label | None = None
 
         frame = ttk.Frame(self, padding=14)
         frame.pack(fill=tk.BOTH, expand=True)
@@ -687,10 +789,12 @@ class NotificationWindow(tk.Toplevel):
         if payload.kind == "event":
             ttk.Label(frame, text=payload.title, font=("Segoe UI", 11, "bold"), wraplength=280).pack(anchor="w", pady=(4, 0))
 
-        ttk.Label(frame, text=self._derive_time_text(payload), foreground="#9FA8DA").pack(anchor="w", pady=(2, 6))
+        self._time_label = ttk.Label(frame, text=self._derive_time_text(payload), foreground=self.theme.text_secondary)
+        self._time_label.pack(anchor="w", pady=(2, 6))
         body_text = self._derive_body_text(payload)
         if body_text:
-            ttk.Label(frame, text=body_text, wraplength=280, foreground="#B0B4C7").pack(anchor="w")
+            self._body_label = ttk.Label(frame, text=body_text, wraplength=280, foreground=self.theme.notification_body)
+            self._body_label.pack(anchor="w")
 
         ttk.Button(frame, text="Dismiss", command=self.dismiss).pack(anchor="e", pady=(10, 0))
         self.after(1000 * 15, self.dismiss)
@@ -716,6 +820,14 @@ class NotificationWindow(tk.Toplevel):
         if self.winfo_exists():
             self.destroy()
             self.master.remove_notification(self)
+
+    def apply_theme(self, theme: ThemePalette) -> None:
+        self.theme = theme
+        self.configure(bg=self.theme.notification_bg)
+        if self._time_label:
+            self._time_label.configure(foreground=self.theme.text_secondary)
+        if self._body_label:
+            self._body_label.configure(foreground=self.theme.notification_body)
 
 
 def _ensure_installed_binary(data_root: Path) -> None:

@@ -15,6 +15,7 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple
 from .database import Database
 from .models import Calendar, Event, EventOverride, ProductionCalendar
 from . import utils
+from .theme import ThemePalette
 
 WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 REPEAT_OPTIONS = [
@@ -42,9 +43,10 @@ class DayOccurrence:
 
 
 class CalendarTab(ttk.Frame):
-    def __init__(self, master: tk.Misc, db: Database):
+    def __init__(self, master: tk.Misc, db: Database, theme: ThemePalette):
         super().__init__(master)
         self.db = db
+        self.theme = theme
         self.configure(padding=(16, 16))
         self.current_month = datetime.now().date().replace(day=1)
         self.selected_day = datetime.now().date()
@@ -76,12 +78,28 @@ class CalendarTab(ttk.Frame):
         self._search_listbox: tk.Listbox | None = None
         self._search_result_events: List[Optional[Event]] = []
 
-        self.bg_color = "#171821"
-        self.cell_bg = "#232337"
-        self.cell_selected_bg = "#31314a"
-        self.outside_month_color = "#61647a"
-        self.text_color = "#f8f8f2"
+        self._assign_palette_colors()
 
+        self._build_ui()
+        self.refresh()
+
+    def _assign_palette_colors(self) -> None:
+        palette = self.theme
+        self.bg_color = palette.surface_bg
+        self.sidebar_bg = palette.card_bg
+        self.cell_bg = palette.calendar_cell_bg
+        self.cell_selected_bg = palette.calendar_cell_selected_bg
+        self.outside_month_color = palette.calendar_outside_text
+        self.text_color = palette.text_primary
+        self.secondary_text_color = palette.text_secondary
+        self.list_bg = palette.list_bg
+        self.list_fg = palette.text_primary
+        self.list_selected_bg = palette.list_selected_bg
+        self.list_selected_fg = palette.list_selected_fg
+
+    def apply_theme(self, theme: ThemePalette) -> None:
+        self.theme = theme
+        self._assign_palette_colors()
         self._build_ui()
         self.refresh()
 
@@ -163,7 +181,7 @@ class CalendarTab(ttk.Frame):
                 grid_frame,
                 text=name,
                 bg=self.bg_color,
-                fg="#9fa8da",
+                fg=self.secondary_text_color,
                 padx=4,
                 pady=4,
                 font=("Segoe UI", 10, "bold"),
@@ -341,10 +359,10 @@ class CalendarTab(ttk.Frame):
             popup,
             activestyle="none",
             exportselection=False,
-            bg="#202233",
-            fg="#f8f8f2",
-            selectbackground="#4B6EF5",
-            selectforeground="#ffffff",
+            bg=self.list_bg,
+            fg=self.list_fg,
+            selectbackground=self.list_selected_bg,
+            selectforeground=self.list_selected_fg,
             highlightthickness=1,
             bd=0,
             relief="solid",
@@ -543,7 +561,7 @@ class CalendarTab(ttk.Frame):
         if not hasattr(self, "production_color_patch"):
             return
         current = self._current_production()
-        color = current.color if current else "#2a2d3e"
+        color = current.color if current else self.theme.border
         self.production_color_patch.delete("all")
         self.production_color_patch.create_rectangle(0, 0, 20, 20, fill=color, outline="")
 
@@ -838,7 +856,7 @@ class CalendarTab(ttk.Frame):
                     text=f"+{len(occurrences) - 4}",
                     anchor="w",
                     bg=bg_color,
-                    fg="#9fa8da",
+                    fg=self.secondary_text_color,
                     font=("Segoe UI", 9, "italic"),
                 )
                 more_label.pack(fill=tk.X, pady=1)
