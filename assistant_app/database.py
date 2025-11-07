@@ -574,22 +574,22 @@ class Database:
                     (cal_name, cal_color, 1 if is_visible else 0, production_calendar_id),
                 )
                 new_calendar_id = cursor.lastrowid
-                for event_item in calendar_item.get("events", []):
-                    title = str(event_item.get("title", "")).strip()
+                for event_payload in calendar_item.get("events", []):
+                    title = str(event_payload.get("title", "")).strip()
                     if not title:
                         raise ValueError(f"Event missing a title in calendar '{cal_name}'.")
-                    description = str(event_item.get("description", "")).strip()
-                    start_time_raw = event_item.get("start_time")
+                    description = str(event_payload.get("description", "")).strip()
+                    start_time_raw = event_payload.get("start_time")
                     if not start_time_raw:
                         raise ValueError(f"Event '{title}' is missing start_time.")
                     try:
                         start_time = datetime.fromisoformat(str(start_time_raw))
                     except ValueError as exc:
                         raise ValueError(f"Invalid start_time for event '{title}': {exc}") from exc
-                    duration_minutes = int(event_item.get("duration_minutes", 60))
-                    repeat_value = str(event_item.get("repeat", "none"))
-                    repeat_interval = max(1, int(event_item.get("repeat_interval", 1)))
-                    repeat_until_raw = event_item.get("repeat_until")
+                    duration_minutes = int(event_payload.get("duration_minutes", 60))
+                    repeat_value = str(event_payload.get("repeat", "none"))
+                    repeat_interval = max(1, int(event_payload.get("repeat_interval", 1)))
+                    repeat_until_raw = event_payload.get("repeat_until")
                     repeat_until_dt: Optional[datetime]
                     if repeat_until_raw:
                         try:
@@ -598,7 +598,7 @@ class Database:
                             raise ValueError(f"Invalid repeat_until for event '{title}': {exc}") from exc
                     else:
                         repeat_until_dt = None
-                    reminder_minutes_before = event_item.get("reminder_minutes_before")
+                    reminder_minutes_before = event_payload.get("reminder_minutes_before")
                     reminder_value: Optional[int]
                     if reminder_minutes_before is None:
                         reminder_value = None
