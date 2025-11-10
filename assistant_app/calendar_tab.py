@@ -1008,19 +1008,43 @@ class CalendarTab(ttk.Frame):
                 parent,
                 default_start=default_start,
                 default_end=default_end,
-                on_generate=lambda start, end: self._handle_recap_range(start, end, production),
+                calendars=self.calendars,
+                selected_day=self.selected_day,
+                on_generate=lambda start, end, calendar_ids: self._handle_recap_range(
+                    start,
+                    end,
+                    production,
+                    calendar_ids,
+                ),
                 on_cancel=self._close_modal,
             )
         self._open_modal(builder)
 
-    def _handle_recap_range(self, start: datetime, end: datetime, production: ProductionCalendar) -> None:
+    def _handle_recap_range(
+        self,
+        start: datetime,
+        end: datetime,
+        production: ProductionCalendar,
+        calendar_ids: Optional[List[int]],
+    ) -> None:
         self._close_modal()
-        self._show_recap_report(start, end, production)
+        self._show_recap_report(start, end, production, calendar_ids)
 
-    def _show_recap_report(self, start: datetime, end: datetime, production: ProductionCalendar) -> None:
-        calendar_ids = [cal.id for cal in self.calendars]
+    def _show_recap_report(
+        self,
+        start: datetime,
+        end: datetime,
+        production: ProductionCalendar,
+        calendar_ids: Optional[List[int]],
+    ) -> None:
+        resolved_calendar_ids = (
+            [cal.id for cal in self.calendars] if calendar_ids is None else calendar_ids
+        )
+        if not resolved_calendar_ids:
+            messagebox.showinfo("Recap", "Select at least one calendar to generate a recap.")
+            return
         try:
-            events = self.db.get_events(calendar_ids=calendar_ids)
+            events = self.db.get_events(calendar_ids=resolved_calendar_ids)
         except Exception as exc:
             messagebox.showerror("Recap", f"Could not load events: {exc}")
             return
@@ -1698,12 +1722,20 @@ class RecapRangePanel(tk.Frame):
         *,
         default_start: datetime,
         default_end: datetime,
-        on_generate: Callable[[datetime, datetime], None],
+        calendars: List[Calendar],
+        selected_day: date,
+        on_generate: Callable[[datetime, datetime, Optional[List[int]]], None],
         on_cancel: Callable[[], None],
     ) -> None:
         super().__init__(parent, bg="#1d1e2c", bd=1, relief="ridge")
         self._on_generate = on_generate
         self._on_cancel = on_cancel
+        self._calendars = calendars
+        self._anchor_day = selected_day
+        self._calendar_vars: Dict[int, tk.BooleanVar] = {}
+        self._calendar_menu: tk.Menu | None = None
+        self.calendar_mode_var = tk.StringVar(value="all")
+        self.calendar_button_var = tk.StringVar(value="All calendars selected")
         self.place(relx=0.5, rely=0.5, anchor="center")
 
         container = ttk.Frame(self, padding=16)
@@ -1732,8 +1764,41 @@ class RecapRangePanel(tk.Frame):
         self.end_time_var = tk.StringVar(value=default_end.strftime("%H:%M"))
         ttk.Entry(container, textvariable=self.end_time_var, width=12).grid(row=4, column=1, sticky="ew", pady=(0, 8))
 
+        ttk.Label(container, text="Calendars").grid(row=5, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        calendar_mode_frame = ttk.Frame(container)
+        calendar_mode_frame.grid(row=6, column=0, columnspan=2, sticky="w")
+        ttk.Radiobutton(
+            calendar_mode_frame,
+            text="All calendars",
+            value="all",
+            variable=self.calendar_mode_var,
+            command=self._sync_calendar_controls,
+        ).pack(side=tk.LEFT)
+        ttk.Radiobutton(
+            calendar_mode_frame,
+            text="Selected calendars",
+            value="selected",
+            variable=self.calendar_mode_var,
+            command=self._sync_calendar_controls,
+        ).pack(side=tk.LEFT, padx=(12, 0))
+
+        self.calendar_dropdown_frame = ttk.Frame(container)
+        self.calendar_dropdown_frame.grid(row=7, column=0, columnspan=2, sticky="w")
+        self.calendar_dropdown_button = tk.Menubutton(
+            self.calendar_dropdown_frame,
+            textvariable=self.calendar_button_var,
+            indicatoron=True,
+            borderwidth=1,
+            relief=tk.RAISED,
+            width=32,
+        )
+        self.calendar_dropdown_button.pack(side=tk.LEFT, pady=(2, 0))
+        self._build_calendar_menu()
+        self.calendar_dropdown_frame.grid_remove()
+
         button_row = ttk.Frame(container)
-        button_row.grid(row=5, column=0, columnspan=2, sticky="e", pady=(12, 0))
+        button_row.grid(row=8, column=0, columnspan=2, sticky="ew", pady=(12, 0))
+        ttk.Button(button_row, text="Overnight Recap", command=self._overnight_recap).pack(side=tk.LEFT)
         ttk.Button(button_row, text="Cancel", command=self._cancel).pack(side=tk.RIGHT, padx=(0, 6))
         ttk.Button(button_row, text="Generate", command=self._generate).pack(side=tk.RIGHT)
 
@@ -1751,10 +1816,66 @@ class RecapRangePanel(tk.Frame):
         if end < start:
             messagebox.showerror("Invalid Range", "End must be after the start.", parent=self)
             return
-        self._on_generate(start, end)
+        ok, calendar_ids = self._resolve_calendar_ids()
+        if not ok:
+            return
+        self._on_generate(start, end, calendar_ids)
 
     def _cancel(self) -> None:
         self._on_cancel()
+
+    def _build_calendar_menu(self) -> None:
+        menu = tk.Menu(self.calendar_dropdown_button, tearoff=False)
+        for calendar in self._calendars:
+            var = tk.BooleanVar(value=True)
+            self._calendar_vars[calendar.id] = var
+            menu.add_checkbutton(label=calendar.name, variable=var, command=self._update_calendar_menu_label)
+        self._calendar_menu = menu
+        self.calendar_dropdown_button["menu"] = self._calendar_menu
+        self._update_calendar_menu_label()
+
+    def _update_calendar_menu_label(self) -> None:
+        selected_ids = [cal_id for cal_id, var in self._calendar_vars.items() if var.get()]
+        if not self._calendar_vars:
+            label = "No calendars available"
+        elif len(selected_ids) == len(self._calendar_vars):
+            label = "All calendars selected"
+        elif not selected_ids:
+            label = "Select calendars"
+        else:
+            selected_names = [cal.name for cal in self._calendars if cal.id in selected_ids]
+            if len(selected_names) <= 2:
+                label = ", ".join(selected_names)
+            else:
+                label = f"{len(selected_names)} calendars selected"
+        self.calendar_button_var.set(label)
+
+    def _sync_calendar_controls(self) -> None:
+        if self.calendar_mode_var.get() == "selected":
+            self.calendar_dropdown_frame.grid()
+        else:
+            self.calendar_dropdown_frame.grid_remove()
+
+    def _resolve_calendar_ids(self) -> Tuple[bool, Optional[List[int]]]:
+        if self.calendar_mode_var.get() == "all":
+            return True, None
+        selected_ids = [cal_id for cal_id, var in self._calendar_vars.items() if var.get()]
+        if not selected_ids:
+            messagebox.showerror("Recap", "Select at least one calendar.", parent=self)
+            return False, None
+        return True, selected_ids
+
+    def _overnight_recap(self) -> None:
+        self._apply_overnight_preset()
+        self._generate()
+
+    def _apply_overnight_preset(self) -> None:
+        anchor = self._anchor_day
+        start_date = anchor - timedelta(days=1)
+        self.start_date_var.set(start_date.strftime("%Y-%m-%d"))
+        self.start_time_var.set("17:00")
+        self.end_date_var.set(anchor.strftime("%Y-%m-%d"))
+        self.end_time_var.set("07:00")
 
 
 class RecapReportPanel(tk.Frame):

@@ -17,6 +17,7 @@ from .log_tab import LogTab
 from .plugins import EmailIngestManager
 from .scrum_tab import ScrumTab
 from .ui.views.email_ingest import EmailIngestView
+from .ui.views.jira_tab import JiraTabView
 from .ui.views.sql_assist import SqlAssistView
 from .system_notifications import SystemNotifier
 from .notifications import NotificationManager, NotificationPayload
@@ -90,6 +91,7 @@ class PersonalAssistantApp(tk.Tk):
         self.log_tab = LogTab(self.notebook, self.db)
         self.email_tab = EmailIngestView(self.notebook, self.email_manager)
         self.sql_assist_tab = SqlAssistView(self.notebook, self.db)
+        self.jira_tab = JiraTabView(self.notebook)
         self.contact_tab = ContactTab(self.notebook, self.data_root, app_version=__version__)
 
         self.notebook.add(self.calendar_tab, text="Production Calendar")
@@ -97,6 +99,7 @@ class PersonalAssistantApp(tk.Tk):
         self.notebook.add(self.scrum_tab, text="Tasks Board")
         self.notebook.add(self.email_tab, text="Email Ingest")
         self.notebook.add(self.sql_assist_tab, text="SQL Assist")
+        self.notebook.add(self.jira_tab, text="JIRA")
         self.notebook.add(self.contact_tab, text="Contact Support")
 
         self._last_notebook_tab = self.notebook.select()
