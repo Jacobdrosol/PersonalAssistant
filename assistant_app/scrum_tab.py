@@ -35,7 +35,6 @@ class ScrumTab(ttk.Frame):
         self._modal_overlay: Optional[tk.Frame] = None
         self._modal_panel: Optional[tk.Frame] = None
         self._active_canvas: Optional[tk.Canvas] = None
-
         self._configure_styles()
         self.base_bg = self.theme.card_bg
         self._drag_preview: Optional[tk.Toplevel] = None
@@ -85,8 +84,8 @@ class ScrumTab(ttk.Frame):
         normal_bg = palette.card_bg
         normal_fg = palette.text_primary
         meta_fg = palette.text_secondary
-        done_bg = palette.card_alt_bg
-        done_meta = palette.text_muted
+        done_bg = palette.card_bg
+        done_fg = palette.text_muted
         dragging_bg = palette.accent_hover
 
         style.configure("ScrumCardNormal.TFrame", background=normal_bg, relief="ridge", borderwidth=1)
@@ -99,10 +98,12 @@ class ScrumTab(ttk.Frame):
         style.configure("ScrumCardOverdue.TLabel", background="#4c1f1f", foreground="#f5f5f5", font=("Segoe UI", 10, "bold"))
         style.configure("ScrumCardOverdueMeta.TLabel", background="#4c1f1f", foreground="#f5f5f5", font=("Segoe UI", 9))
         style.configure("ScrumCardDone.TFrame", background=done_bg, relief="ridge", borderwidth=1)
-        style.configure("ScrumCardDone.TLabel", background=done_bg, foreground=normal_fg, font=("Segoe UI", 10, "bold"))
-        style.configure("ScrumCardDoneMeta.TLabel", background=done_bg, foreground=done_meta, font=("Segoe UI", 9))
+        style.configure("ScrumCardDone.TLabel", background=done_bg, foreground=done_fg, font=("Segoe UI", 10, "bold"))
+        style.configure("ScrumCardDoneMeta.TLabel", background=done_bg, foreground=done_fg, font=("Segoe UI", 9))
         style.configure("ScrumCardDragging.TFrame", background=dragging_bg, relief="ridge", borderwidth=1)
         style.configure("ScrumCardDragging.TLabel", background=dragging_bg, foreground=palette.text_primary, font=("Segoe UI", 10, "bold"))
+        shade_factor = -0.18 if palette.name == "dark" else -0.12
+        self.done_column_bg = self._shade_color(self.theme.card_bg, shade_factor)
 
     def _build_ui(self) -> None:
         header = ttk.Frame(self)
@@ -137,7 +138,8 @@ class ScrumTab(ttk.Frame):
             ttk.Label(column, text=title, style="SidebarHeading.TLabel").grid(row=0, column=0, sticky="w")
             column.columnconfigure(0, weight=1)
 
-            canvas = tk.Canvas(column, highlightthickness=0, bg=self.base_bg, bd=0)
+            column_bg = self._column_background(status)
+            canvas = tk.Canvas(column, highlightthickness=0, bg=column_bg, bd=0)
             canvas.grid(row=1, column=0, sticky="nsew", pady=(6, 0))
             column.rowconfigure(1, weight=1)
             scrollbar = ttk.Scrollbar(column, orient=tk.VERTICAL, command=canvas.yview)
@@ -156,7 +158,7 @@ class ScrumTab(ttk.Frame):
             canvas.bind("<Configure>", lambda e, frm=frame: frm.configure(width=canvas.winfo_width()))
             self._register_scroll_region(canvas, frame)
             self.status_frames[status] = frame
-            self.status_columns_meta[status] = {"frame": frame, "canvas": canvas, "column": column}
+            self.status_columns_meta[status] = {"frame": frame, "canvas": canvas, "column": column, "status": status}
 
     def _register_scroll_region(self, canvas: tk.Canvas, frame: tk.Widget) -> None:
         def handle_enter(_: tk.Event, cv: tk.Canvas = canvas) -> None:
@@ -217,10 +219,12 @@ class ScrumTab(ttk.Frame):
             self._board_canvas.configure(bg=self.base_bg)
         for meta in self.status_columns_meta.values():
             canvas = meta.get("canvas")
+            status = meta.get("status")
             if isinstance(canvas, tk.Canvas):
-                canvas.configure(bg=self.base_bg)
+                canvas.configure(bg=self._column_background(status))
         if self._modal_panel is not None:
             self._close_modal()
+
     def refresh(self) -> None:
         tasks = self.db.get_scrum_tasks()
         self.tasks: Dict[int, ScrumTask] = {task.id: task for task in tasks}
@@ -251,6 +255,30 @@ class ScrumTab(ttk.Frame):
         if delta <= 1:
             return "due_soon"
         return None
+
+    def _column_background(self, status: Optional[str]) -> str:
+        if status == "done":
+            return self.done_column_bg
+        return self.base_bg
+
+    @staticmethod
+    def _shade_color(color: str, factor: float) -> str:
+        factor = max(-1.0, min(1.0, factor))
+        r, g, b = ScrumTab._hex_to_rgb(color)
+        if factor >= 0:
+            r = round(r + (255 - r) * factor)
+            g = round(g + (255 - g) * factor)
+            b = round(b + (255 - b) * factor)
+        else:
+            r = round(r * (1 + factor))
+            g = round(g * (1 + factor))
+            b = round(b * (1 + factor))
+        return f"#{r:02x}{g:02x}{b:02x}"
+
+    @staticmethod
+    def _hex_to_rgb(color: str) -> tuple[int, int, int]:
+        value = color.lstrip("#")
+        return int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16)
 
     # ------------------------------------------------------------------ Actions
     def _open_new_task(self) -> None:
