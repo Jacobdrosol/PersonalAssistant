@@ -8,7 +8,7 @@ from collections import defaultdict
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from ...database import Database
 from ...models import (
@@ -61,6 +61,9 @@ class SqlAssistView(ttk.Frame):
         self._query_validation_after: Optional[str] = None
         self._query_diagnostics: list[tuple[str, str]] = []
         self._suspend_query_events = False
+
+        self._detail_overlay: tk.Frame | None = None
+        self._detail_panel: tk.Frame | None = None
 
         self._build_ui()
         self.data_source_search_var.trace_add("write", lambda *_: self._apply_data_source_filter())
@@ -315,6 +318,41 @@ class SqlAssistView(ttk.Frame):
         palette_scroll.grid(row=1, column=1, sticky="ns")
         self.table_palette.configure(yscrollcommand=palette_scroll.set)
         self.table_palette.bind("<Double-1>", self._on_palette_double_click)
+
+    # ------------------------------------------------------------------ Detail overlays
+    def _open_detail_panel(self, builder: Callable[[tk.Frame], None]) -> None:
+        self._close_detail_panel()
+        bg_color = "#1d1e2c"
+        for widget in (self, self.master, self.winfo_toplevel()):
+            if not isinstance(widget, tk.Misc):
+                continue
+            try:
+                bg_color = widget.cget("background")
+                break
+            except tk.TclError:
+                continue
+        overlay = tk.Frame(self, bg=bg_color)
+        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+        overlay.lift()
+        panel = tk.Frame(overlay, bg="#1d1e2c", bd=1, relief="ridge")
+        panel.place(relx=0.5, rely=0.5, anchor="center")
+        panel.columnconfigure(0, weight=1)
+        panel.rowconfigure(0, weight=1)
+        builder(panel)
+        overlay.bind("<Button-1>", lambda _: "break")
+        overlay.bind("<Escape>", lambda _: self._close_detail_panel())
+        panel.focus_set()
+        self._detail_overlay = overlay
+        self._detail_panel = panel
+
+    def _close_detail_panel(self) -> None:
+        if self._detail_panel is not None:
+            self._detail_panel.destroy()
+            self._detail_panel = None
+        if self._detail_overlay is not None:
+            self._detail_overlay.destroy()
+            self._detail_overlay = None
+        self.focus_set()
 
     def _initialize_contents(self) -> None:
         self.refresh_instances()
@@ -1065,159 +1103,166 @@ class SqlAssistView(ttk.Frame):
 
     def _show_data_source_detail(self, detail: SqlDataSourceDetail) -> None:
         source = detail.source
-        dialog = tk.Toplevel(self)
-        dialog.title(source.title or "Data Source Detail")
-        dialog.transient(self.winfo_toplevel())
-        dialog.grab_set()
 
-        container = ttk.Frame(dialog, padding=16)
-        container.pack(fill=tk.BOTH, expand=True)
+        def build(panel: tk.Frame) -> None:
+            panel.configure(width=780)
+            container = ttk.Frame(panel, padding=16)
+            container.grid(row=0, column=0, sticky="nsew")
+            panel.columnconfigure(0, weight=1)
+            panel.rowconfigure(0, weight=1)
+            container.columnconfigure(0, weight=1)
 
-        ttk.Label(container, text=source.title, style="SidebarHeading.TLabel").pack(anchor="w")
+            ttk.Label(container, text=source.title, style="SidebarHeading.TLabel").pack(anchor="w")
 
-        description = (source.description or "").strip()
-        if description:
-            ttk.Label(container, text=description, wraplength=560, justify="left").pack(anchor="w", pady=(6, 12))
+            description = (source.description or "").strip()
+            if description:
+                ttk.Label(container, text=description, wraplength=560, justify="left").pack(
+                    anchor="w", pady=(6, 12)
+                )
 
-        info_items = [
-            ("Is Base Data Source", self._format_bool(source.is_base)),
-            ("Parent Data Source", source.parent_source or "N/A"),
-            ("Select Set", source.select_set or "N/A"),
-            ("Visible", self._format_bool(source.is_visible) if source.is_visible is not None else "Unknown"),
-            ("Last Updated", self._format_timestamp(source.updated_at, source.updated_by)),
-        ]
-        if source.is_in_error:
-            info_items.append(("Error", source.error_message or "Yes"))
+            info_items = [
+                ("Is Base Data Source", self._format_bool(source.is_base)),
+                ("Parent Data Source", source.parent_source or "N/A"),
+                ("Select Set", source.select_set or "N/A"),
+                (
+                    "Visible",
+                    self._format_bool(source.is_visible) if source.is_visible is not None else "Unknown",
+                ),
+                ("Last Updated", self._format_timestamp(source.updated_at, source.updated_by)),
+            ]
+            if source.is_in_error:
+                info_items.append(("Error", source.error_message or "Yes"))
 
-        info_frame = ttk.Frame(container)
-        info_frame.pack(fill=tk.X, pady=(0, 12))
-        for label, value in info_items:
-            ttk.Label(info_frame, text=f"{label}: {value}").pack(anchor="w")
+            info_frame = ttk.Frame(container)
+            info_frame.pack(fill=tk.X, pady=(0, 12))
+            for label, value in info_items:
+                ttk.Label(info_frame, text=f"{label}: {value}").pack(anchor="w")
 
-        notebook = ttk.Notebook(container)
-        notebook.pack(fill=tk.BOTH, expand=True)
+            notebook = ttk.Notebook(container)
+            notebook.pack(fill=tk.BOTH, expand=True)
 
-        joins_tab = ttk.Frame(notebook)
-        joins_tab.columnconfigure(0, weight=1)
-        joins_tab.rowconfigure(0, weight=1)
-        notebook.add(joins_tab, text="Joins")
+            joins_tab = ttk.Frame(notebook)
+            joins_tab.columnconfigure(0, weight=1)
+            joins_tab.rowconfigure(0, weight=1)
+            notebook.add(joins_tab, text="Joins")
 
-        joins_columns = (
-            "alias",
-            "object",
-            "type",
-            "index",
-            "row_expected",
-            "base_join",
-            "updated",
-            "status",
-        )
-        joins_tree = ttk.Treeview(joins_tab, columns=joins_columns, show="headings", height=12)
-        headings = {
-            "alias": "Alias",
-            "object": "Join Object",
-            "type": "Relationship",
-            "index": "Join Index",
-            "row_expected": "Row Expected",
-            "base_join": "Base Join",
-            "updated": "Updated",
-            "status": "Status",
-        }
-        for key, title in headings.items():
-            joins_tree.heading(key, text=title)
-            joins_tree.column(key, anchor="w")
-        joins_tree.column("alias", width=140)
-        joins_tree.column("object", width=160)
-        joins_tree.column("type", width=140)
-        joins_tree.column("index", width=90)
-        joins_tree.column("row_expected", width=110, anchor="center")
-        joins_tree.column("base_join", width=90, anchor="center")
-        joins_tree.column("updated", width=160, anchor="center")
-        joins_tree.column("status", width=220)
-        joins_tree.grid(row=0, column=0, sticky="nsew")
-        joins_scroll = ttk.Scrollbar(joins_tab, orient=tk.VERTICAL, command=joins_tree.yview)
-        joins_scroll.grid(row=0, column=1, sticky="ns")
-        joins_tree.configure(yscrollcommand=joins_scroll.set)
+            joins_columns = (
+                "alias",
+                "object",
+                "type",
+                "index",
+                "row_expected",
+                "base_join",
+                "updated",
+                "status",
+            )
+            joins_tree = ttk.Treeview(joins_tab, columns=joins_columns, show="headings", height=12)
+            headings = {
+                "alias": "Alias",
+                "object": "Join Object",
+                "type": "Relationship",
+                "index": "Join Index",
+                "row_expected": "Row Expected",
+                "base_join": "Base Join",
+                "updated": "Updated",
+                "status": "Status",
+            }
+            for key, title in headings.items():
+                joins_tree.heading(key, text=title)
+                joins_tree.column(key, anchor="w")
+            joins_tree.column("alias", width=140)
+            joins_tree.column("object", width=160)
+            joins_tree.column("type", width=140)
+            joins_tree.column("index", width=90)
+            joins_tree.column("row_expected", width=110, anchor="center")
+            joins_tree.column("base_join", width=90, anchor="center")
+            joins_tree.column("updated", width=160, anchor="center")
+            joins_tree.column("status", width=220)
+            joins_tree.grid(row=0, column=0, sticky="nsew")
+            joins_scroll = ttk.Scrollbar(joins_tab, orient=tk.VERTICAL, command=joins_tree.yview)
+            joins_scroll.grid(row=0, column=1, sticky="ns")
+            joins_tree.configure(yscrollcommand=joins_scroll.set)
 
-        if detail.joins:
-            for join in detail.joins:
-                status_bits = []
-                if join.join_in_error:
-                    status_bits.append(
-                        f"Error: {join.join_error_message}" if join.join_error_message else "Error"
+            if detail.joins:
+                for join in detail.joins:
+                    status_bits = []
+                    if join.join_in_error:
+                        status_bits.append(
+                            f"Error: {join.join_error_message}" if join.join_error_message else "Error"
+                        )
+                    if join.comment:
+                        status_bits.append(f"Comment: {join.comment}")
+                    if join.relate_alias or join.relate_name:
+                        relate = f"{join.relate_alias or ''} {join.relate_name or ''}".strip()
+                        status_bits.append(f"Relate: {relate}")
+                    joins_tree.insert(
+                        "",
+                        tk.END,
+                        values=(
+                            join.alias or "",
+                            join.join_object or "",
+                            join.join_type or "",
+                            join.join_index or "",
+                            self._format_bool(join.row_expected),
+                            self._format_bool(join.is_base_join),
+                            self._format_timestamp(join.updated_at, join.updated_by),
+                            "; ".join(status_bits),
+                        ),
                     )
-                if join.comment:
-                    status_bits.append(f"Comment: {join.comment}")
-                if join.relate_alias or join.relate_name:
-                    relate = f"{join.relate_alias or ''} {join.relate_name or ''}".strip()
-                    status_bits.append(f"Relate: {relate}")
-                joins_tree.insert(
-                    "",
-                    tk.END,
-                    values=(
-                        join.alias or "",
-                        join.join_object or "",
-                        join.join_type or "",
-                        join.join_index or "",
-                        self._format_bool(join.row_expected),
-                        self._format_bool(join.is_base_join),
-                        self._format_timestamp(join.updated_at, join.updated_by),
-                        "; ".join(status_bits),
-                    ),
-                )
-        else:
-            joins_tree.insert("", tk.END, values=("No joins available.", "", "", "", "", "", "", ""))
+            else:
+                joins_tree.insert("", tk.END, values=("No joins available.", "", "", "", "", "", "", ""))
 
-        expr_tab = ttk.Frame(notebook)
-        expr_tab.columnconfigure(0, weight=1)
-        expr_tab.rowconfigure(0, weight=1)
-        notebook.add(expr_tab, text="Expressions")
+            expr_tab = ttk.Frame(notebook)
+            expr_tab.columnconfigure(0, weight=1)
+            expr_tab.rowconfigure(0, weight=1)
+            notebook.add(expr_tab, text="Expressions")
 
-        expr_columns = (
-            "name",
-            "validated",
-            "csharp",
-            "sql",
-            "updated",
-            "notes",
-        )
-        expr_tree = ttk.Treeview(expr_tab, columns=expr_columns, show="headings", height=12)
-        expr_tree.heading("name", text="Expression Name")
-        expr_tree.heading("validated", text="Validated Field")
-        expr_tree.heading("csharp", text="C# Valid")
-        expr_tree.heading("sql", text="SQL Valid")
-        expr_tree.heading("updated", text="Updated")
-        expr_tree.heading("notes", text="Notes")
-        expr_tree.column("name", width=200, anchor="w")
-        expr_tree.column("validated", width=180, anchor="w")
-        expr_tree.column("csharp", width=90, anchor="center")
-        expr_tree.column("sql", width=90, anchor="center")
-        expr_tree.column("updated", width=160, anchor="center")
-        expr_tree.column("notes", width=240, anchor="w")
-        expr_tree.grid(row=0, column=0, sticky="nsew")
-        expr_scroll = ttk.Scrollbar(expr_tab, orient=tk.VERTICAL, command=expr_tree.yview)
-        expr_scroll.grid(row=0, column=1, sticky="ns")
-        expr_tree.configure(yscrollcommand=expr_scroll.set)
+            expr_columns = (
+                "name",
+                "validated",
+                "csharp",
+                "sql",
+                "updated",
+                "notes",
+            )
+            expr_tree = ttk.Treeview(expr_tab, columns=expr_columns, show="headings", height=12)
+            expr_tree.heading("name", text="Expression Name")
+            expr_tree.heading("validated", text="Validated Field")
+            expr_tree.heading("csharp", text="C# Valid")
+            expr_tree.heading("sql", text="SQL Valid")
+            expr_tree.heading("updated", text="Updated")
+            expr_tree.heading("notes", text="Notes")
+            expr_tree.column("name", width=200, anchor="w")
+            expr_tree.column("validated", width=180, anchor="w")
+            expr_tree.column("csharp", width=90, anchor="center")
+            expr_tree.column("sql", width=90, anchor="center")
+            expr_tree.column("updated", width=160, anchor="center")
+            expr_tree.column("notes", width=240, anchor="w")
+            expr_tree.grid(row=0, column=0, sticky="nsew")
+            expr_scroll = ttk.Scrollbar(expr_tab, orient=tk.VERTICAL, command=expr_tree.yview)
+            expr_scroll.grid(row=0, column=1, sticky="ns")
+            expr_tree.configure(yscrollcommand=expr_scroll.set)
 
-        if detail.expressions:
-            for expr in detail.expressions:
-                expr_tree.insert(
-                    "",
-                    tk.END,
-                    values=(
-                        expr.expression_name or "",
-                        expr.validated_field_name or "",
-                        self._format_bool(expr.is_csharp_valid),
-                        self._format_bool(expr.is_sql_valid),
-                        self._format_timestamp(expr.updated_at, expr.updated_by),
-                        expr.note or "",
-                    ),
-                )
-        else:
-            expr_tree.insert("", tk.END, values=("No expressions available.", "", "", "", "", ""))
+            if detail.expressions:
+                for expr in detail.expressions:
+                    expr_tree.insert(
+                        "",
+                        tk.END,
+                        values=(
+                            expr.expression_name or "",
+                            expr.validated_field_name or "",
+                            self._format_bool(expr.is_csharp_valid),
+                            self._format_bool(expr.is_sql_valid),
+                            self._format_timestamp(expr.updated_at, expr.updated_by),
+                            expr.note or "",
+                        ),
+                    )
+            else:
+                expr_tree.insert("", tk.END, values=("No expressions available.", "", "", "", "", ""))
 
-        ttk.Button(container, text="Close", command=dialog.destroy).pack(anchor="e", pady=(12, 0))
-        dialog.bind("<Escape>", lambda _: dialog.destroy())
+            ttk.Button(container, text="Close", command=self._close_detail_panel).pack(anchor="e", pady=(12, 0))
+
+        self._open_detail_panel(build)
 
     def _parse_data_source_csv(self, path: Path) -> List[SqlDataSourceDetail]:
         records: Dict[str, SqlDataSourceDetail] = {}
@@ -1629,40 +1674,42 @@ class SqlAssistView(ttk.Frame):
         self._show_table_details(table)
 
     def _show_table_details(self, table: SqlTable) -> None:
-        detail = tk.Toplevel(self)
-        detail.title(f"{table.name} Details")
-        detail.transient(self.winfo_toplevel())
-        detail.grab_set()
-        container = ttk.Frame(detail, padding=16)
-        container.pack(fill=tk.BOTH, expand=True)
+        def build(panel: tk.Frame) -> None:
+            panel.configure(width=640)
+            container = ttk.Frame(panel, padding=16)
+            container.grid(row=0, column=0, sticky="nsew")
+            panel.columnconfigure(0, weight=1)
+            panel.rowconfigure(0, weight=1)
+            container.columnconfigure(0, weight=1)
 
-        ttk.Label(container, text=table.name, style="SidebarHeading.TLabel").pack(anchor="w")
+            ttk.Label(container, text=table.name, style="SidebarHeading.TLabel").pack(anchor="w")
 
-        description = (table.description or "").strip()
-        if not description:
-            description = "No description provided."
-        ttk.Label(container, text="Description:").pack(anchor="w", pady=(12, 4))
-        ttk.Label(container, text=description, wraplength=520, justify="left").pack(anchor="w")
+            description = (table.description or "").strip()
+            if not description:
+                description = "No description provided."
+            ttk.Label(container, text="Description:").pack(anchor="w", pady=(12, 4))
+            ttk.Label(container, text=description, wraplength=520, justify="left").pack(anchor="w")
 
-        ttk.Label(container, text="Columns:").pack(anchor="w", pady=(16, 6))
-        columns_frame = ttk.Frame(container)
-        columns_frame.pack(fill=tk.BOTH, expand=True)
+            ttk.Label(container, text="Columns:").pack(anchor="w", pady=(16, 6))
+            columns_frame = ttk.Frame(container)
+            columns_frame.pack(fill=tk.BOTH, expand=True)
 
-        columns_tree = ttk.Treeview(columns_frame, columns=("column", "description"), show="headings", height=12)
-        columns_tree.heading("column", text="Column")
-        columns_tree.heading("description", text="Description")
-        columns_tree.column("column", width=200, anchor="w")
-        columns_tree.column("description", width=320, anchor="w")
-        vsb = ttk.Scrollbar(columns_frame, orient=tk.VERTICAL, command=columns_tree.yview)
-        columns_tree.configure(yscrollcommand=vsb.set)
-        columns_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        vsb.pack(side=tk.RIGHT, fill=tk.Y)
+            columns_tree = ttk.Treeview(columns_frame, columns=("column", "description"), show="headings", height=12)
+            columns_tree.heading("column", text="Column")
+            columns_tree.heading("description", text="Description")
+            columns_tree.column("column", width=200, anchor="w")
+            columns_tree.column("description", width=320, anchor="w")
+            vsb = ttk.Scrollbar(columns_frame, orient=tk.VERTICAL, command=columns_tree.yview)
+            columns_tree.configure(yscrollcommand=vsb.set)
+            columns_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            vsb.pack(side=tk.RIGHT, fill=tk.Y)
 
-        for column in sorted(table.columns, key=lambda col: col.name.lower()):
-            columns_tree.insert("", tk.END, values=(column.name, column.description or ""))
+            for column in sorted(table.columns, key=lambda col: col.name.lower()):
+                columns_tree.insert("", tk.END, values=(column.name, column.description or ""))
 
-        ttk.Button(container, text="Close", command=detail.destroy).pack(anchor="e", pady=(12, 0))
-        detail.bind("<Escape>", lambda _: detail.destroy())
+            ttk.Button(container, text="Close", command=self._close_detail_panel).pack(anchor="e", pady=(12, 0))
+
+        self._open_detail_panel(build)
 
     def _update_instance_header(self, instance: Optional[SqlInstance]) -> None:
         if instance and instance.updated_at:

@@ -26,6 +26,8 @@ REPEAT_OPTIONS = [
     ("Yearly", "yearly"),
 ]
 
+CUSTOMIZED_OCCURRENCE_MARK = "\u270E"  # matches the calendar grid indicator
+
 
 @dataclass
 class DayCell:
@@ -833,8 +835,8 @@ class CalendarTab(ttk.Frame):
                 display_title = override.title if override and override.title else event.title
                 time_str = occurrence.strftime("%H:%M")
                 text = f"{time_str} {display_title}" if occurrence.time() != datetime.min.time() else display_title
-                if override and override.note:
-                    text += " \u270E"
+                if self._is_customized_occurrence(occ_entry):
+                    text += f" {CUSTOMIZED_OCCURRENCE_MARK}"
                 display_text = shorten(text, width=32, placeholder="...")
                 ev_label = tk.Label(
                     cell.events_container,
@@ -921,6 +923,8 @@ class CalendarTab(ttk.Frame):
                 if occ_entry.override and occ_entry.override.title
                 else occ_entry.event.title
             )
+            if self._is_customized_occurrence(occ_entry):
+                title_text = f"{title_text} {CUSTOMIZED_OCCURRENCE_MARK}"
             tree.insert(
                 "",
                 tk.END,
@@ -928,6 +932,24 @@ class CalendarTab(ttk.Frame):
                 values=(time_str, title_text, occ_entry.event.calendar_name),
             )
             self._day_occurrence_index[iid] = occ_entry
+
+    def _is_customized_occurrence(self, occ_entry: DayOccurrence) -> bool:
+        override = occ_entry.override
+        if override is None:
+            return False
+        fields = (
+            override.title,
+            override.description,
+            override.calendar_color,
+            override.note,
+        )
+        for value in fields:
+            if isinstance(value, str):
+                if value.strip():
+                    return True
+            elif value:
+                return True
+        return False
 
     def _highlight_selected_day(self) -> None:
         if not self.day_cells:

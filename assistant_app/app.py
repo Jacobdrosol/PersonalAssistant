@@ -14,16 +14,16 @@ from .calendar_tab import CalendarTab
 from .contact_tab import ContactTab
 from .database import Database
 from .log_tab import LogTab
-from .plugins import EmailIngestManager
 from .scrum_tab import ScrumTab
-from .ui.views.email_ingest import EmailIngestView
 from .ui.views.jira_tab import JiraTabView
 from .ui.views.sql_assist import SqlAssistView
 from .system_notifications import SystemNotifier
 from .notifications import NotificationManager, NotificationPayload
 from .environment import APP_NAME, ensure_user_data_dir, legacy_project_root
-from .settings_store import AppSettings, load_settings, save_settings
+from .settings_store import AppSettings, JiraSettings, load_settings, save_settings
 from .settings_tab import SettingsTab
+from .jira_client import JiraClient
+from .jira_service import JiraService
 from .shortcuts import (
     create_desktop_shortcut,
     remove_desktop_shortcut,
@@ -53,17 +53,22 @@ class PersonalAssistantApp(tk.Tk):
 
         self.project_root = Path(__file__).resolve().parent.parent
         self.data_root = data_root
+        self.logs_dir = self.data_root / "logs"
+        self.logs_dir.mkdir(parents=True, exist_ok=True)
         self.settings = settings
         self.settings_path = settings_path
         self.theme_name = settings.theme if settings.theme in THEMES else "dark"
         self.theme: ThemePalette = get_theme(self.theme_name)
         self._icon_path = self._ensure_icon_file()
-        self.email_manager = EmailIngestManager(self.data_root)
         self.db = Database(db_path)
         self.system_notifier = SystemNotifier()
         self.configure(bg=self.theme.window_bg)
         self._configure_styles(self.theme)
         self._apply_window_icon()
+        self.jira_service = JiraService(
+            lambda: self.settings.jira,
+            debug_log_path=self.logs_dir / "jira_debug.log",
+        )
 
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(fill=tk.BOTH, expand=True)
@@ -80,8 +85,11 @@ class PersonalAssistantApp(tk.Tk):
             on_setting_toggle=self._handle_setting_toggle,
             on_hours_change=self._handle_daily_hours_change,
             on_theme_change=self._handle_theme_change,
+            on_jira_settings_change=self._handle_jira_settings_update,
+            on_jira_test_connection=self._handle_jira_test_connection,
             theme_name=self.theme_name,
             app_version=__version__,
+            jira_settings=self.settings.jira,
         )
         self.settings_tab.pack(fill=tk.BOTH, expand=True)
         self.settings_tab_frame.place_forget()
@@ -89,15 +97,18 @@ class PersonalAssistantApp(tk.Tk):
         self.calendar_tab = CalendarTab(self.notebook, self.db, self.theme)
         self.scrum_tab = ScrumTab(self.notebook, self.db, self.theme)
         self.log_tab = LogTab(self.notebook, self.db)
-        self.email_tab = EmailIngestView(self.notebook, self.email_manager)
+        self.jira_tab = JiraTabView(
+            self.notebook,
+            service=self.jira_service,
+            theme=self.theme,
+            open_settings=self._show_settings_view,
+        )
         self.sql_assist_tab = SqlAssistView(self.notebook, self.db)
-        self.jira_tab = JiraTabView(self.notebook)
         self.contact_tab = ContactTab(self.notebook, self.data_root, app_version=__version__)
 
         self.notebook.add(self.calendar_tab, text="Production Calendar")
         self.notebook.add(self.log_tab, text="Daily Update Log")
         self.notebook.add(self.scrum_tab, text="Tasks Board")
-        self.notebook.add(self.email_tab, text="Email Ingest")
         self.notebook.add(self.sql_assist_tab, text="SQL Assist")
         self.notebook.add(self.jira_tab, text="JIRA")
         self.notebook.add(self.contact_tab, text="Contact Support")
@@ -443,11 +454,30 @@ class PersonalAssistantApp(tk.Tk):
         self._apply_theme_to_children()
         save_settings(self.settings_path, self.settings)
 
+    def _handle_jira_settings_update(self, jira_settings: JiraSettings) -> None:
+        self.settings.jira = jira_settings
+        save_settings(self.settings_path, self.settings)
+        if hasattr(self, "jira_tab"):
+            self.jira_tab.on_settings_updated()
+
+    def _handle_jira_test_connection(self, jira_settings: JiraSettings) -> None:
+        self.settings_tab.update_jira_status("Testing Jira connection...", None)
+        self._handle_jira_settings_update(jira_settings)
+        if not jira_settings.email or not jira_settings.api_token:
+            self.settings_tab.update_jira_status("Enter email and API token before testing.", False)
+            return
+        if not jira_settings.base_url:
+            self.settings_tab.update_jira_status("Specify a Jira base URL.", False)
+            return
+        client = JiraClient.from_settings(jira_settings)
+        success, message = client.test_connection()
+        self.settings_tab.update_jira_status(message, success)
+
     def _apply_theme_to_children(self) -> None:
         self.configure(bg=self.theme.window_bg)
         self.settings_tab_frame.configure(style="TFrame")
         self.settings_tab.update_theme_selection(self.theme_name)
-        for tab in (self.calendar_tab, self.scrum_tab):
+        for tab in (self.calendar_tab, self.scrum_tab, self.jira_tab):
             if hasattr(tab, "apply_theme"):
                 tab.apply_theme(self.theme)
         for window in list(self.notifications):
@@ -481,56 +511,6 @@ class PersonalAssistantApp(tk.Tk):
     @staticmethod
     def _format_time_storage(value: dt_time) -> str:
         return f"{value.hour:02d}:{value.minute:02d}"
-
-    def _register_email_shortcuts(self) -> None:
-        bindings = {
-            "<Control-n>": self._shortcut_email_new,
-            "<Control-s>": self._shortcut_email_save,
-            "<Control-r>": self._shortcut_email_run,
-            "<Control-o>": self._shortcut_email_open,
-        }
-        for sequence, handler in bindings.items():
-            self.bind_all(sequence, handler)
-
-    def _email_tab_active(self) -> bool:
-        current = self.notebook.select()
-        return bool(current) and current == str(self.email_tab)
-
-    def _shortcut_email_new(self, event: tk.Event) -> Optional[str]:
-        if self._email_tab_active():
-            if self.email_tab.is_locked():
-                self.email_tab.notify_locked()
-                return "break"
-            self.email_tab.create_new_config()
-            return "break"
-        return None
-
-    def _shortcut_email_save(self, event: tk.Event) -> Optional[str]:
-        if self._email_tab_active():
-            if self.email_tab.is_locked():
-                self.email_tab.notify_locked()
-                return "break"
-            self.email_tab.save_config()
-            return "break"
-        return None
-
-    def _shortcut_email_run(self, event: tk.Event) -> Optional[str]:
-        if self._email_tab_active():
-            if self.email_tab.is_locked():
-                self.email_tab.notify_locked()
-                return "break"
-            self.email_tab.run_now()
-            return "break"
-        return None
-
-    def _shortcut_email_open(self, event: tk.Event) -> Optional[str]:
-        if self._email_tab_active():
-            if self.email_tab.is_locked():
-                self.email_tab.notify_locked()
-                return "break"
-            self.email_tab.open_shard_folder()
-            return "break"
-        return None
 
     def _handle_notification(self, payload: NotificationPayload) -> None:
         self.after(0, lambda: self.show_notification(payload))

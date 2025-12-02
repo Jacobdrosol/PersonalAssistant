@@ -253,3 +253,31 @@ class SqlSavedQuery:
     description: Optional[str]
     content: str
     updated_at: Optional[str]
+
+
+@dataclass(slots=True)
+class JiraProject:
+    key: str
+    name: str
+    project_id: str
+    project_type: Optional[str]
+
+
+@dataclass(slots=True)
+class JiraIssue:
+    key: str
+    summary: str
+    status: str
+    priority: str
+    issue_type: str
+    project_key: str
+    project_name: str
+    updated: Optional[datetime]
+    created: Optional[datetime]
+    due_date: Optional[date]
+    assignee: Optional[str]
+    reporter: Optional[str]
+    description: Optional[str]
+    url: str
+    is_assigned: bool
+    is_watched: bool

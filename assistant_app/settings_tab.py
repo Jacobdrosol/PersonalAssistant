@@ -1,8 +1,17 @@
 from __future__ import annotations
 
 import tkinter as tk
+from datetime import date, datetime
+import calendar as cal
+
 from tkinter import ttk
-from typing import Callable
+from typing import Callable, Optional
+
+from .settings_store import (
+    DEFAULT_JIRA_BASE_URL,
+    JiraSettings,
+    normalize_jira_base_url,
+)
 
 
 class SettingsTab(ttk.Frame):
@@ -18,19 +27,33 @@ class SettingsTab(ttk.Frame):
         on_setting_toggle: Callable[[str, bool], None],
         on_hours_change: Callable[[str, str], None],
         on_theme_change: Callable[[str], None],
+        on_jira_settings_change: Callable[[JiraSettings], None],
+        on_jira_test_connection: Callable[[JiraSettings], None],
         theme_name: str,
         app_version: str,
+        jira_settings: JiraSettings,
     ) -> None:
         super().__init__(master, padding=(20, 20))
         self._callback = on_setting_toggle
         self._hours_callback = on_hours_change
         self._theme_callback = on_theme_change
+        self._jira_settings_callback = on_jira_settings_change
+        self._jira_test_callback = on_jira_test_connection
         self.desktop_var = tk.BooleanVar(value=desktop_enabled)
         self.start_menu_var = tk.BooleanVar(value=start_menu_enabled)
         self.daily_notifications_var = tk.BooleanVar(value=daily_notifications_enabled)
         self.daily_start_var = tk.StringVar(value=daily_start)
         self.daily_end_var = tk.StringVar(value=daily_end)
         self.theme_var = tk.StringVar(value=theme_name if theme_name in {"dark", "light"} else "dark")
+        self.jira_use_default_var = tk.BooleanVar(value=jira_settings.use_default_base)
+        self.jira_base_var = tk.StringVar(value=jira_settings.base_url or DEFAULT_JIRA_BASE_URL)
+        self.jira_email_var = tk.StringVar(value=jira_settings.email)
+        self.jira_token_var = tk.StringVar(value=jira_settings.api_token)
+        self.jira_status_var = tk.StringVar(value="")
+        self._jira_custom_base_value = "" if jira_settings.use_default_base else jira_settings.base_url
+        self._jira_status_label: Optional[ttk.Label] = None
+        self._token_date_picker: Optional["InlineDatePicker"] = None
+        self.jira_token_expires_var = tk.StringVar(value=jira_settings.token_expires)
 
         ttk.Label(self, text="Settings", style="SidebarHeading.TLabel").pack(anchor="w")
         body = ttk.Frame(self, padding=(0, 12))
@@ -95,6 +118,8 @@ class SettingsTab(ttk.Frame):
             command=self._on_theme_changed,
         ).pack(side=tk.LEFT)
 
+        self._build_jira_section(body)
+
         footer = ttk.Frame(self)
         footer.pack(fill=tk.BOTH, expand=True)
         footer.grid_columnconfigure(0, weight=1)
@@ -145,3 +170,252 @@ class SettingsTab(ttk.Frame):
             self.daily_hours_frame.pack(anchor="w", fill=tk.X, padx=(12, 0))
         else:
             self.daily_hours_frame.pack_forget()
+
+    # ------------------------------------------------------------------ JIRA settings helpers
+    def _build_jira_section(self, parent: ttk.Frame) -> None:
+        section = ttk.Frame(parent, padding=(0, 12))
+        section.pack(fill=tk.X, anchor="w")
+        ttk.Label(section, text="JIRA Integration", style="SidebarHeading.TLabel").pack(anchor="w")
+        ttk.Label(
+            section,
+            text="Connect your Jira account so the assistant can pull assigned and watched issues.",
+            wraplength=420,
+        ).pack(anchor="w", pady=(2, 8))
+
+        base_mode = ttk.Frame(section, padding=(24, 0))
+        base_mode.pack(fill=tk.X, anchor="w")
+        ttk.Radiobutton(
+            base_mode,
+            text=f"Use CDS Global Jira ({DEFAULT_JIRA_BASE_URL})",
+            variable=self.jira_use_default_var,
+            value=True,
+            command=self._update_jira_base_state,
+        ).pack(anchor="w")
+        ttk.Radiobutton(
+            base_mode,
+            text="Use custom Jira URL",
+            variable=self.jira_use_default_var,
+            value=False,
+            command=self._update_jira_base_state,
+        ).pack(anchor="w")
+
+        base_row = ttk.Frame(section, padding=(24, 6))
+        base_row.pack(fill=tk.X, anchor="w")
+        ttk.Label(base_row, text="Base URL").grid(row=0, column=0, sticky="w")
+        self.jira_base_entry = ttk.Entry(base_row, textvariable=self.jira_base_var, width=44)
+        self.jira_base_entry.grid(row=1, column=0, sticky="ew", pady=(2, 0))
+        base_row.columnconfigure(0, weight=1)
+
+        credentials_frame = ttk.Frame(section, padding=(24, 6))
+        credentials_frame.pack(fill=tk.X, anchor="w")
+        ttk.Label(credentials_frame, text="Jira Email").grid(row=0, column=0, sticky="w")
+        ttk.Entry(credentials_frame, textvariable=self.jira_email_var, width=44).grid(
+            row=1, column=0, sticky="ew", pady=(2, 6)
+        )
+        ttk.Label(credentials_frame, text="API Token").grid(row=2, column=0, sticky="w")
+        ttk.Entry(credentials_frame, textvariable=self.jira_token_var, width=44, show="*").grid(
+            row=3, column=0, sticky="ew", pady=(2, 0)
+        )
+        credentials_frame.columnconfigure(0, weight=1)
+        ttk.Label(
+            credentials_frame,
+            text="Tokens may last up to 1 year. Enter the expiration date so the assistant can remind you.",
+            wraplength=420,
+        ).grid(row=4, column=0, sticky="w", pady=(6, 0))
+        ttk.Label(credentials_frame, text="Token Expiration (YYYY-MM-DD)").grid(row=5, column=0, sticky="w", pady=(8, 0))
+        expiry_row = ttk.Frame(credentials_frame)
+        expiry_row.grid(row=6, column=0, sticky="ew", pady=(2, 0))
+        expiry_row.columnconfigure(0, weight=1)
+        self.jira_token_expiry_entry = ttk.Entry(expiry_row, textvariable=self.jira_token_expires_var, width=32)
+        self.jira_token_expiry_entry.grid(row=0, column=0, sticky="ew")
+        ttk.Button(expiry_row, text="Pick", width=6, command=self._open_token_date_picker).grid(
+            row=0, column=1, padx=(6, 0)
+        )
+        ttk.Label(
+            credentials_frame,
+            text="Create tokens via Atlassian account → Security → API tokens.",
+            wraplength=420,
+        ).grid(row=7, column=0, sticky="w", pady=(6, 0))
+
+        buttons = ttk.Frame(section, padding=(24, 8))
+        buttons.pack(anchor="w")
+        ttk.Button(buttons, text="Save Jira Settings", command=self._save_jira_settings).pack(side=tk.LEFT)
+        ttk.Button(buttons, text="Test Connection", command=self._test_jira_connection).pack(
+            side=tk.LEFT, padx=(8, 0)
+        )
+
+        status_label = ttk.Label(section, textvariable=self.jira_status_var)
+        status_label.pack(anchor="w", padx=24, pady=(4, 0))
+        self._jira_status_label = status_label
+        self._update_jira_base_state()
+
+    def _collect_jira_payload(self) -> JiraSettings:
+        base_url = self.jira_base_var.get().strip()
+        use_default = bool(self.jira_use_default_var.get())
+        if use_default:
+            base_url = DEFAULT_JIRA_BASE_URL
+        else:
+            base_url = normalize_jira_base_url(base_url)
+            if base_url == DEFAULT_JIRA_BASE_URL:
+                use_default = True
+        return JiraSettings(
+            base_url=base_url,
+            use_default_base=use_default,
+            email=self.jira_email_var.get().strip(),
+            api_token=self.jira_token_var.get().strip(),
+            token_expires=self.jira_token_expires_var.get().strip(),
+        )
+
+    def _save_jira_settings(self) -> None:
+        payload = self._collect_jira_payload()
+        if self._jira_settings_callback:
+            self._jira_settings_callback(payload)
+        self.update_jira_status("Jira settings saved.", True)
+
+    def _test_jira_connection(self) -> None:
+        payload = self._collect_jira_payload()
+        if self._jira_settings_callback:
+            self._jira_settings_callback(payload)
+        if self._jira_test_callback:
+            self._jira_test_callback(payload)
+
+    def _update_jira_base_state(self) -> None:
+        use_default = bool(self.jira_use_default_var.get())
+        is_entry_normal = self.jira_base_entry.cget("state") == "normal"
+        if use_default:
+            if is_entry_normal:
+                self._jira_custom_base_value = self.jira_base_var.get().strip()
+            self.jira_base_var.set(DEFAULT_JIRA_BASE_URL)
+            self.jira_base_entry.configure(state="disabled")
+        else:
+            custom_value = self._jira_custom_base_value or ""
+            self.jira_base_var.set(custom_value or DEFAULT_JIRA_BASE_URL)
+            self.jira_base_entry.configure(state="normal")
+
+    def update_jira_status(self, message: str, success: Optional[bool] = None) -> None:
+        self.jira_status_var.set(message)
+        if self._jira_status_label is None:
+            return
+        if success is True:
+            self._jira_status_label.configure(foreground="#4CAF50")
+        elif success is False:
+            self._jira_status_label.configure(foreground="#F36C6C")
+        else:
+            self._jira_status_label.configure(foreground="")
+
+    def _open_token_date_picker(self) -> None:
+        if self._token_date_picker is not None:
+            return
+        current = None
+        raw = self.jira_token_expires_var.get().strip()
+        if raw:
+            try:
+                current = datetime.strptime(raw, "%Y-%m-%d").date()
+            except ValueError:
+                current = None
+        picker = InlineDatePicker(
+            self,
+            current=current,
+            on_select=self._apply_token_expiration,
+            on_close=self._close_token_date_picker,
+        )
+        self._token_date_picker = picker
+
+    def _apply_token_expiration(self, selected: Optional[date]) -> None:
+        self.jira_token_expiry_entry.delete(0, tk.END)
+        if selected:
+            self.jira_token_expiry_entry.insert(0, selected.isoformat())
+            self.jira_token_expires_var.set(selected.isoformat())
+        else:
+            self.jira_token_expires_var.set("")
+        self._close_token_date_picker()
+
+    def _close_token_date_picker(self) -> None:
+        if self._token_date_picker is not None:
+            self._token_date_picker.destroy()
+            self._token_date_picker = None
+
+
+class InlineDatePicker(tk.Toplevel):
+    def __init__(
+        self,
+        master: tk.Misc,
+        *,
+        current: Optional[date],
+        on_select: Callable[[Optional[date]], None],
+        on_close: Callable[[], None],
+    ) -> None:
+        super().__init__(master)
+        self.title("Select Date")
+        self.transient(master.winfo_toplevel())
+        self.resizable(False, False)
+        self._on_select = on_select
+        self._on_close = on_close
+        try:
+            bg_color = master.cget("background")
+        except tk.TclError:
+            bg_color = "#1d1e2c"
+        self.configure(bg=bg_color)
+        self.protocol("WM_DELETE_WINDOW", self._close)
+
+        today = date.today()
+        self._today = today
+        if current is None:
+            current = today
+        self._current_month = date(current.year, current.month, 1)
+
+        frame = ttk.Frame(self, padding=12)
+        frame.pack(fill=tk.BOTH, expand=True)
+        frame.columnconfigure(0, weight=1)
+
+        header = ttk.Frame(frame)
+        header.grid(row=0, column=0, sticky="ew")
+        ttk.Button(header, text="◀", width=3, command=lambda: self._shift_month(-1)).pack(side=tk.LEFT)
+        self._month_label = ttk.Label(header, text="")
+        self._month_label.pack(side=tk.LEFT, expand=True)
+        ttk.Button(header, text="▶", width=3, command=lambda: self._shift_month(1)).pack(side=tk.RIGHT)
+
+        self._calendar_frame = ttk.Frame(frame)
+        self._calendar_frame.grid(row=1, column=0, pady=(8, 0))
+
+        actions = ttk.Frame(frame)
+        actions.grid(row=2, column=0, sticky="e", pady=(10, 0))
+        ttk.Button(actions, text="Clear", command=lambda: self._finish(None)).pack(side=tk.LEFT)
+        ttk.Button(actions, text="Today", command=lambda: self._finish(today)).pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Button(actions, text="Close", command=self._close).pack(side=tk.LEFT, padx=(6, 0))
+
+        self._render_calendar()
+
+    def _shift_month(self, delta: int) -> None:
+        month = self._current_month.month - 1 + delta
+        year = self._current_month.year + month // 12
+        month = month % 12 + 1
+        self._current_month = date(year, month, 1)
+        self._render_calendar()
+
+    def _render_calendar(self) -> None:
+        for widget in self._calendar_frame.winfo_children():
+            widget.destroy()
+        self._month_label.configure(text=self._current_month.strftime("%B %Y"))
+        cal_obj = cal.Calendar(firstweekday=6)
+        weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        for idx, name in enumerate(weekdays):
+            ttk.Label(self._calendar_frame, text=name, width=4, anchor="center").grid(row=0, column=idx, pady=(0, 4))
+
+        for row, week in enumerate(cal_obj.monthdatescalendar(self._current_month.year, self._current_month.month), start=1):
+            for col, day in enumerate(week):
+                state = tk.NORMAL if day.month == self._current_month.month else tk.DISABLED
+                btn = ttk.Button(
+                    self._calendar_frame,
+                    text=f"{day.day:02d}",
+                    width=4,
+                    state=state,
+                    command=lambda d=day: self._finish(d),
+                )
+                btn.grid(row=row, column=col, padx=1, pady=1)
+
+    def _finish(self, value: Optional[date]) -> None:
+        self._on_select(value)
+
+    def _close(self) -> None:
+        self._on_close()

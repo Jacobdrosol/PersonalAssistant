@@ -887,8 +887,6 @@ class ScrumTaskDialog(tk.Frame):
         cleaned = " ".join(content.split())
         if not cleaned:
             return "(empty)"
-        if len(cleaned) > 140:
-            return f"{cleaned[:137]}..."
         return cleaned
 
     def _prompt_note_edit(self, content: str) -> Optional[str]:
