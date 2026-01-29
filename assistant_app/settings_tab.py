@@ -38,7 +38,7 @@ class SettingsTab(ttk.Frame):
         app_version: str,
         jira_settings: JiraSettings,
     ) -> None:
-        super().__init__(master, padding=(20, 20))
+        super().__init__(master)
         self._callback = on_setting_toggle
         self._hours_callback = on_hours_change
         self._theme_callback = on_theme_change
@@ -66,9 +66,13 @@ class SettingsTab(ttk.Frame):
         self._special_status_label: Optional[ttk.Label] = None
         self._special_features_container: Optional[ttk.Frame] = None
         self._jira_section: Optional[ttk.Frame] = None
+        self._canvas: Optional[tk.Canvas] = None
+        self._canvas_window: Optional[int] = None
 
-        ttk.Label(self, text="Settings", style="SidebarHeading.TLabel").pack(anchor="w")
-        body = ttk.Frame(self, padding=(0, 12))
+        content = self._build_scroll_container()
+
+        ttk.Label(content, text="Settings", style="SidebarHeading.TLabel").pack(anchor="w")
+        body = ttk.Frame(content, padding=(0, 12))
         body.pack(fill=tk.BOTH, expand=True)
         ttk.Checkbutton(
             body,
@@ -133,13 +137,62 @@ class SettingsTab(ttk.Frame):
         self._build_special_features_section(body, special_features)
         self._build_jira_section(body, show_jira_section)
 
-        footer = ttk.Frame(self)
+        footer = ttk.Frame(content)
         footer.pack(fill=tk.BOTH, expand=True)
         footer.grid_columnconfigure(0, weight=1)
         footer.grid_rowconfigure(1, weight=1)
 
         version_label = ttk.Label(footer, text=f"Version: {app_version}")
         version_label.grid(row=1, column=0, sticky="se", padx=4, pady=4)
+
+    def _build_scroll_container(self) -> ttk.Frame:
+        canvas = tk.Canvas(self, highlightthickness=0, bd=0)
+        try:
+            canvas.configure(bg=self.master.cget("background"))
+        except tk.TclError:
+            pass
+        scrollbar = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        content = ttk.Frame(canvas, padding=(20, 20))
+        window_id = canvas.create_window((0, 0), window=content, anchor="nw")
+        self._canvas = canvas
+        self._canvas_window = window_id
+
+        content.bind("<Configure>", self._on_content_configure)
+        canvas.bind("<Configure>", self._on_canvas_configure)
+        canvas.bind("<Enter>", self._bind_mousewheel)
+        canvas.bind("<Leave>", self._unbind_mousewheel)
+        return content
+
+    def _on_content_configure(self, _event: object) -> None:
+        if self._canvas is None:
+            return
+        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+
+    def _on_canvas_configure(self, event: tk.Event) -> None:
+        if self._canvas is None or self._canvas_window is None:
+            return
+        self._canvas.itemconfigure(self._canvas_window, width=event.width)
+        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+
+    def _bind_mousewheel(self, _event: object) -> None:
+        if self._canvas is None:
+            return
+        self._canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+
+    def _unbind_mousewheel(self, _event: object) -> None:
+        if self._canvas is None:
+            return
+        self._canvas.unbind_all("<MouseWheel>")
+
+    def _on_mousewheel(self, event: tk.Event) -> None:
+        if self._canvas is None:
+            return
+        if event.delta:
+            self._canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
     def _on_setting_toggled(self, kind: str) -> None:
         if kind == "desktop":
@@ -167,6 +220,11 @@ class SettingsTab(ttk.Frame):
 
     def update_theme_selection(self, theme_name: str) -> None:
         self.theme_var.set(theme_name if theme_name in {"dark", "light"} else "dark")
+        if self._canvas is not None:
+            try:
+                self._canvas.configure(bg=self.master.cget("background"))
+            except tk.TclError:
+                pass
 
     def _on_hours_changed(self, _event: object) -> None:
         if not bool(self.daily_notifications_var.get()):
