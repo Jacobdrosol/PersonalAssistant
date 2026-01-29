@@ -15,13 +15,18 @@ from .contact_tab import ContactTab
 from .database import Database
 from .log_tab import LogTab
 from .scrum_tab import ScrumTab
-from .ui.views.jira_tab import JiraTabView
-from .ui.views.sql_assist import SqlAssistView
 from .system_notifications import SystemNotifier
 from .notifications import NotificationManager, NotificationPayload
 from .environment import APP_NAME, ensure_user_data_dir, legacy_project_root
 from .settings_store import AppSettings, JiraSettings, load_settings, save_settings
 from .settings_tab import SettingsTab
+from .special_features import (
+    SPECIAL_FEATURES,
+    describe_special_features,
+    normalize_special_code,
+    resolve_feature_keys_for_code,
+    sanitize_special_feature_keys,
+)
 from .jira_client import JiraClient
 from .jira_service import JiraService
 from .shortcuts import (
@@ -57,6 +62,11 @@ class PersonalAssistantApp(tk.Tk):
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         self.settings = settings
         self.settings_path = settings_path
+        self._special_feature_keys = sanitize_special_feature_keys(self.settings.special_features)
+        if self._special_feature_keys != self.settings.special_features:
+            self.settings.special_features = self._special_feature_keys
+            save_settings(self.settings_path, self.settings)
+        self._special_tab_cache = {}
         self.theme_name = settings.theme if settings.theme in THEMES else "dark"
         self.theme: ThemePalette = get_theme(self.theme_name)
         self._icon_path = self._ensure_icon_file()
@@ -70,7 +80,10 @@ class PersonalAssistantApp(tk.Tk):
             debug_log_path=self.logs_dir / "jira_debug.log",
         )
 
-        self.notebook = ttk.Notebook(self)
+        self.main_frame = ttk.Frame(self, style="TFrame")
+        self.main_frame.pack(fill=tk.BOTH, expand=True)
+        self._build_tab_bar(self.main_frame)
+        self.notebook = ttk.Notebook(self.main_frame, style="AppHidden.TNotebook")
         self.notebook.pack(fill=tk.BOTH, expand=True)
 
         manage_shortcuts = self._should_manage_shortcut()
@@ -87,6 +100,10 @@ class PersonalAssistantApp(tk.Tk):
             on_theme_change=self._handle_theme_change,
             on_jira_settings_change=self._handle_jira_settings_update,
             on_jira_test_connection=self._handle_jira_test_connection,
+            special_features=describe_special_features(self._special_feature_keys),
+            on_special_code_submit=self._handle_special_code_submit,
+            on_special_feature_disable=self._handle_special_feature_disable,
+            show_jira_section="jira" in self._special_feature_keys,
             theme_name=self.theme_name,
             app_version=__version__,
             jira_settings=self.settings.jira,
@@ -97,33 +114,20 @@ class PersonalAssistantApp(tk.Tk):
         self.calendar_tab = CalendarTab(self.notebook, self.db, self.theme)
         self.scrum_tab = ScrumTab(self.notebook, self.db, self.theme)
         self.log_tab = LogTab(self.notebook, self.db)
-        self.jira_tab = JiraTabView(
-            self.notebook,
-            service=self.jira_service,
-            theme=self.theme,
-            open_settings=self._show_settings_view,
-        )
-        self.sql_assist_tab = SqlAssistView(self.notebook, self.db)
         self.contact_tab = ContactTab(self.notebook, self.data_root, app_version=__version__)
 
-        self.notebook.add(self.calendar_tab, text="Production Calendar")
-        self.notebook.add(self.log_tab, text="Daily Update Log")
-        self.notebook.add(self.scrum_tab, text="Tasks Board")
-        self.notebook.add(self.sql_assist_tab, text="SQL Assist")
-        self.notebook.add(self.jira_tab, text="JIRA")
-        self.notebook.add(self.contact_tab, text="Contact Support")
+        self._core_tabs = {
+            "calendar": (self.calendar_tab, "Production Calendar"),
+            "log": (self.log_tab, "Daily Update Log"),
+            "scrum": (self.scrum_tab, "Tasks Board"),
+            "contact": (self.contact_tab, "Contact Support"),
+        }
+        self._base_tab_order = ["calendar", "log", "scrum", "contact"]
+        self._sync_notebook_tabs()
 
         self._last_notebook_tab = self.notebook.select()
         self._settings_visible = False
         self.notebook.bind("<<NotebookTabChanged>>", self._record_last_notebook_tab)
-
-        self.settings_button = ttk.Button(
-            self.notebook,
-            text="Settings",
-            style="SettingsTabInactive.TButton",
-            command=self._toggle_settings_view,
-            cursor="hand2",
-        )
         self.notebook.bind("<Configure>", self._position_settings_button)
         self.after(50, self._position_settings_button)
         self._sync_settings_button_state()
@@ -222,6 +226,302 @@ class PersonalAssistantApp(tk.Tk):
             background=[("active", palette.danger_bg), ("pressed", palette.danger_bg)],
         )
 
+        style.layout("AppHidden.TNotebook", [("Notebook.client", {"sticky": "nswe"})])
+        style.layout("AppHidden.TNotebook.Tab", [])
+        style.configure("AppHidden.TNotebook", background=palette.window_bg, borderwidth=0, tabmargins=0)
+
+        style.configure(
+            "TabBar.TButton",
+            background=palette.surface_alt_bg,
+            foreground=palette.text_secondary,
+            padding=(14, 6),
+            bordercolor=palette.border,
+            relief="raised",
+            borderwidth=1,
+        )
+        style.map(
+            "TabBar.TButton",
+            background=[("pressed", palette.card_alt_bg), ("active", palette.card_alt_bg)],
+            foreground=[("pressed", palette.text_primary), ("active", palette.text_primary)],
+        )
+        style.configure(
+            "TabBarActive.TButton",
+            background=palette.card_alt_bg,
+            foreground=palette.text_primary,
+            padding=(16, 10),
+            bordercolor=palette.border,
+            relief="raised",
+            borderwidth=1,
+        )
+        style.map(
+            "TabBarActive.TButton",
+            background=[("active", palette.card_alt_bg)],
+        )
+        style.configure(
+            "TabBarArrow.TButton",
+            background=palette.surface_alt_bg,
+            foreground=palette.text_secondary,
+            padding=(8, 4),
+            bordercolor=palette.border,
+        )
+        style.map(
+            "TabBarArrow.TButton",
+            background=[("pressed", palette.card_alt_bg), ("active", palette.card_alt_bg)],
+            foreground=[("pressed", palette.text_primary), ("active", palette.text_primary)],
+        )
+
+    def _build_tab_bar(self, parent: tk.Misc) -> None:
+        self.tabbar = ttk.Frame(parent, style="TFrame", padding=(0, 4, 0, 0))
+        self.tabbar.pack(fill=tk.X, side=tk.TOP)
+        self.tabbar.columnconfigure(1, weight=1)
+
+        self.tabs_left_button = ttk.Button(
+            self.tabbar,
+            text="<",
+            width=3,
+            style="TabBarArrow.TButton",
+            command=lambda: self._scroll_tabs(-1),
+        )
+        self.tabs_left_button.grid(row=0, column=0, padx=(6, 2), pady=4)
+
+        self.tabs_canvas = tk.Canvas(
+            self.tabbar,
+            height=36,
+            highlightthickness=0,
+            bd=0,
+            bg=self.theme.surface_bg,
+        )
+        self.tabs_canvas.grid(row=0, column=1, sticky="ew", pady=(1, 0))
+        self.tabs_inner = ttk.Frame(self.tabs_canvas, padding=(2, 0))
+        self._tabs_window_id = self.tabs_canvas.create_window((0, 0), window=self.tabs_inner, anchor="w")
+
+        self.tabs_right_button = ttk.Button(
+            self.tabbar,
+            text=">",
+            width=3,
+            style="TabBarArrow.TButton",
+            command=lambda: self._scroll_tabs(1),
+        )
+        self.tabs_right_button.grid(row=0, column=2, padx=(2, 2), pady=4)
+
+        self.settings_button = ttk.Button(
+            self.tabbar,
+            text="Settings",
+            style="SettingsTabInactive.TButton",
+            command=self._toggle_settings_view,
+            cursor="hand2",
+        )
+        self.settings_button.grid(row=0, column=3, padx=(6, 8), pady=4, sticky="e")
+
+        self.tabs_inner.bind("<Configure>", self._on_tabs_frame_configure)
+        self.tabs_canvas.bind("<Configure>", self._on_tabs_canvas_configure)
+
+        self._tab_buttons: dict[tk.Misc, ttk.Button] = {}
+        self._tab_order_widgets: list[tk.Misc] = []
+
+    def _on_tabs_frame_configure(self, _event: Optional[tk.Event] = None) -> None:
+        if not hasattr(self, "tabs_canvas"):
+            return
+        self.tabs_canvas.configure(scrollregion=self.tabs_canvas.bbox("all"))
+        self._update_tab_scroll_controls()
+
+    def _on_tabs_canvas_configure(self, _event: Optional[tk.Event] = None) -> None:
+        if not hasattr(self, "tabs_canvas"):
+            return
+        self._update_tab_scroll_controls()
+
+    def _scroll_tabs(self, direction: int) -> None:
+        if not hasattr(self, "tabs_canvas"):
+            return
+        region = self.tabs_canvas.bbox("all")
+        if not region:
+            return
+        total_width = region[2] - region[0]
+        view_width = max(self.tabs_canvas.winfo_width(), 1)
+        if total_width <= view_width:
+            self.tabs_canvas.xview_moveto(0.0)
+            self._update_tab_scroll_controls()
+            return
+        shift_px = min(160, total_width - view_width)
+        shift = shift_px / total_width
+        start, _end = self.tabs_canvas.xview()
+        max_start = max(0.0, 1.0 - (view_width / total_width))
+        next_start = start + shift if direction > 0 else start - shift
+        next_start = max(0.0, min(max_start, next_start))
+        self.tabs_canvas.xview_moveto(next_start)
+        self._update_tab_scroll_controls()
+
+    def _update_tab_scroll_controls(self) -> None:
+        if not hasattr(self, "tabs_canvas"):
+            return
+        region = self.tabs_canvas.bbox("all")
+        if not region:
+            self.tabs_left_button.state(["disabled"])
+            self.tabs_right_button.state(["disabled"])
+            return
+        total_width = region[2] - region[0]
+        view_width = max(self.tabs_canvas.winfo_width(), 1)
+        if total_width <= view_width + 2:
+            self.tabs_left_button.state(["disabled"])
+            self.tabs_right_button.state(["disabled"])
+            self.tabs_canvas.xview_moveto(0.0)
+            return
+        start, end = self.tabs_canvas.xview()
+        if start <= 0.001:
+            self.tabs_left_button.state(["disabled"])
+        else:
+            self.tabs_left_button.state(["!disabled"])
+        if end >= 0.999:
+            self.tabs_right_button.state(["disabled"])
+        else:
+            self.tabs_right_button.state(["!disabled"])
+
+    def _sync_tab_buttons(self, tabs: list[tuple[tk.Misc, str]]) -> None:
+        if not hasattr(self, "tabs_inner"):
+            return
+        for widget in self.tabs_inner.winfo_children():
+            widget.destroy()
+        self._tab_buttons.clear()
+        self._tab_order_widgets = []
+        for widget, label in tabs:
+            btn = ttk.Button(
+                self.tabs_inner,
+                text=label,
+                style="TabBar.TButton",
+                command=lambda target=widget: self._select_tab(target),
+            )
+            btn.pack(side=tk.LEFT, padx=(0, 6), pady=(1, 0))
+            self._tab_buttons[widget] = btn
+            self._tab_order_widgets.append(widget)
+        self._update_tab_button_styles()
+        self.after(0, self._scroll_active_tab_into_view)
+
+    def _select_tab(self, widget: tk.Misc) -> None:
+        try:
+            self.notebook.select(widget)
+        except tk.TclError:
+            return
+        self._update_tab_button_styles()
+        self._scroll_active_tab_into_view()
+
+    def _update_tab_button_styles(self) -> None:
+        if not hasattr(self, "_tab_buttons"):
+            return
+        try:
+            current_id = self.notebook.select()
+            current_widget = self.nametowidget(current_id) if current_id else None
+        except tk.TclError:
+            current_widget = None
+        for widget, btn in self._tab_buttons.items():
+            style = "TabBarActive.TButton" if widget == current_widget else "TabBar.TButton"
+            btn.configure(style=style)
+
+    def _scroll_active_tab_into_view(self) -> None:
+        if not hasattr(self, "tabs_canvas"):
+            return
+        try:
+            current_id = self.notebook.select()
+            current_widget = self.nametowidget(current_id) if current_id else None
+        except tk.TclError:
+            current_widget = None
+        if current_widget is None:
+            return
+        button = self._tab_buttons.get(current_widget)
+        if button is None:
+            return
+        self.tabs_canvas.update_idletasks()
+        region = self.tabs_canvas.bbox("all")
+        if not region:
+            return
+        total_width = region[2] - region[0]
+        if total_width <= 0:
+            return
+        window_pos = self.tabs_canvas.coords(self._tabs_window_id)
+        offset_x = window_pos[0] if window_pos else 0
+        btn_left = offset_x + button.winfo_x()
+        btn_right = btn_left + button.winfo_width()
+        view_left = self.tabs_canvas.canvasx(0)
+        view_right = view_left + self.tabs_canvas.winfo_width()
+        if btn_left < view_left:
+            self.tabs_canvas.xview_moveto(max(0.0, btn_left / total_width))
+        elif btn_right > view_right:
+            target_left = max(0.0, min(1.0, (btn_right - self.tabs_canvas.winfo_width()) / total_width))
+            self.tabs_canvas.xview_moveto(target_left)
+        self._update_tab_scroll_controls()
+
+    def _compute_tab_order(self) -> list[str]:
+        order = list(self._base_tab_order)
+        for key in self._special_feature_keys:
+            feature = SPECIAL_FEATURES.get(key)
+            if not feature or not feature.is_tab_feature():
+                continue
+            if key in order:
+                continue
+            insert_after = feature.insert_after
+            if insert_after and insert_after in order:
+                order.insert(order.index(insert_after) + 1, key)
+            else:
+                order.append(key)
+        return order
+
+    def _get_special_tab(self, key: str) -> Optional[tuple[tk.Misc, str]]:
+        feature = SPECIAL_FEATURES.get(key)
+        if not feature or not feature.is_tab_feature():
+            return None
+        widget = self._special_tab_cache.get(key)
+        if widget is None:
+            widget = feature.tab_builder(self)
+            self._special_tab_cache[key] = widget
+        return widget, feature.tab_label or feature.title
+
+    def _sync_notebook_tabs(self) -> None:
+        desired_keys = self._compute_tab_order()
+        desired_tabs: list[tuple[tk.Misc, str]] = []
+        for key in desired_keys:
+            if key in self._core_tabs:
+                desired_tabs.append(self._core_tabs[key])
+                continue
+            special = self._get_special_tab(key)
+            if special:
+                desired_tabs.append(special)
+
+        try:
+            current_id = self.notebook.select()
+            current_widget = self.nametowidget(current_id) if current_id else None
+        except tk.TclError:
+            current_widget = None
+
+        for tab_id in self.notebook.tabs():
+            try:
+                self.notebook.forget(tab_id)
+            except tk.TclError:
+                continue
+
+        desired_widgets = [widget for widget, _ in desired_tabs]
+        desired_set = set(desired_widgets)
+
+        for widget, label in desired_tabs:
+            try:
+                self.notebook.add(widget, text=label)
+            except tk.TclError:
+                continue
+
+        if current_widget in desired_set:
+            try:
+                self.notebook.select(current_widget)
+            except tk.TclError:
+                pass
+        elif desired_tabs:
+            try:
+                self.notebook.select(desired_tabs[0][0])
+            except tk.TclError:
+                pass
+
+        try:
+            self._last_notebook_tab = self.notebook.select()
+        except tk.TclError:
+            self._last_notebook_tab = None
+        self._sync_tab_buttons(desired_tabs)
 
     def _check_for_updates_async(self) -> None:
         if not updater.should_check_for_updates():
@@ -454,11 +754,50 @@ class PersonalAssistantApp(tk.Tk):
         self._apply_theme_to_children()
         save_settings(self.settings_path, self.settings)
 
+    def _apply_special_feature_keys(self, keys: list[str]) -> None:
+        cleaned = sanitize_special_feature_keys(keys)
+        if cleaned != self._special_feature_keys:
+            self._special_feature_keys = cleaned
+            self.settings.special_features = cleaned
+            save_settings(self.settings_path, self.settings)
+        self._sync_notebook_tabs()
+        self.settings_tab.update_special_features(describe_special_features(self._special_feature_keys))
+        self.settings_tab.update_jira_section_visibility("jira" in self._special_feature_keys)
+
+    def _handle_special_code_submit(self, code: str) -> None:
+        normalized = normalize_special_code(code)
+        if not normalized:
+            self.settings_tab.update_special_code_status("Enter a code to unlock features.", False)
+            return
+        feature_keys = resolve_feature_keys_for_code(normalized)
+        if not feature_keys:
+            self.settings_tab.update_special_code_status("That code did not unlock any features.", False)
+            return
+        new_keys = [key for key in feature_keys if key not in self._special_feature_keys]
+        if not new_keys:
+            self.settings_tab.update_special_code_status("Those features are already enabled.", True)
+            self.settings_tab.clear_special_code_entry()
+            return
+        self._apply_special_feature_keys(self._special_feature_keys + new_keys)
+        enabled_names = ", ".join(SPECIAL_FEATURES[key].title for key in new_keys if key in SPECIAL_FEATURES)
+        self.settings_tab.update_special_code_status(f"Unlocked: {enabled_names}.", True)
+        self.settings_tab.clear_special_code_entry()
+
+    def _handle_special_feature_disable(self, key: str) -> None:
+        if key not in self._special_feature_keys:
+            return
+        remaining = [item for item in self._special_feature_keys if item != key]
+        self._apply_special_feature_keys(remaining)
+        feature = SPECIAL_FEATURES.get(key)
+        if feature:
+            self.settings_tab.update_special_code_status(f"{feature.title} removed.", True)
+
     def _handle_jira_settings_update(self, jira_settings: JiraSettings) -> None:
         self.settings.jira = jira_settings
         save_settings(self.settings_path, self.settings)
-        if hasattr(self, "jira_tab"):
-            self.jira_tab.on_settings_updated()
+        jira_tab = self._special_tab_cache.get("jira")
+        if jira_tab is not None and hasattr(jira_tab, "on_settings_updated"):
+            jira_tab.on_settings_updated()
 
     def _handle_jira_test_connection(self, jira_settings: JiraSettings) -> None:
         self.settings_tab.update_jira_status("Testing Jira connection...", None)
@@ -477,13 +816,19 @@ class PersonalAssistantApp(tk.Tk):
         self.configure(bg=self.theme.window_bg)
         self.settings_tab_frame.configure(style="TFrame")
         self.settings_tab.update_theme_selection(self.theme_name)
-        for tab in (self.calendar_tab, self.scrum_tab, self.jira_tab):
+        if hasattr(self, "tabs_canvas"):
+            self.tabs_canvas.configure(bg=self.theme.surface_bg)
+        for tab, _label in self._core_tabs.values():
+            if hasattr(tab, "apply_theme"):
+                tab.apply_theme(self.theme)
+        for tab in self._special_tab_cache.values():
             if hasattr(tab, "apply_theme"):
                 tab.apply_theme(self.theme)
         for window in list(self.notifications):
             if hasattr(window, "apply_theme"):
                 window.apply_theme(self.theme)
         self._sync_settings_button_state()
+        self._update_tab_button_styles()
 
     def _parse_time_string(self, value: str) -> dt_time:
         cleaned = value.strip()
@@ -540,14 +885,8 @@ class PersonalAssistantApp(tk.Tk):
             window.geometry(f"{window_width}x{window_height}+{x}+{y}")
 
     def _position_settings_button(self, event: Optional[tk.Event] = None) -> None:
-        if not hasattr(self, "settings_button"):
-            return
-        try:
-            self.settings_button.place(relx=1.0, x=-4, y=2, anchor="ne")
-            self.settings_button.lift()
-        except tk.TclError:
-            pass
         self._place_settings_overlay()
+        self._update_tab_scroll_controls()
 
     def _place_settings_overlay(self) -> None:
         if not self._settings_visible:
@@ -577,18 +916,7 @@ class PersonalAssistantApp(tk.Tk):
             pass
 
     def _compute_notebook_content_offset(self) -> int:
-        try:
-            current_id = self.notebook.select()
-            if current_id:
-                widget = self.nametowidget(current_id)
-                notebook_y = self.notebook.winfo_rooty()
-                widget_y = widget.winfo_rooty()
-                if widget_y >= notebook_y:
-                    return widget_y - notebook_y
-        except Exception:
-            pass
-        # Fallback to a reasonable default tab height.
-        return 36
+        return 0
 
     def _record_last_notebook_tab(self, event: Optional[tk.Event] = None) -> None:
         current = self.notebook.select()
@@ -602,9 +930,13 @@ class PersonalAssistantApp(tk.Tk):
                 self.settings_button.state(["!pressed"])
             except tk.TclError:
                 pass
+            self._update_tab_button_styles()
+            self._scroll_active_tab_into_view()
             return
         self._last_notebook_tab = current
         self._sync_settings_button_state()
+        self._update_tab_button_styles()
+        self._scroll_active_tab_into_view()
 
     def _toggle_settings_view(self) -> None:
         if self._settings_visible:

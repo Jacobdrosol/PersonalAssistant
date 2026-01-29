@@ -24,6 +24,7 @@ class AppSettings:
     daily_update_end: str = "17:00"
     theme: str = "dark"
     jira: JiraSettings = field(default_factory=JiraSettings)
+    special_features: list[str] = field(default_factory=list)
 
 
 def _coerce_time_string(value: str | None, fallback: str) -> str:
@@ -67,6 +68,7 @@ def load_settings(path: Path) -> AppSettings:
         api_token=str(jira_payload.get("api_token") or ""),
         token_expires=str(jira_payload.get("token_expires") or ""),
     )
+    special_features = _coerce_str_list(payload.get("special_features"))
 
     return AppSettings(
         desktop_shortcut=bool(payload.get("desktop_shortcut", True)),
@@ -76,6 +78,7 @@ def load_settings(path: Path) -> AppSettings:
         daily_update_end=_coerce_time_string(payload.get("daily_update_end"), "17:00"),
         theme=str(payload.get("theme", "dark")).lower() if payload.get("theme") else "dark",
         jira=jira_settings,
+        special_features=special_features,
     )
 
 
@@ -98,3 +101,15 @@ def normalize_jira_base_url(value: str | None) -> str:
     if not text.startswith(("http://", "https://")):
         text = f"https://{text}"
     return text.rstrip("/")
+
+
+def _coerce_str_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    cleaned: list[str] = []
+    for item in value:
+        if isinstance(item, str):
+            trimmed = item.strip()
+            if trimmed:
+                cleaned.append(trimmed)
+    return cleaned

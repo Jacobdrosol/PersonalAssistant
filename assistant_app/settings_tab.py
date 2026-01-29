@@ -12,6 +12,7 @@ from .settings_store import (
     JiraSettings,
     normalize_jira_base_url,
 )
+from .special_features import SpecialFeature
 
 
 class SettingsTab(ttk.Frame):
@@ -29,6 +30,10 @@ class SettingsTab(ttk.Frame):
         on_theme_change: Callable[[str], None],
         on_jira_settings_change: Callable[[JiraSettings], None],
         on_jira_test_connection: Callable[[JiraSettings], None],
+        special_features: list[SpecialFeature],
+        on_special_code_submit: Callable[[str], None],
+        on_special_feature_disable: Callable[[str], None],
+        show_jira_section: bool,
         theme_name: str,
         app_version: str,
         jira_settings: JiraSettings,
@@ -39,6 +44,8 @@ class SettingsTab(ttk.Frame):
         self._theme_callback = on_theme_change
         self._jira_settings_callback = on_jira_settings_change
         self._jira_test_callback = on_jira_test_connection
+        self._special_code_callback = on_special_code_submit
+        self._special_disable_callback = on_special_feature_disable
         self.desktop_var = tk.BooleanVar(value=desktop_enabled)
         self.start_menu_var = tk.BooleanVar(value=start_menu_enabled)
         self.daily_notifications_var = tk.BooleanVar(value=daily_notifications_enabled)
@@ -54,6 +61,11 @@ class SettingsTab(ttk.Frame):
         self._jira_status_label: Optional[ttk.Label] = None
         self._token_date_picker: Optional["InlineDatePicker"] = None
         self.jira_token_expires_var = tk.StringVar(value=jira_settings.token_expires)
+        self.special_code_var = tk.StringVar(value="")
+        self.special_status_var = tk.StringVar(value="")
+        self._special_status_label: Optional[ttk.Label] = None
+        self._special_features_container: Optional[ttk.Frame] = None
+        self._jira_section: Optional[ttk.Frame] = None
 
         ttk.Label(self, text="Settings", style="SidebarHeading.TLabel").pack(anchor="w")
         body = ttk.Frame(self, padding=(0, 12))
@@ -118,7 +130,8 @@ class SettingsTab(ttk.Frame):
             command=self._on_theme_changed,
         ).pack(side=tk.LEFT)
 
-        self._build_jira_section(body)
+        self._build_special_features_section(body, special_features)
+        self._build_jira_section(body, show_jira_section)
 
         footer = ttk.Frame(self)
         footer.pack(fill=tk.BOTH, expand=True)
@@ -171,10 +184,95 @@ class SettingsTab(ttk.Frame):
         else:
             self.daily_hours_frame.pack_forget()
 
-    # ------------------------------------------------------------------ JIRA settings helpers
-    def _build_jira_section(self, parent: ttk.Frame) -> None:
+    # ------------------------------------------------------------------ Special features helpers
+    def _build_special_features_section(self, parent: ttk.Frame, features: list[SpecialFeature]) -> None:
         section = ttk.Frame(parent, padding=(0, 12))
         section.pack(fill=tk.X, anchor="w")
+        ttk.Label(section, text="Special Features", style="SidebarHeading.TLabel").pack(anchor="w")
+        ttk.Label(
+            section,
+            text="Enter the special features unlock code to enable additional features in the application.",
+            wraplength=420,
+        ).pack(anchor="w", pady=(2, 8))
+
+        code_row = ttk.Frame(section, padding=(24, 0))
+        code_row.pack(fill=tk.X, anchor="w")
+        ttk.Label(code_row, text="Unlock code").pack(side=tk.LEFT)
+        code_entry = ttk.Entry(code_row, textvariable=self.special_code_var, width=16)
+        code_entry.pack(side=tk.LEFT, padx=(8, 6))
+        code_entry.bind("<Return>", lambda _event: self._submit_special_code())
+        ttk.Button(code_row, text="Unlock", command=self._submit_special_code).pack(side=tk.LEFT)
+
+        status_label = ttk.Label(section, textvariable=self.special_status_var)
+        status_label.pack(anchor="w", padx=24, pady=(4, 0))
+        self._special_status_label = status_label
+
+        features_frame = ttk.Frame(section, padding=(24, 8))
+        features_frame.pack(fill=tk.X, anchor="w")
+        self._special_features_container = features_frame
+        self._render_special_features(features)
+
+    def _submit_special_code(self) -> None:
+        code = self.special_code_var.get().strip()
+        if not code:
+            self.update_special_code_status("Enter a code to unlock features.", False)
+            return
+        if self._special_code_callback:
+            self._special_code_callback(code)
+
+    def _render_special_features(self, features: list[SpecialFeature]) -> None:
+        container = self._special_features_container
+        if container is None:
+            return
+        for widget in container.winfo_children():
+            widget.destroy()
+
+        if not features:
+            ttk.Label(container, text="No special features enabled yet.", wraplength=420).pack(anchor="w")
+            return
+
+        for feature in features:
+            row = ttk.Frame(container)
+            row.pack(fill=tk.X, anchor="w", pady=(4, 6))
+
+            header = ttk.Frame(row)
+            header.pack(fill=tk.X, anchor="w")
+            ttk.Label(header, text=feature.title, font=("Segoe UI", 10, "bold")).pack(side=tk.LEFT)
+            ttk.Button(
+                header,
+                text="Remove",
+                command=lambda key=feature.key: self._disable_special_feature(key),
+                width=10,
+            ).pack(side=tk.RIGHT)
+            ttk.Label(row, text=feature.description, wraplength=420).pack(anchor="w", pady=(2, 0))
+
+    def _disable_special_feature(self, key: str) -> None:
+        if self._special_disable_callback:
+            self._special_disable_callback(key)
+
+    def update_special_features(self, features: list[SpecialFeature]) -> None:
+        self._render_special_features(features)
+
+    def update_special_code_status(self, message: str, success: Optional[bool] = None) -> None:
+        self.special_status_var.set(message)
+        if self._special_status_label is None:
+            return
+        if success is True:
+            self._special_status_label.configure(foreground="#4CAF50")
+        elif success is False:
+            self._special_status_label.configure(foreground="#F36C6C")
+        else:
+            self._special_status_label.configure(foreground="")
+
+    def clear_special_code_entry(self) -> None:
+        self.special_code_var.set("")
+
+    # ------------------------------------------------------------------ JIRA settings helpers
+    def _build_jira_section(self, parent: ttk.Frame, show_section: bool) -> None:
+        section = ttk.Frame(parent, padding=(0, 12))
+        self._jira_section = section
+        if show_section:
+            section.pack(fill=tk.X, anchor="w")
         ttk.Label(section, text="JIRA Integration", style="SidebarHeading.TLabel").pack(anchor="w")
         ttk.Label(
             section,
@@ -248,6 +346,16 @@ class SettingsTab(ttk.Frame):
         status_label.pack(anchor="w", padx=24, pady=(4, 0))
         self._jira_status_label = status_label
         self._update_jira_base_state()
+
+    def update_jira_section_visibility(self, enabled: bool) -> None:
+        if self._jira_section is None:
+            return
+        if enabled:
+            if not self._jira_section.winfo_ismapped():
+                self._jira_section.pack(fill=tk.X, anchor="w")
+        else:
+            if self._jira_section.winfo_ismapped():
+                self._jira_section.pack_forget()
 
     def _collect_jira_payload(self) -> JiraSettings:
         base_url = self.jira_base_var.get().strip()
