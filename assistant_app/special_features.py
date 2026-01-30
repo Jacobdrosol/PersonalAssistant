@@ -8,6 +8,7 @@ from .plugins import EmailIngestManager
 from .ui.views.email_ingest import EmailIngestView
 from .ui.views.jira_tab import JiraTabView
 from .ui.views.sql_assist import SqlAssistView
+from .issue_calendar_tab import IssueCalendarTab
 
 if TYPE_CHECKING:
     from .app import PersonalAssistantApp
@@ -44,6 +45,10 @@ def _build_email_ingest(app: "PersonalAssistantApp") -> object:
     return EmailIngestView(app.notebook, manager)
 
 
+def _build_issue_calendar(app: "PersonalAssistantApp") -> object:
+    return IssueCalendarTab(app.notebook, app.db, app.theme)
+
+
 SPECIAL_FEATURES: dict[str, SpecialFeature] = {
     "sql_assist": SpecialFeature(
         key="sql_assist",
@@ -69,12 +74,21 @@ SPECIAL_FEATURES: dict[str, SpecialFeature] = {
         insert_after="scrum",
         tab_builder=_build_email_ingest,
     ),
+    "issue_calendar": SpecialFeature(
+        key="issue_calendar",
+        title="Issue Calendar",
+        description="Read-only calendar view for imported issue schedules with shared notes.",
+        tab_label="Issue Calendar",
+        insert_after="calendar",
+        tab_builder=_build_issue_calendar,
+    ),
 }
 
 SPECIAL_UNLOCK_CODES: dict[str, Sequence[str]] = {
     "4927": ("sql_assist",),
     "7314": ("jira",),
     "8642": ("email_ingest",),
+    "5398": ("issue_calendar",),
 }
 
 

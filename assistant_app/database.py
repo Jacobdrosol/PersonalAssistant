@@ -25,6 +25,9 @@ from .models import (
     SqlDataSourceExpression,
     SqlDataSourceDetail,
     SqlSavedQuery,
+    IssueClient,
+    IssueItem,
+    IssueNote,
 )
 
 MISSING = object()
@@ -99,6 +102,7 @@ class Database:
             self._ensure_default_calendar(default_pc_id)
             self._ensure_scrum_schema()
             self._ensure_sql_assist_schema()
+            self._ensure_issue_calendar_schema()
 
     def _ensure_column(self, table: str, column: str, definition: str) -> None:
         existing = {
@@ -361,6 +365,45 @@ class Database:
                 instance_id INTEGER REFERENCES sql_instances(id)
             );
             """
+        )
+        self._conn.commit()
+
+    def _ensure_issue_calendar_schema(self) -> None:
+        self._conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS issue_clients (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS issue_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_id INTEGER NOT NULL REFERENCES issue_clients(id) ON DELETE CASCADE,
+                publication_code TEXT NOT NULL,
+                issue_name TEXT NOT NULL,
+                issue_number TEXT,
+                trial_date TEXT,
+                update_date TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT,
+                UNIQUE(client_id, publication_code, issue_name)
+            );
+
+            CREATE TABLE IF NOT EXISTS issue_notes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_id INTEGER NOT NULL REFERENCES issue_items(id) ON DELETE CASCADE,
+                content TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT
+            );
+            """
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_issue_items_client ON issue_items(client_id)"
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_issue_notes_item ON issue_notes(item_id)"
         )
         self._conn.commit()
         self._ensure_column("sql_instances", "updated_at", "TEXT")
@@ -2006,6 +2049,265 @@ class Database:
                 )
             self._conn.commit()
         return new_tables, new_columns
+
+    # Issue calendar operations ---------------------------------------------
+    def get_issue_clients(self) -> List[IssueClient]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, name FROM issue_clients ORDER BY name"
+            ).fetchall()
+        return [IssueClient(id=row["id"], name=row["name"]) for row in rows]
+
+    def create_issue_client(self, name: str) -> int:
+        cleaned = name.strip()
+        if not cleaned:
+            raise ValueError("Client name cannot be blank.")
+        now_iso = utils.to_iso(datetime.now())
+        with self._lock:
+            cursor = self._conn.execute(
+                "INSERT INTO issue_clients (name, created_at) VALUES (?, ?)",
+                (cleaned, now_iso),
+            )
+            self._conn.commit()
+            return cursor.lastrowid
+
+    def update_issue_client(self, client_id: int, name: str) -> None:
+        cleaned = name.strip()
+        if not cleaned:
+            raise ValueError("Client name cannot be blank.")
+        with self._lock:
+            self._conn.execute(
+                "UPDATE issue_clients SET name = ? WHERE id = ?",
+                (cleaned, client_id),
+            )
+            self._conn.commit()
+
+    def delete_issue_client(self, client_id: int) -> None:
+        with self._lock:
+            self._conn.execute(
+                "DELETE FROM issue_clients WHERE id = ?",
+                (client_id,),
+            )
+            self._conn.commit()
+
+    def get_issue_items(self, client_id: int) -> List[IssueItem]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT id, client_id, publication_code, issue_name, issue_number,
+                       trial_date, update_date, created_at, updated_at
+                FROM issue_items
+                WHERE client_id = ?
+                ORDER BY publication_code, issue_name
+                """,
+                (client_id,),
+            ).fetchall()
+        items: List[IssueItem] = []
+        for row in rows:
+            trial_date = None
+            update_date = None
+            if row["trial_date"]:
+                try:
+                    trial_date = date.fromisoformat(row["trial_date"])
+                except ValueError:
+                    trial_date = None
+            if row["update_date"]:
+                try:
+                    update_date = date.fromisoformat(row["update_date"])
+                except ValueError:
+                    update_date = None
+            created_at = utils.from_iso(row["created_at"]) if row["created_at"] else datetime.now()
+            updated_at = utils.from_iso(row["updated_at"]) if row["updated_at"] else None
+            items.append(
+                IssueItem(
+                    id=row["id"],
+                    client_id=row["client_id"],
+                    publication_code=row["publication_code"],
+                    issue_name=row["issue_name"],
+                    issue_number=row["issue_number"],
+                    trial_date=trial_date,
+                    update_date=update_date,
+                    created_at=created_at,
+                    updated_at=updated_at,
+                )
+            )
+        return items
+
+    def find_issue_item(
+        self,
+        client_id: int,
+        publication_code: str,
+        issue_name: str,
+    ) -> Optional[IssueItem]:
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT id, client_id, publication_code, issue_name, issue_number,
+                       trial_date, update_date, created_at, updated_at
+                FROM issue_items
+                WHERE client_id = ? AND publication_code = ? AND issue_name = ?
+                """,
+                (client_id, publication_code, issue_name),
+            ).fetchone()
+        if row is None:
+            return None
+        trial_date = date.fromisoformat(row["trial_date"]) if row["trial_date"] else None
+        update_date = date.fromisoformat(row["update_date"]) if row["update_date"] else None
+        created_at = utils.from_iso(row["created_at"]) if row["created_at"] else datetime.now()
+        updated_at = utils.from_iso(row["updated_at"]) if row["updated_at"] else None
+        return IssueItem(
+            id=row["id"],
+            client_id=row["client_id"],
+            publication_code=row["publication_code"],
+            issue_name=row["issue_name"],
+            issue_number=row["issue_number"],
+            trial_date=trial_date,
+            update_date=update_date,
+            created_at=created_at,
+            updated_at=updated_at,
+        )
+
+    def upsert_issue_item(
+        self,
+        *,
+        client_id: int,
+        publication_code: str,
+        issue_name: str,
+        issue_number: Optional[str],
+        trial_date: Optional[date],
+        update_date: Optional[date],
+    ) -> int:
+        now_iso = utils.to_iso(datetime.now())
+        trial_value = trial_date.isoformat() if trial_date else None
+        update_value = update_date.isoformat() if update_date else None
+        issue_number_value = issue_number.strip() if issue_number else None
+        with self._lock:
+            existing = self._conn.execute(
+                """
+                SELECT id FROM issue_items
+                WHERE client_id = ? AND publication_code = ? AND issue_name = ?
+                """,
+                (client_id, publication_code, issue_name),
+            ).fetchone()
+            if existing:
+                self._conn.execute(
+                    """
+                    UPDATE issue_items
+                    SET issue_number = ?, trial_date = ?, update_date = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (issue_number_value, trial_value, update_value, now_iso, existing["id"]),
+                )
+                self._conn.commit()
+                return existing["id"]
+            cursor = self._conn.execute(
+                """
+                INSERT INTO issue_items (
+                    client_id, publication_code, issue_name, issue_number,
+                    trial_date, update_date, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    client_id,
+                    publication_code,
+                    issue_name,
+                    issue_number_value,
+                    trial_value,
+                    update_value,
+                    now_iso,
+                    now_iso,
+                ),
+            )
+            self._conn.commit()
+            return cursor.lastrowid
+
+    def update_issue_item_dates(
+        self,
+        item_id: int,
+        *,
+        trial_date: Optional[date],
+        update_date: Optional[date],
+    ) -> None:
+        if trial_date is None and update_date is None:
+            self.delete_issue_item(item_id)
+            return
+        now_iso = utils.to_iso(datetime.now())
+        trial_value = trial_date.isoformat() if trial_date else None
+        update_value = update_date.isoformat() if update_date else None
+        with self._lock:
+            self._conn.execute(
+                """
+                UPDATE issue_items
+                SET trial_date = ?, update_date = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (trial_value, update_value, now_iso, item_id),
+            )
+            self._conn.commit()
+
+    def delete_issue_item(self, item_id: int) -> None:
+        with self._lock:
+            self._conn.execute("DELETE FROM issue_items WHERE id = ?", (item_id,))
+            self._conn.commit()
+
+    def get_issue_notes(self, item_id: int) -> List[IssueNote]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT id, item_id, content, created_at, updated_at
+                FROM issue_notes
+                WHERE item_id = ?
+                ORDER BY created_at
+                """,
+                (item_id,),
+            ).fetchall()
+        notes: List[IssueNote] = []
+        for row in rows:
+            created_at = utils.from_iso(row["created_at"]) if row["created_at"] else datetime.now()
+            updated_at = utils.from_iso(row["updated_at"]) if row["updated_at"] else None
+            notes.append(
+                IssueNote(
+                    id=row["id"],
+                    item_id=row["item_id"],
+                    content=row["content"],
+                    created_at=created_at,
+                    updated_at=updated_at,
+                )
+            )
+        return notes
+
+    def add_issue_note(self, item_id: int, content: str) -> int:
+        cleaned = content.strip()
+        if not cleaned:
+            raise ValueError("Note cannot be blank.")
+        now_iso = utils.to_iso(datetime.now())
+        with self._lock:
+            cursor = self._conn.execute(
+                """
+                INSERT INTO issue_notes (item_id, content, created_at, updated_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (item_id, cleaned, now_iso, now_iso),
+            )
+            self._conn.commit()
+            return cursor.lastrowid
+
+    def update_issue_note(self, note_id: int, content: str) -> None:
+        cleaned = content.strip()
+        if not cleaned:
+            raise ValueError("Note cannot be blank.")
+        now_iso = utils.to_iso(datetime.now())
+        with self._lock:
+            self._conn.execute(
+                "UPDATE issue_notes SET content = ?, updated_at = ? WHERE id = ?",
+                (cleaned, now_iso, note_id),
+            )
+            self._conn.commit()
+
+    def delete_issue_note(self, note_id: int) -> None:
+        with self._lock:
+            self._conn.execute("DELETE FROM issue_notes WHERE id = ?", (note_id,))
+            self._conn.commit()
 
 
 __all__ = ["Database"]

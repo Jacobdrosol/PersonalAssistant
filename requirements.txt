@@ -1,3 +1,4 @@
 pywin32>=305
 PyYAML>=6.0
 requests>=2.31.0
+openpyxl>=3.1.2

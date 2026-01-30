@@ -281,3 +281,31 @@ class JiraIssue:
     url: str
     is_assigned: bool
     is_watched: bool
+
+
+@dataclass(slots=True)
+class IssueClient:
+    id: int
+    name: str
+
+
+@dataclass(slots=True)
+class IssueItem:
+    id: int
+    client_id: int
+    publication_code: str
+    issue_name: str
+    issue_number: Optional[str]
+    trial_date: Optional[date]
+    update_date: Optional[date]
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+
+@dataclass(slots=True)
+class IssueNote:
+    id: int
+    item_id: int
+    content: str
+    created_at: datetime
+    updated_at: Optional[datetime]
