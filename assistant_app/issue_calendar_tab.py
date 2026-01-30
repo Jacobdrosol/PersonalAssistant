@@ -102,6 +102,7 @@ class IssueCalendarTab(ttk.Frame):
         ttk.Button(selector, text="Rename...", command=self.rename_client).pack(side=tk.LEFT, padx=(6, 0))
         ttk.Button(selector, text="Delete", command=self.delete_client).pack(side=tk.LEFT, padx=(6, 0))
         ttk.Button(selector, text="Import...", command=self.import_issue_calendar).pack(side=tk.LEFT, padx=(12, 0))
+        ttk.Button(selector, text="Export...", command=self.export_issue_calendar).pack(side=tk.LEFT, padx=(6, 0))
         self.undo_import_button = ttk.Button(
             selector,
             text="Undo Import",
@@ -695,6 +696,122 @@ class IssueCalendarTab(ttk.Frame):
             f"Added {added}, updated {updated}, notes added {notes_added}, skipped {skipped}.",
             parent=self,
         )
+
+    def export_issue_calendar(self) -> None:
+        if self.current_client_id is None:
+            messagebox.showinfo("Issue Calendar", "Select a client before exporting.", parent=self)
+            return
+        client = next((c for c in self.clients if c.id == self.current_client_id), None)
+        if client is None:
+            messagebox.showinfo("Issue Calendar", "Select a client before exporting.", parent=self)
+            return
+        path = filedialog.asksaveasfilename(
+            parent=self,
+            title="Export Issue Calendar",
+            defaultextension=".xlsx",
+            initialfile=f"{client.name.replace(' ', '_')}_Issue_Calendar.xlsx",
+            filetypes=[("Excel files", "*.xlsx")],
+        )
+        if not path:
+            return
+        try:
+            from openpyxl import Workbook  # type: ignore
+            from openpyxl.styles import Alignment, Border, Font, Side  # type: ignore
+        except ImportError:
+            messagebox.showerror(
+                "Missing Dependency",
+                "openpyxl is required to export Excel files. Please install it and try again.",
+                parent=self,
+            )
+            return
+
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = "Sheet1"
+
+        # Header and labels
+        sheet["A2"] = "Calendar Name (Client)"
+        sheet["B2"] = client.name
+        header_row = 4
+        sheet[f"A{header_row}"] = "Publication Code"
+        sheet[f"B{header_row}"] = "Issue Name/Date"
+        sheet[f"C{header_row}"] = "Issue Number"
+        sheet[f"D{header_row}"] = "Trial Job Date"
+        sheet[f"E{header_row}"] = "Update Job Date"
+        sheet[f"F{header_row}"] = "Notes:"
+
+        # Column sizing
+        sheet.column_dimensions["A"].width = 24
+        sheet.column_dimensions["B"].width = 30
+        sheet.column_dimensions["C"].width = 16
+        sheet.column_dimensions["D"].width = 16
+        sheet.column_dimensions["E"].width = 16
+        sheet.column_dimensions["F"].width = 60
+
+        bold_font = Font(bold=True)
+        sheet["A2"].font = bold_font
+        sheet["A2"].alignment = Alignment(vertical="center")
+        sheet["B2"].alignment = Alignment(vertical="center")
+        for col in ("A", "B", "C", "D", "E", "F"):
+            sheet[f"{col}{header_row}"].font = bold_font
+            sheet[f"{col}{header_row}"].alignment = Alignment(horizontal="center", vertical="center")
+
+        # Border styles
+        thin = Side(style="thin")
+        border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+        items = self.db.get_issue_items(self.current_client_id)
+        min_rows = 30
+        total_rows = max(len(items), min_rows)
+        row_index = header_row + 1
+        for item in items:
+            notes = self.db.get_issue_notes(item.id)
+            note_text = ""
+            if notes:
+                note_lines = []
+                for note in notes:
+                    when = note.updated_at or note.created_at
+                    timestamp = when.strftime("%Y-%m-%d %H:%M")
+                    note_lines.append(f"{timestamp} - {note.content}")
+                note_text = "\n".join(note_lines)
+
+            sheet[f"A{row_index}"] = item.publication_code
+            sheet[f"B{row_index}"] = item.issue_name
+            sheet[f"C{row_index}"] = item.issue_number or ""
+            if item.trial_date:
+                sheet[f"D{row_index}"] = item.trial_date
+                sheet[f"D{row_index}"].number_format = "MM/DD/YYYY"
+            else:
+                sheet[f"D{row_index}"] = ""
+            if item.update_date:
+                sheet[f"E{row_index}"] = item.update_date
+                sheet[f"E{row_index}"].number_format = "MM/DD/YYYY"
+            else:
+                sheet[f"E{row_index}"] = ""
+            sheet[f"F{row_index}"] = note_text
+            sheet[f"F{row_index}"].alignment = Alignment(wrap_text=True, vertical="top")
+            row_index += 1
+
+        # Apply borders to header + data rows
+        last_row = header_row + total_rows
+        for row in range(header_row, last_row + 1):
+            for col in ("A", "B", "C", "D", "E", "F"):
+                cell = sheet[f"{col}{row}"]
+                cell.border = border
+                if col == "F" and row > header_row:
+                    cell.alignment = Alignment(wrap_text=True, vertical="top")
+
+        # Add bottom border to the client label row
+        for col in ("A", "B", "C", "D", "E", "F"):
+            sheet[f"{col}2"].border = Border(bottom=thin)
+        sheet.freeze_panes = "A5"
+
+        try:
+            workbook.save(path)
+        except Exception as exc:
+            messagebox.showerror("Export Failed", f"Could not save Excel file: {exc}", parent=self)
+            return
+        messagebox.showinfo("Export Complete", "Issue calendar exported successfully.", parent=self)
 
     @staticmethod
     def _clean_text(value: object) -> str:
