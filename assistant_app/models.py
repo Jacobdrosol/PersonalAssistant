@@ -309,3 +309,12 @@ class IssueNote:
     content: str
     created_at: datetime
     updated_at: Optional[datetime]
+
+
+@dataclass(slots=True)
+class IssuePublication:
+    id: int
+    client_id: int
+    publication_code: str
+    color: str
+    is_visible: bool

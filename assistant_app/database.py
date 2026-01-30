@@ -28,6 +28,7 @@ from .models import (
     IssueClient,
     IssueItem,
     IssueNote,
+    IssuePublication,
 )
 
 MISSING = object()
@@ -390,6 +391,15 @@ class Database:
                 UNIQUE(client_id, publication_code, issue_name)
             );
 
+            CREATE TABLE IF NOT EXISTS issue_publications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_id INTEGER NOT NULL REFERENCES issue_clients(id) ON DELETE CASCADE,
+                publication_code TEXT NOT NULL,
+                color TEXT,
+                is_visible INTEGER NOT NULL DEFAULT 1,
+                UNIQUE(client_id, publication_code)
+            );
+
             CREATE TABLE IF NOT EXISTS issue_notes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 item_id INTEGER NOT NULL REFERENCES issue_items(id) ON DELETE CASCADE,
@@ -401,6 +411,9 @@ class Database:
         )
         self._conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_issue_items_client ON issue_items(client_id)"
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_issue_publications_client ON issue_publications(client_id)"
         )
         self._conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_issue_notes_item ON issue_notes(item_id)"
@@ -2250,6 +2263,97 @@ class Database:
             self._conn.execute("DELETE FROM issue_items WHERE id = ?", (item_id,))
             self._conn.commit()
 
+    def get_issue_publications(self, client_id: int) -> List[IssuePublication]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT id, client_id, publication_code, color, is_visible
+                FROM issue_publications
+                WHERE client_id = ?
+                ORDER BY publication_code
+                """,
+                (client_id,),
+            ).fetchall()
+        return [
+            IssuePublication(
+                id=row["id"],
+                client_id=row["client_id"],
+                publication_code=row["publication_code"],
+                color=row["color"] or "",
+                is_visible=bool(row["is_visible"]),
+            )
+            for row in rows
+        ]
+
+    def upsert_issue_publication(
+        self,
+        *,
+        client_id: int,
+        publication_code: str,
+        color: Optional[str],
+        is_visible: bool = True,
+    ) -> int:
+        cleaned_code = publication_code.strip()
+        if not cleaned_code:
+            raise ValueError("Publication code cannot be blank.")
+        with self._lock:
+            existing = self._conn.execute(
+                """
+                SELECT id FROM issue_publications
+                WHERE client_id = ? AND publication_code = ?
+                """,
+                (client_id, cleaned_code),
+            ).fetchone()
+            if existing:
+                self._conn.execute(
+                    """
+                    UPDATE issue_publications
+                    SET color = ?, is_visible = ?
+                    WHERE id = ?
+                    """,
+                    (color, 1 if is_visible else 0, existing["id"]),
+                )
+                self._conn.commit()
+                return existing["id"]
+            cursor = self._conn.execute(
+                """
+                INSERT INTO issue_publications (client_id, publication_code, color, is_visible)
+                VALUES (?, ?, ?, ?)
+                """,
+                (client_id, cleaned_code, color, 1 if is_visible else 0),
+            )
+            self._conn.commit()
+            return cursor.lastrowid
+
+    def update_issue_publication(
+        self,
+        *,
+        client_id: int,
+        publication_code: str,
+        color: Optional[str] = MISSING,
+        is_visible: Optional[bool] = MISSING,
+    ) -> None:
+        cleaned_code = publication_code.strip()
+        if not cleaned_code:
+            raise ValueError("Publication code cannot be blank.")
+        fields: List[str] = []
+        values: List[object] = []
+        if color is not MISSING:
+            fields.append("color = ?")
+            values.append(color)
+        if is_visible is not MISSING:
+            fields.append("is_visible = ?")
+            values.append(1 if is_visible else 0)
+        if not fields:
+            return
+        values.extend([client_id, cleaned_code])
+        with self._lock:
+            self._conn.execute(
+                f"UPDATE issue_publications SET {', '.join(fields)} WHERE client_id = ? AND publication_code = ?",
+                values,
+            )
+            self._conn.commit()
+
     def get_issue_notes(self, item_id: int) -> List[IssueNote]:
         with self._lock:
             rows = self._conn.execute(
@@ -2307,6 +2411,54 @@ class Database:
     def delete_issue_note(self, note_id: int) -> None:
         with self._lock:
             self._conn.execute("DELETE FROM issue_notes WHERE id = ?", (note_id,))
+            self._conn.commit()
+
+    def replace_issue_client_data(self, client_id: int, snapshot: List[dict]) -> None:
+        with self._lock:
+            self._conn.execute("DELETE FROM issue_items WHERE client_id = ?", (client_id,))
+            for item in snapshot:
+                publication_code = str(item.get("publication_code", "")).strip()
+                issue_name = str(item.get("issue_name", "")).strip()
+                if not publication_code or not issue_name:
+                    continue
+                issue_number = item.get("issue_number")
+                issue_number_value = str(issue_number).strip() if issue_number else None
+                trial_date = item.get("trial_date")
+                update_date = item.get("update_date")
+                created_at = str(item.get("created_at") or utils.to_iso(datetime.now()))
+                updated_at = str(item.get("updated_at") or created_at)
+                cursor = self._conn.execute(
+                    """
+                    INSERT INTO issue_items (
+                        client_id, publication_code, issue_name, issue_number,
+                        trial_date, update_date, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        client_id,
+                        publication_code,
+                        issue_name,
+                        issue_number_value,
+                        trial_date,
+                        update_date,
+                        created_at,
+                        updated_at,
+                    ),
+                )
+                item_id = cursor.lastrowid
+                for note in item.get("notes", []):
+                    content = str(note.get("content", "")).strip()
+                    if not content:
+                        continue
+                    note_created = str(note.get("created_at") or updated_at)
+                    note_updated = str(note.get("updated_at") or note_created)
+                    self._conn.execute(
+                        """
+                        INSERT INTO issue_notes (item_id, content, created_at, updated_at)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        (item_id, content, note_created, note_updated),
+                    )
             self._conn.commit()
 
 

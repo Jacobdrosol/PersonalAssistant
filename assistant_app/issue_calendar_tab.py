@@ -8,10 +8,11 @@ from textwrap import shorten
 from typing import Dict, List, Optional, Tuple
 
 import tkinter as tk
-from tkinter import filedialog, messagebox, simpledialog, ttk
+from tkinter import colorchooser, filedialog, messagebox, simpledialog, ttk
 
 from .database import Database
-from .models import IssueClient, IssueItem, IssueNote
+from .models import IssueClient, IssueItem, IssueNote, IssuePublication
+from . import utils
 from .theme import ThemePalette
 
 WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
@@ -45,12 +46,21 @@ class IssueCalendarTab(ttk.Frame):
         self.clients: List[IssueClient] = []
         self.current_client_id: Optional[int] = None
         self.items: List[IssueItem] = []
+        self.publications: List[IssuePublication] = []
+        self.visible_publications: set[str] = set()
+        self.publication_vars: Dict[str, tk.BooleanVar] = {}
+        self._publication_checkbuttons: List[ttk.Checkbutton] = []
+        self._publication_color_canvases: List[tk.Canvas] = []
         self.occurrences_by_day: Dict[date, List[IssueOccurrence]] = {}
         self.day_cells: List[DayCell] = []
         self.selected_cell: Optional[DayCell] = None
         self._day_occurrence_index: Dict[str, IssueOccurrence] = {}
         self._detail_overlay: Optional[tk.Frame] = None
         self._detail_panel: Optional[tk.Frame] = None
+        self._last_import_backup: Optional[List[dict]] = None
+        self._last_import_client_id: Optional[int] = None
+        self.undo_import_button: Optional[ttk.Button] = None
+        self.publications_frame: Optional[ttk.Frame] = None
 
         self._assign_palette_colors()
         self._build_ui()
@@ -92,6 +102,13 @@ class IssueCalendarTab(ttk.Frame):
         ttk.Button(selector, text="Rename...", command=self.rename_client).pack(side=tk.LEFT, padx=(6, 0))
         ttk.Button(selector, text="Delete", command=self.delete_client).pack(side=tk.LEFT, padx=(6, 0))
         ttk.Button(selector, text="Import...", command=self.import_issue_calendar).pack(side=tk.LEFT, padx=(12, 0))
+        self.undo_import_button = ttk.Button(
+            selector,
+            text="Undo Import",
+            command=self.undo_last_import,
+            state=tk.DISABLED,
+        )
+        self.undo_import_button.pack(side=tk.LEFT, padx=(6, 0))
 
         paned = ttk.Panedwindow(self, orient=tk.HORIZONTAL)
         paned.pack(fill=tk.BOTH, expand=True)
@@ -178,6 +195,17 @@ class IssueCalendarTab(ttk.Frame):
         sidebar.rowconfigure(1, weight=1, minsize=16)
         sidebar.rowconfigure(2, weight=0)
 
+        top_container = ttk.Frame(sidebar)
+        top_container.grid(row=0, column=0, sticky="ew")
+        top_container.columnconfigure(0, weight=1)
+
+        publications_label = ttk.Label(top_container, text="Publications", style="SidebarHeading.TLabel")
+        publications_label.grid(row=0, column=0, sticky="w")
+
+        self.publications_frame = ttk.Frame(top_container)
+        self.publications_frame.grid(row=1, column=0, sticky="ew", pady=(6, 12))
+        self.publications_frame.columnconfigure(1, weight=1)
+
         selected_container = ttk.Frame(sidebar, padding=(0, 0))
         selected_container.grid(row=2, column=0, sticky="sew", pady=(24, 0))
         selected_container.columnconfigure(0, weight=1)
@@ -191,14 +219,16 @@ class IssueCalendarTab(ttk.Frame):
 
         self.day_events_tree = ttk.Treeview(
             selected_container,
-            columns=("run", "issue"),
+            columns=("pub", "run", "issue"),
             show="headings",
             height=10,
         )
+        self.day_events_tree.heading("pub", text="Pub")
         self.day_events_tree.heading("run", text="Run")
         self.day_events_tree.heading("issue", text="Issue")
-        self.day_events_tree.column("run", width=80, anchor="center")
-        self.day_events_tree.column("issue", width=220, anchor="w")
+        self.day_events_tree.column("pub", width=80, anchor="w")
+        self.day_events_tree.column("run", width=70, anchor="center")
+        self.day_events_tree.column("issue", width=200, anchor="w")
         self.day_events_tree.grid(row=2, column=0, sticky="nsew")
         self.day_events_tree.bind("<Double-1>", self._open_selected_occurrence)
 
@@ -227,18 +257,25 @@ class IssueCalendarTab(ttk.Frame):
         else:
             self.client_combo.set("")
             self.current_client_id = None
+        self._sync_undo_state()
 
     def _load_items(self) -> None:
         if self.current_client_id is None:
             self.items = []
+            self.publications = []
+            self.visible_publications = set()
             self.occurrences_by_day = {}
+            self._rebuild_publication_filters()
             return
         self.items = self.db.get_issue_items(self.current_client_id)
+        self._load_publications()
         self.occurrences_by_day = self._build_occurrences(self.items)
 
     def _build_occurrences(self, items: List[IssueItem]) -> Dict[date, List[IssueOccurrence]]:
         occurrences: Dict[date, List[IssueOccurrence]] = {}
         for item in items:
+            if self.publications and item.publication_code not in self.visible_publications:
+                continue
             if item.trial_date:
                 occurrences.setdefault(item.trial_date, []).append(
                     IssueOccurrence(item=item, run_type="Trial", run_date=item.trial_date)
@@ -250,6 +287,31 @@ class IssueCalendarTab(ttk.Frame):
         for day in occurrences:
             occurrences[day].sort(key=lambda occ: (occ.item.publication_code.lower(), occ.item.issue_name.lower()))
         return occurrences
+
+    def _load_publications(self) -> None:
+        if self.current_client_id is None:
+            self.publications = []
+            self.visible_publications = set()
+            self._rebuild_publication_filters()
+            return
+        codes = sorted({item.publication_code for item in self.items if item.publication_code})
+        existing = {pub.publication_code: pub for pub in self.db.get_issue_publications(self.current_client_id)}
+        for code in codes:
+            if code not in existing:
+                color = self._color_for_publication(code)
+                try:
+                    self.db.upsert_issue_publication(
+                        client_id=self.current_client_id,
+                        publication_code=code,
+                        color=color,
+                        is_visible=True,
+                    )
+                except ValueError:
+                    continue
+        publications = self.db.get_issue_publications(self.current_client_id)
+        self.publications = [pub for pub in publications if pub.publication_code in codes]
+        self.visible_publications = {pub.publication_code for pub in self.publications if pub.is_visible}
+        self._rebuild_publication_filters()
 
     def _populate_calendar(self) -> None:
         month_start = self.current_month
@@ -294,6 +356,7 @@ class IssueCalendarTab(ttk.Frame):
                     font=("Segoe UI", 8, "bold"),
                 )
                 event_label.pack(fill=tk.X, pady=1)
+                event_label.bind("<Double-1>", lambda _e, occ=occ: self._open_issue_detail(occ))
             if len(events) > 4:
                 more_label = tk.Label(
                     cell.events_container,
@@ -332,9 +395,120 @@ class IssueCalendarTab(ttk.Frame):
             item_id = self.day_events_tree.insert(
                 "",
                 tk.END,
-                values=(occ.run_type, occ.item.issue_name),
+                values=(occ.item.publication_code, occ.run_type, occ.item.issue_name),
             )
             self._day_occurrence_index[item_id] = occ
+
+    def _rebuild_publication_filters(self) -> None:
+        if self.publications_frame is None:
+            return
+        for child in self.publications_frame.winfo_children():
+            child.destroy()
+        self.publication_vars.clear()
+        self._publication_checkbuttons = []
+        self._publication_color_canvases = []
+
+        for pub in self.publications:
+            row = ttk.Frame(self.publications_frame)
+            row.pack(fill=tk.X, pady=(2, 6))
+            color_value = pub.color or self._color_for_publication(pub.publication_code)
+
+            patch = tk.Canvas(row, width=18, height=18, highlightthickness=0, bg=self.bg_color)
+            patch.create_rectangle(0, 0, 18, 18, fill=color_value, outline="")
+            patch.pack(side=tk.LEFT, padx=(0, 6))
+
+            var = tk.BooleanVar(value=pub.is_visible)
+            check = ttk.Checkbutton(
+                row,
+                text=pub.publication_code,
+                variable=var,
+                command=lambda code=pub.publication_code, v=var: self._toggle_publication(code, v.get()),
+            )
+            check.pack(side=tk.LEFT)
+
+            edit_btn = ttk.Button(
+                row,
+                text="Edit",
+                command=lambda code=pub.publication_code: self._open_publication_editor(code),
+                width=8,
+            )
+            edit_btn.pack(side=tk.RIGHT)
+
+            self.publication_vars[pub.publication_code] = var
+            self._publication_checkbuttons.append(check)
+            self._publication_color_canvases.append(patch)
+
+        if not self.publications:
+            ttk.Label(self.publications_frame, text="No publications yet.").pack(anchor="w")
+
+    def _toggle_publication(self, code: str, visible: bool) -> None:
+        if self.current_client_id is None:
+            return
+        try:
+            self.db.update_issue_publication(
+                client_id=self.current_client_id,
+                publication_code=code,
+                is_visible=visible,
+            )
+        except ValueError:
+            return
+        if visible:
+            self.visible_publications.add(code)
+        else:
+            self.visible_publications.discard(code)
+        self.occurrences_by_day = self._build_occurrences(self.items)
+        self._populate_calendar()
+        self._update_day_details()
+
+    def _open_publication_editor(self, code: str) -> None:
+        if self.current_client_id is None:
+            return
+        publication = next((p for p in self.publications if p.publication_code == code), None)
+        if publication is None:
+            return
+        panel = tk.Toplevel(self)
+        panel.title("Edit Publication")
+        panel.transient(self.winfo_toplevel())
+        panel.resizable(False, False)
+        container = ttk.Frame(panel, padding=16)
+        container.pack(fill=tk.BOTH, expand=True)
+        container.columnconfigure(1, weight=1)
+
+        ttk.Label(container, text="Publication Code:", style="SidebarHeading.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(container, text=publication.publication_code).grid(row=0, column=1, sticky="w", padx=(8, 0))
+
+        ttk.Label(container, text="Color:").grid(row=1, column=0, sticky="w", pady=(12, 0))
+        color_preview = tk.Canvas(container, width=28, height=18, highlightthickness=0, bg=self.bg_color)
+        color_preview.grid(row=1, column=1, sticky="w", pady=(12, 0))
+        color_value = publication.color or self._color_for_publication(publication.publication_code)
+        rect = color_preview.create_rectangle(0, 0, 28, 18, fill=color_value, outline="")
+
+        def pick_color() -> None:
+            current = publication.color or self._color_for_publication(publication.publication_code)
+            chosen = colorchooser.askcolor(initialcolor=current, title=f"Pick color for {code}")
+            if not chosen or not chosen[1]:
+                return
+            new_color = chosen[1]
+            try:
+                self.db.update_issue_publication(
+                    client_id=self.current_client_id,
+                    publication_code=publication.publication_code,
+                    color=new_color,
+                )
+            except ValueError:
+                return
+            publication.color = new_color
+            color_preview.itemconfigure(rect, fill=new_color)
+            self._rebuild_publication_filters()
+            self._populate_calendar()
+
+        ttk.Button(container, text="Edit Color", command=pick_color).grid(row=1, column=2, padx=(8, 0), pady=(12, 0))
+
+        ttk.Button(container, text="Close", command=panel.destroy).grid(row=2, column=2, sticky="e", pady=(16, 0))
+
+    def _edit_publication_color(self, code: str) -> None:
+        # Deprecated: use _open_publication_editor.
+        self._open_publication_editor(code)
 
     # ------------------------------------------------------------------ Interactions
     def _on_cell_click(self, idx: int) -> None:
@@ -348,18 +522,20 @@ class IssueCalendarTab(ttk.Frame):
         self._update_day_details()
 
     def go_to_previous_month(self) -> None:
-        month = self.current_month.month - 1
-        year = self.current_month.year + month // 12
-        month = month % 12 + 1
-        self.current_month = date(year, month, 1)
+        prev_month = utils.add_months(datetime.combine(self.current_month, datetime.min.time()), -1).date()
+        self.current_month = prev_month.replace(day=1)
+        if self.selected_day.month != self.current_month.month or self.selected_day.year != self.current_month.year:
+            self.selected_day = self.current_month
         self._populate_calendar()
+        self._update_day_details()
 
     def go_to_next_month(self) -> None:
-        month = self.current_month.month
-        year = self.current_month.year + (month // 12)
-        month = month % 12 + 1
-        self.current_month = date(year, month, 1)
+        next_month = utils.add_months(datetime.combine(self.current_month, datetime.min.time()), 1).date()
+        self.current_month = next_month.replace(day=1)
+        if self.selected_day.month != self.current_month.month or self.selected_day.year != self.current_month.year:
+            self.selected_day = self.current_month
         self._populate_calendar()
+        self._update_day_details()
 
     def go_to_today(self) -> None:
         today = datetime.now().date()
@@ -375,6 +551,7 @@ class IssueCalendarTab(ttk.Frame):
         self._load_items()
         self._populate_calendar()
         self._update_day_details()
+        self._sync_undo_state()
 
     # ------------------------------------------------------------------ Client management
     def add_client(self) -> None:
@@ -421,6 +598,9 @@ class IssueCalendarTab(ttk.Frame):
             return
         self.db.delete_issue_client(client.id)
         self.current_client_id = None
+        if self._last_import_client_id == client.id:
+            self._last_import_client_id = None
+            self._last_import_backup = None
         self.refresh()
 
     # ------------------------------------------------------------------ Import
@@ -452,12 +632,13 @@ class IssueCalendarTab(ttk.Frame):
             return
 
         import_date = datetime.now().date()
+        backup = self._snapshot_current_client()
         added = 0
         updated = 0
         notes_added = 0
         skipped = 0
 
-        for row in sheet.iter_rows(min_row=6, values_only=True):
+        for row in sheet.iter_rows(min_row=5, values_only=True):
             if not row or len(row) < 5:
                 continue
             publication_code = self._clean_text(row[0])
@@ -506,6 +687,9 @@ class IssueCalendarTab(ttk.Frame):
         self._load_items()
         self._populate_calendar()
         self._update_day_details()
+        self._last_import_backup = backup
+        self._last_import_client_id = self.current_client_id
+        self._sync_undo_state()
         messagebox.showinfo(
             "Import Complete",
             f"Added {added}, updated {updated}, notes added {notes_added}, skipped {skipped}.",
@@ -536,6 +720,66 @@ class IssueCalendarTab(ttk.Frame):
             except ValueError:
                 continue
         return None
+
+    def _snapshot_current_client(self) -> Optional[List[dict]]:
+        if self.current_client_id is None:
+            return None
+        snapshot: List[dict] = []
+        for item in self.db.get_issue_items(self.current_client_id):
+            notes = self.db.get_issue_notes(item.id)
+            snapshot.append(
+                {
+                    "publication_code": item.publication_code,
+                    "issue_name": item.issue_name,
+                    "issue_number": item.issue_number,
+                    "trial_date": item.trial_date.isoformat() if item.trial_date else None,
+                    "update_date": item.update_date.isoformat() if item.update_date else None,
+                    "created_at": utils.to_iso(item.created_at),
+                    "updated_at": utils.to_iso(item.updated_at) if item.updated_at else None,
+                    "notes": [
+                        {
+                            "content": note.content,
+                            "created_at": utils.to_iso(note.created_at),
+                            "updated_at": utils.to_iso(note.updated_at) if note.updated_at else None,
+                        }
+                        for note in notes
+                    ],
+                }
+            )
+        return snapshot
+
+    def undo_last_import(self) -> None:
+        if (
+            self.current_client_id is None
+            or self._last_import_client_id != self.current_client_id
+            or self._last_import_backup is None
+        ):
+            messagebox.showinfo("Undo Import", "There is no import to undo for this client.", parent=self)
+            self._sync_undo_state()
+            return
+        if not messagebox.askyesno(
+            "Undo Import",
+            "Restore the issue calendar to its state before the last import?",
+            parent=self,
+        ):
+            return
+        self.db.replace_issue_client_data(self.current_client_id, self._last_import_backup)
+        self._last_import_backup = None
+        self._last_import_client_id = None
+        self._load_items()
+        self._populate_calendar()
+        self._update_day_details()
+        self._sync_undo_state()
+
+    def _sync_undo_state(self) -> None:
+        if self.undo_import_button is None:
+            return
+        enabled = (
+            self.current_client_id is not None
+            and self._last_import_backup is not None
+            and self._last_import_client_id == self.current_client_id
+        )
+        self.undo_import_button.configure(state=tk.NORMAL if enabled else tk.DISABLED)
 
     # ------------------------------------------------------------------ Details & notes
     def _open_selected_occurrence(self, _event: object) -> None:
@@ -568,10 +812,12 @@ class IssueCalendarTab(ttk.Frame):
             container,
             text=f"Publication: {occurrence.item.publication_code}",
         ).pack(anchor="w", pady=(4, 0))
-        run_label = f"{occurrence.run_type} run: {occurrence.run_date.strftime('%m/%d/%Y')}"
-        ttk.Label(container, text=run_label).pack(anchor="w", pady=(2, 0))
         issue_number = occurrence.item.issue_number or "—"
-        ttk.Label(container, text=f"Issue number: {issue_number}").pack(anchor="w", pady=(2, 10))
+        ttk.Label(container, text=f"Issue number: {issue_number}").pack(anchor="w", pady=(2, 0))
+        trial_text = occurrence.item.trial_date.strftime("%m/%d/%Y") if occurrence.item.trial_date else "—"
+        update_text = occurrence.item.update_date.strftime("%m/%d/%Y") if occurrence.item.update_date else "—"
+        ttk.Label(container, text=f"Trial run: {trial_text}").pack(anchor="w", pady=(4, 0))
+        ttk.Label(container, text=f"Update run: {update_text}").pack(anchor="w", pady=(2, 10))
 
         notes_frame = ttk.Frame(container)
         notes_frame.pack(fill=tk.BOTH, expand=True)
@@ -669,6 +915,12 @@ class IssueCalendarTab(ttk.Frame):
                 parent=panel,
             ):
                 return
+            if not messagebox.askyesno(
+                "Confirm Delete",
+                "This cannot be undone. Delete this occurrence?",
+                parent=panel,
+            ):
+                return
             trial_date = occurrence.item.trial_date
             update_date = occurrence.item.update_date
             if occurrence.run_type == "Trial":
@@ -717,6 +969,9 @@ class IssueCalendarTab(ttk.Frame):
         return "#000000" if luminance > 0.6 else "#ffffff"
 
     def _color_for_publication(self, code: str) -> str:
+        current = next((p for p in self.publications if p.publication_code == code), None)
+        if current and current.color:
+            return current.color
         palette = [
             "#4F75FF",
             "#3BAA7D",
