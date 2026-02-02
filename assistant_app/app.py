@@ -609,11 +609,8 @@ class PersonalAssistantApp(tk.Tk):
 
     def _ensure_shortcuts(self) -> None:
         if not self._should_manage_shortcut():
-            self.settings.desktop_shortcut = False
-            self.settings.start_menu_shortcut = False
             self.settings_tab.update_shortcut_state("desktop", False)
             self.settings_tab.update_shortcut_state("start_menu", False)
-            save_settings(self.settings_path, self.settings)
             return
         icon = self._icon_path or self._ensure_icon_file()
         if icon is not None and icon.exists():
@@ -686,11 +683,6 @@ class PersonalAssistantApp(tk.Tk):
                 parent=self,
             )
             self.settings_tab.update_shortcut_state(kind, False)
-            if kind == "desktop":
-                self.settings.desktop_shortcut = False
-            else:
-                self.settings.start_menu_shortcut = False
-            save_settings(self.settings_path, self.settings)
             return
         target = Path(sys.executable).resolve()
         if enabled:

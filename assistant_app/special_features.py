@@ -7,6 +7,7 @@ from typing import Callable, Iterable, Optional, Sequence, TYPE_CHECKING
 from .plugins import EmailIngestManager
 from .ui.views.email_ingest import EmailIngestView
 from .ui.views.jira_tab import JiraTabView
+from .ui.views.production_log import ProductionLogView
 from .ui.views.sql_assist import SqlAssistView
 from .issue_calendar_tab import IssueCalendarTab
 
@@ -49,6 +50,10 @@ def _build_issue_calendar(app: "PersonalAssistantApp") -> object:
     return IssueCalendarTab(app.notebook, app.db, app.theme)
 
 
+def _build_production_log(app: "PersonalAssistantApp") -> object:
+    return ProductionLogView(app.notebook)
+
+
 SPECIAL_FEATURES: dict[str, SpecialFeature] = {
     "sql_assist": SpecialFeature(
         key="sql_assist",
@@ -82,6 +87,17 @@ SPECIAL_FEATURES: dict[str, SpecialFeature] = {
         insert_after="calendar",
         tab_builder=_build_issue_calendar,
     ),
+    "production_log": SpecialFeature(
+        key="production_log",
+        title="Production Log",
+        description=(
+            "For tracking production counts, updating the client's log spreadsheet, "
+            "and keeping consistent formatting of the spreadsheet."
+        ),
+        tab_label="Production Log",
+        insert_after="sql_assist",
+        tab_builder=_build_production_log,
+    ),
 }
 
 SPECIAL_UNLOCK_CODES: dict[str, Sequence[str]] = {
@@ -89,6 +105,7 @@ SPECIAL_UNLOCK_CODES: dict[str, Sequence[str]] = {
     "7314": ("jira",),
     "8642": ("email_ingest",),
     "5398": ("issue_calendar",),
+    "4826": ("production_log",),
 }
 
 
