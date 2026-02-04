@@ -105,7 +105,7 @@ SPECIAL_FEATURES: dict[str, SpecialFeature] = {
             "and keeping consistent formatting of the spreadsheet."
         ),
         tab_label="Production Log",
-        insert_after="sql_assist",
+        insert_after="issue_calendar",
         tab_builder=_build_production_log,
     ),
     "sql_builder": SpecialFeature(
@@ -121,7 +121,7 @@ SPECIAL_FEATURES: dict[str, SpecialFeature] = {
         title="Knowledge Bank",
         description="Documents and knowledge center to assist with work.",
         tab_label="Knowledge Bank",
-        insert_after="sql_assist",
+        insert_after="sql_builder",
         tab_builder=_build_knowledge_bank,
     ),
 }

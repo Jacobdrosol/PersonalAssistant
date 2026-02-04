@@ -451,16 +451,31 @@ class PersonalAssistantApp(tk.Tk):
 
     def _compute_tab_order(self) -> list[str]:
         order = list(self._base_tab_order)
-        for key in self._special_feature_keys:
-            feature = SPECIAL_FEATURES.get(key)
-            if not feature or not feature.is_tab_feature():
-                continue
-            if key in order:
-                continue
-            insert_after = feature.insert_after
-            if insert_after and insert_after in order:
-                order.insert(order.index(insert_after) + 1, key)
-            else:
+        pending = [key for key in self._special_feature_keys if key not in order]
+        inserted = set(order)
+        progress = True
+        while pending and progress:
+            progress = False
+            for key in list(pending):
+                feature = SPECIAL_FEATURES.get(key)
+                if not feature or not feature.is_tab_feature():
+                    pending.remove(key)
+                    continue
+                insert_after = feature.insert_after
+                if insert_after and insert_after not in inserted:
+                    continue
+                if key in inserted:
+                    pending.remove(key)
+                    continue
+                if insert_after and insert_after in order:
+                    order.insert(order.index(insert_after) + 1, key)
+                else:
+                    order.append(key)
+                inserted.add(key)
+                pending.remove(key)
+                progress = True
+        for key in pending:
+            if key not in order:
                 order.append(key)
         return order
 
