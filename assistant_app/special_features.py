@@ -8,6 +8,7 @@ from .plugins import EmailIngestManager
 from .ui.views.email_ingest import EmailIngestView
 from .ui.views.jira_tab import JiraTabView
 from .ui.views.production_log import ProductionLogView
+from .ui.views.sql_builder import SqlBuilderView
 from .ui.views.sql_assist import SqlAssistView
 from .issue_calendar_tab import IssueCalendarTab
 
@@ -54,6 +55,10 @@ def _build_production_log(app: "PersonalAssistantApp") -> object:
     return ProductionLogView(app.notebook)
 
 
+def _build_sql_builder(app: "PersonalAssistantApp") -> object:
+    return SqlBuilderView(app.notebook)
+
+
 SPECIAL_FEATURES: dict[str, SpecialFeature] = {
     "sql_assist": SpecialFeature(
         key="sql_assist",
@@ -98,6 +103,14 @@ SPECIAL_FEATURES: dict[str, SpecialFeature] = {
         insert_after="sql_assist",
         tab_builder=_build_production_log,
     ),
+    "sql_builder": SpecialFeature(
+        key="sql_builder",
+        title="SQL Builder",
+        description="AI tailored assistant to assist and build SQL queries.",
+        tab_label="SQL Builder",
+        insert_after="sql_assist",
+        tab_builder=_build_sql_builder,
+    ),
 }
 
 SPECIAL_UNLOCK_CODES: dict[str, Sequence[str]] = {
@@ -106,6 +119,7 @@ SPECIAL_UNLOCK_CODES: dict[str, Sequence[str]] = {
     "8642": ("email_ingest",),
     "5398": ("issue_calendar",),
     "4826": ("production_log",),
+    "6074": ("sql_builder",),
 }
 
 
