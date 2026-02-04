@@ -59,7 +59,7 @@ class Database:
                 CREATE TABLE IF NOT EXISTS calendars (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     production_calendar_id INTEGER REFERENCES production_calendars(id),
-                    name TEXT NOT NULL UNIQUE,
+                    name TEXT NOT NULL,
                     color TEXT NOT NULL,
                     is_visible INTEGER NOT NULL DEFAULT 1
                 );
@@ -98,6 +98,7 @@ class Database:
                 """
             )
             self._ensure_column("calendars", "production_calendar_id", "INTEGER")
+            self._ensure_calendar_name_uniqueness()
             self._conn.commit()
             default_pc_id = self._ensure_default_production_calendar()
             self._ensure_default_calendar(default_pc_id)
@@ -112,6 +113,56 @@ class Database:
         }
         if column not in existing:
             self._conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+    def _ensure_calendar_name_uniqueness(self) -> None:
+        row = self._conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'calendars'"
+        ).fetchone()
+        if not row or not row["sql"]:
+            return
+        table_sql = row["sql"].lower()
+        has_global_unique = "name text not null unique" in table_sql or "unique(name)" in table_sql
+        unique_name_index = False
+        for idx in self._conn.execute("PRAGMA index_list(calendars)").fetchall():
+            if not idx["unique"]:
+                continue
+            idx_name = idx["name"]
+            idx_info = self._conn.execute(f"PRAGMA index_info({idx_name})").fetchall()
+            if len(idx_info) == 1 and idx_info[0]["name"] == "name":
+                unique_name_index = True
+                break
+        if has_global_unique or unique_name_index:
+            self._conn.execute("PRAGMA foreign_keys = OFF")
+            self._conn.execute("ALTER TABLE calendars RENAME TO calendars_old")
+            self._conn.executescript(
+                """
+                CREATE TABLE calendars (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    production_calendar_id INTEGER REFERENCES production_calendars(id),
+                    name TEXT NOT NULL,
+                    color TEXT NOT NULL,
+                    is_visible INTEGER NOT NULL DEFAULT 1
+                );
+                """
+            )
+            self._conn.execute(
+                """
+                INSERT INTO calendars (id, production_calendar_id, name, color, is_visible)
+                SELECT id, production_calendar_id, name, color, is_visible
+                FROM calendars_old
+                """
+            )
+            self._conn.execute("DROP TABLE calendars_old")
+            self._conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_calendars_prod_name "
+                "ON calendars(production_calendar_id, name)"
+            )
+            self._conn.execute("PRAGMA foreign_keys = ON")
+            return
+        self._conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_calendars_prod_name "
+            "ON calendars(production_calendar_id, name)"
+        )
 
     def _ensure_default_production_calendar(self) -> int:
         cursor = self._conn.execute(
@@ -855,10 +906,15 @@ class Database:
 
     def create_calendar(self, name: str, color: str, *, production_calendar_id: int, is_visible: bool = True) -> int:
         with self._lock:
-            cursor = self._conn.execute(
-                "INSERT INTO calendars (name, color, is_visible, production_calendar_id) VALUES (?, ?, ?, ?)",
-                (name.strip(), color, 1 if is_visible else 0, production_calendar_id),
-            )
+            try:
+                cursor = self._conn.execute(
+                    "INSERT INTO calendars (name, color, is_visible, production_calendar_id) VALUES (?, ?, ?, ?)",
+                    (name.strip(), color, 1 if is_visible else 0, production_calendar_id),
+                )
+            except sqlite3.IntegrityError as exc:
+                raise ValueError(
+                    "A calendar with that name already exists in this production calendar."
+                ) from exc
             self._conn.commit()
             return cursor.lastrowid
 
@@ -889,10 +945,15 @@ class Database:
             return
         values.append(calendar_id)
         with self._lock:
-            self._conn.execute(
-                f"UPDATE calendars SET {', '.join(fields)} WHERE id = ?",
-                values,
-            )
+            try:
+                self._conn.execute(
+                    f"UPDATE calendars SET {', '.join(fields)} WHERE id = ?",
+                    values,
+                )
+            except sqlite3.IntegrityError as exc:
+                raise ValueError(
+                    "A calendar with that name already exists in this production calendar."
+                ) from exc
             self._conn.commit()
 
     def delete_calendar(self, calendar_id: int) -> None:
