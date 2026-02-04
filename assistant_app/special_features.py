@@ -7,6 +7,7 @@ from typing import Callable, Iterable, Optional, Sequence, TYPE_CHECKING
 from .plugins import EmailIngestManager
 from .ui.views.email_ingest import EmailIngestView
 from .ui.views.jira_tab import JiraTabView
+from .ui.views.knowledge_bank import KnowledgeBankView
 from .ui.views.production_log import ProductionLogView
 from .ui.views.sql_builder import SqlBuilderView
 from .ui.views.sql_assist import SqlAssistView
@@ -57,6 +58,10 @@ def _build_production_log(app: "PersonalAssistantApp") -> object:
 
 def _build_sql_builder(app: "PersonalAssistantApp") -> object:
     return SqlBuilderView(app.notebook)
+
+
+def _build_knowledge_bank(app: "PersonalAssistantApp") -> object:
+    return KnowledgeBankView(app.notebook)
 
 
 SPECIAL_FEATURES: dict[str, SpecialFeature] = {
@@ -111,6 +116,14 @@ SPECIAL_FEATURES: dict[str, SpecialFeature] = {
         insert_after="sql_assist",
         tab_builder=_build_sql_builder,
     ),
+    "knowledge_bank": SpecialFeature(
+        key="knowledge_bank",
+        title="Knowledge Bank",
+        description="Documents and knowledge center to assist with work.",
+        tab_label="Knowledge Bank",
+        insert_after="sql_assist",
+        tab_builder=_build_knowledge_bank,
+    ),
 }
 
 SPECIAL_UNLOCK_CODES: dict[str, Sequence[str]] = {
@@ -120,6 +133,7 @@ SPECIAL_UNLOCK_CODES: dict[str, Sequence[str]] = {
     "5398": ("issue_calendar",),
     "4826": ("production_log",),
     "6074": ("sql_builder",),
+    "4183": ("knowledge_bank",),
 }
 
 
