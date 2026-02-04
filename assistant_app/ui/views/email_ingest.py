@@ -17,6 +17,7 @@ from ...plugins import (
     EmailRunConfig,
     OutlookUnavailableError,
 )
+from ... import utils
 
 
 class EmailIngestView(ttk.Frame):
@@ -224,7 +225,7 @@ class EmailIngestView(ttk.Frame):
         self.summarize_var.set(config.summarize_after_ingest)
         self._sync_folder_selection(config.include_folders)
         if config.last_ingested:
-            self._log(f"Last ingested: {config.last_ingested:%Y-%m-%d %H:%M}")
+            self._log(f"Last ingested: {utils.format_datetime(config.last_ingested)}")
         self._load_latest_brief(config)
 
     def _sync_folder_selection(self, selected_paths: List[str]) -> None:
@@ -412,8 +413,12 @@ class EmailIngestView(ttk.Frame):
         if result.report_path:
             self.log_queue.put(f"Run report saved to {result.report_path}")
         if result.newest_timestamp:
-            self.log_queue.put(f"Last ingested updated to {result.newest_timestamp:%Y-%m-%d %H:%M}")
-        title = f"Run {result.run_token or run_id} - {result.completed_at.strftime('%Y-%m-%d %H:%M') if result.completed_at else 'completed'}"
+            self.log_queue.put(f"Last ingested updated to {utils.format_datetime(result.newest_timestamp)}")
+        if result.completed_at:
+            completed_label = utils.format_datetime(result.completed_at)
+        else:
+            completed_label = "completed"
+        title = f"Run {result.run_token or run_id} - {completed_label}"
         self._show_brief_summary(title, result.brief_summary or '')
         self._runner = None
         self._cancel_requested = False
@@ -453,7 +458,7 @@ class EmailIngestView(ttk.Frame):
         self.after(200, self._drain_log_queue)
 
     def _log(self, message: str) -> None:
-        timestamp = datetime.now().strftime("%H:%M:%S")
+        timestamp = utils.format_time(datetime.now(), include_seconds=True)
         self.status_text.configure(state="normal")
         self.status_text.insert(tk.END, f"[{timestamp}] {message}\n")
         self.status_text.configure(state="disabled")
@@ -465,6 +470,10 @@ class EmailIngestView(ttk.Frame):
         cleaned = content.strip() if content else ""
         self.latest_summary_text.insert(tk.END, cleaned or "(no summary available)")
         self.latest_summary_text.configure(state="disabled")
+
+    def apply_time_format(self, use_24_hour: bool) -> None:
+        if self.current_config:
+            self._load_latest_brief(self.current_config)
 
     def _load_latest_brief(self, config: Optional[EmailRunConfig]) -> None:
         if not config:
@@ -484,7 +493,15 @@ class EmailIngestView(ttk.Frame):
         except Exception as exc:
             self._show_brief_summary("Unable to load last summary", str(exc))
             return
-        title = f"Run {data.get('run_token', latest.stem)} — {data.get('completed_at', 'unknown finish')}"
+        completed_at = data.get("completed_at")
+        completed_label = "unknown finish"
+        if isinstance(completed_at, str):
+            try:
+                parsed = utils.from_iso(completed_at)
+            except ValueError:
+                parsed = None
+            completed_label = utils.format_datetime(parsed) if parsed else completed_at
+        title = f"Run {data.get('run_token', latest.stem)} - {completed_label}"
         summary_text = data.get("brief_summary") or "(no summary available)"
         self._show_brief_summary(title, summary_text)
 

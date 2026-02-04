@@ -12,6 +12,8 @@ from tkinter import ttk
 from .database import Database, SCRUM_PRIORITIES
 from .models import ScrumNote, ScrumTask
 from .theme import ThemePalette
+from . import utils
+from .time_widgets import TimeInput
 
 
 class ScrumTab(ttk.Frame):
@@ -224,6 +226,9 @@ class ScrumTab(ttk.Frame):
                 canvas.configure(bg=self._column_background(status))
         if self._modal_panel is not None:
             self._close_modal()
+
+    def apply_time_format(self, use_24_hour: bool) -> None:
+        self.refresh()
 
     def refresh(self) -> None:
         tasks = self.db.get_scrum_tasks()
@@ -459,7 +464,9 @@ class ScrumCard(ttk.Frame):
         if task.target_date:
             due_text = task.target_date.isoformat()
             if task.require_time:
-                due_text = f"{due_text} {task.require_time}"
+                formatted_time = utils.format_time_string(task.require_time)
+                if formatted_time:
+                    due_text = f"{due_text} {formatted_time}"
         else:
             due_text = "No target date"
         ttk.Label(self, text=due_text, style="ScrumCardMeta.TLabel").pack(anchor="w", pady=(4, 0))
@@ -583,11 +590,13 @@ class ScrumTaskDialog(tk.Frame):
         ttk.Label(target_row, text="Format: YYYY-MM-DD", foreground=self.theme.text_secondary).grid(row=0, column=2, padx=(8, 0))
 
         ttk.Label(container, text="Require Time (optional)").grid(row=5, column=0, sticky="w", pady=(12, 0))
-        self.require_time_entry = tk.Entry(container)
-        self._style_entry_widget(self.require_time_entry)
-        default_require_time = self.task.require_time if self.task and self.task.require_time else ""
-        self.require_time_entry.insert(0, default_require_time)
-        self.require_time_entry.grid(row=5, column=1, sticky="ew", pady=(12, 0))
+        self.require_time_input = TimeInput(container, entry_width=8)
+        default_require_time = ""
+        if self.task and self.task.require_time:
+            default_require_time = utils.format_time_string(self.task.require_time)
+        if default_require_time:
+            self.require_time_input.set(default_require_time)
+        self.require_time_input.grid(row=5, column=1, sticky="ew", pady=(12, 0))
 
         ttk.Label(container, text="Tags (comma separated)").grid(row=6, column=0, sticky="w", pady=(12, 0))
         self.tags_entry = tk.Entry(container)
@@ -609,7 +618,7 @@ class ScrumTaskDialog(tk.Frame):
         self.description_text.grid(row=8, column=1, sticky="ew")
 
         ttk.Label(container, text="Created").grid(row=9, column=0, sticky="w", pady=(12, 0))
-        created_value = self.task.created_at.strftime("%Y-%m-%d %H:%M") if self.task else datetime.now().strftime("%Y-%m-%d %H:%M")
+        created_value = utils.format_datetime(self.task.created_at) if self.task else utils.format_datetime(datetime.now())
         ttk.Label(container, text=created_value).grid(row=9, column=1, sticky="w", pady=(12, 0))
 
         notes_frame = ttk.Frame(container)
@@ -719,7 +728,8 @@ class ScrumTaskDialog(tk.Frame):
     def _normalize_require_time(self, raw: str) -> str:
         text = raw.strip()
         if not text:
-            raise ValueError("Require Time must be left blank or contain a time value (e.g. 07:00 or 7:30am).")
+            hint = utils.time_input_hint()
+            raise ValueError(f"Require Time must be left blank or contain a time value (e.g. {hint}).")
         text = text.replace(".", ":")
         period_match = re.search(r"(?i)(am|pm)\s*$", text)
         period: Optional[str] = None
@@ -749,7 +759,8 @@ class ScrumTaskDialog(tk.Frame):
             else:
                 raise ValueError
         except ValueError as exc:
-            raise ValueError("Require Time must be a valid time like 07:00 or 7:30am.") from exc
+            hint = utils.time_input_hint()
+            raise ValueError(f"Require Time must be a valid time like {hint}.") from exc
         if period:
             if not (1 <= hour <= 12):
                 raise ValueError("When using AM/PM, hours must be between 1 and 12.")
@@ -757,7 +768,8 @@ class ScrumTaskDialog(tk.Frame):
             if period == "pm":
                 hour += 12
         if not (0 <= hour <= 23 and 0 <= minute <= 59):
-            raise ValueError("Require Time must be a valid time like 07:00 or 7:30am.")
+            hint = utils.time_input_hint()
+            raise ValueError(f"Require Time must be a valid time like {hint}.")
         return f"{hour:02d}:{minute:02d}"
 
     def _save(self) -> None:
@@ -775,7 +787,7 @@ class ScrumTaskDialog(tk.Frame):
             except ValueError:
                 messagebox.showerror("Invalid Data", "Target date must be in YYYY-MM-DD format.", parent=self)
                 return
-        require_time_raw = self.require_time_entry.get().strip()
+        require_time_raw = self.require_time_input.get().strip()
         try:
             require_time_value = self._normalize_require_time(require_time_raw) if require_time_raw else None
         except ValueError as exc:
@@ -810,7 +822,7 @@ class ScrumTaskDialog(tk.Frame):
         for item in self.notes_tree.get_children():
             self.notes_tree.delete(item)
         for note in notes:
-            timestamp = note.created_at.strftime("%Y-%m-%d %H:%M")
+            timestamp = utils.format_datetime(note.created_at)
             preview = self._note_preview(note.content)
             self.notes_tree.insert("", "end", iid=str(note.id), values=(timestamp, preview))
         if notes and not self.notes_tree.selection():

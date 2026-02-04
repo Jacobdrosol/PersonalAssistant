@@ -10,6 +10,7 @@ from typing import Callable, Dict, List, Optional
 from ...jira_service import JiraService, JiraServiceError
 from ...models import JiraIssue, JiraProject
 from ...theme import ThemePalette
+from ... import utils
 
 
 class JiraTabView(ttk.Frame):
@@ -209,7 +210,7 @@ class JiraTabView(ttk.Frame):
         self._apply_filters()
         last_sync = self.service.last_sync()
         if last_sync:
-            self.last_sync_var.set(f"Last synced {last_sync.strftime('%Y-%m-%d %H:%M')}")
+            self.last_sync_var.set(f"Last synced {utils.format_datetime(last_sync)}")
         self._set_status(f"Loaded {len(issues)} Jira issues.", pending=False)
         self.refresh_btn.configure(state=tk.NORMAL)
 
@@ -375,7 +376,14 @@ class JiraTabView(ttk.Frame):
     def _format_datetime(value: Optional[datetime]) -> str:
         if value is None:
             return "--"
-        return value.strftime("%Y-%m-%d %H:%M")
+        return utils.format_datetime(value)
+
+    def apply_time_format(self, use_24_hour: bool) -> None:
+        if self._issues:
+            self._apply_filters()
+        last_sync = self.service.last_sync()
+        if last_sync:
+            self.last_sync_var.set(f"Last synced {utils.format_datetime(last_sync)}")
 
     @staticmethod
     def _format_date(value: Optional[date]) -> str:

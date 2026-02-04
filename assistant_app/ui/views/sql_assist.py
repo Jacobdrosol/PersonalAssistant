@@ -21,6 +21,7 @@ from ...models import (
     SqlDataSourceDetail,
     SqlSavedQuery,
 )
+from ... import utils
 
 
 class SqlAssistView(ttk.Frame):
@@ -1419,13 +1420,18 @@ class SqlAssistView(ttk.Frame):
     def _format_timestamp(timestamp: Optional[str], user_tag: Optional[str]) -> str:
         ts = (timestamp or "").strip()
         user = (user_tag or "").strip()
-        if ts and user:
-            return f"{ts} ({user})"
+        formatted = ""
         if ts:
-            return ts
+            try:
+                parsed = utils.from_iso(ts)
+            except ValueError:
+                parsed = None
+            formatted = utils.format_datetime(parsed) if parsed else ts
         if user:
+            if formatted:
+                return f"{formatted} ({user})"
             return user
-        return ""
+        return formatted
 
     @staticmethod
     def _format_bool(value: Optional[bool]) -> str:
@@ -1713,11 +1719,18 @@ class SqlAssistView(ttk.Frame):
 
     def _update_instance_header(self, instance: Optional[SqlInstance]) -> None:
         if instance and instance.updated_at:
-            self.updated_var.set(instance.updated_at.strftime("Last updated: %Y-%m-%d %H:%M"))
+            self.updated_var.set(f"Last updated: {utils.format_datetime(instance.updated_at)}")
         elif instance:
             self.updated_var.set("Last updated: --")
         else:
             self.updated_var.set("Last updated: --")
+
+    def apply_time_format(self, use_24_hour: bool) -> None:
+        instance = None
+        if self.current_instance_id is not None:
+            instance = next((inst for inst in self.instances if inst.id == self.current_instance_id), None)
+        self._update_instance_header(instance)
+        self._refresh_data_sources()
 
     # ------------------------------------------------------------------ External helpers
     def is_locked(self) -> bool:

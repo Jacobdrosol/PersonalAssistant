@@ -5,7 +5,7 @@ import json
 from collections import defaultdict
 from textwrap import shorten
 from dataclasses import dataclass
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, time as dt_time
 from pathlib import Path
 import tkinter as tk
 from tkinter import colorchooser, filedialog, messagebox
@@ -16,6 +16,7 @@ from .database import Database
 from .models import Calendar, Event, EventOverride, ProductionCalendar
 from . import utils
 from .theme import ThemePalette
+from .time_widgets import TimeInput
 
 WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 REPEAT_OPTIONS = [
@@ -103,6 +104,9 @@ class CalendarTab(ttk.Frame):
         self.theme = theme
         self._assign_palette_colors()
         self._build_ui()
+        self.refresh()
+
+    def apply_time_format(self, use_24_hour: bool) -> None:
         self.refresh()
 
     # ------------------------------------------------------------------ UI
@@ -833,7 +837,7 @@ class CalendarTab(ttk.Frame):
                 )
                 fg = utils.ideal_text_color(label_bg)
                 display_title = override.title if override and override.title else event.title
-                time_str = occurrence.strftime("%H:%M")
+                time_str = utils.format_time(occurrence)
                 text = f"{time_str} {display_title}" if occurrence.time() != datetime.min.time() else display_title
                 if self._is_customized_occurrence(occ_entry):
                     text += f" {CUSTOMIZED_OCCURRENCE_MARK}"
@@ -916,7 +920,7 @@ class CalendarTab(ttk.Frame):
         occurrences = self.occurrences_by_day.get(day, [])
         self._day_occurrence_index = {}
         for occ_entry in occurrences:
-            time_str = occ_entry.occurrence.strftime("%I:%M %p").lstrip("0")
+            time_str = utils.format_time(occ_entry.occurrence)
             iid = f"{occ_entry.event.id}:{occ_entry.occurrence.isoformat()}"
             title_text = (
                 occ_entry.override.title
@@ -1099,8 +1103,8 @@ class CalendarTab(ttk.Frame):
         start: datetime,
         end: datetime,
     ) -> str:
-        start_label = start.strftime("%Y-%m-%d %I:%M %p").lstrip("0")
-        end_label = end.strftime("%Y-%m-%d %I:%M %p").lstrip("0")
+        start_label = utils.format_datetime(start)
+        end_label = utils.format_datetime(end)
         lines: List[str] = [
             f"Production Calendar: {production.name}",
             f"Range: {start_label} to {end_label}",
@@ -1111,8 +1115,8 @@ class CalendarTab(ttk.Frame):
             lines.append("No scheduled items in this range.")
             return "\n".join(lines)
         for index, (occurrence, end_time, event) in enumerate(entries, start=1):
-            start_str = occurrence.strftime("%Y-%m-%d %I:%M %p").lstrip("0")
-            end_str = end_time.strftime("%Y-%m-%d %I:%M %p").lstrip("0")
+            start_str = utils.format_datetime(occurrence)
+            end_str = utils.format_datetime(end_time)
             lines.append(f"{index}. {start_str} - {end_str} | {event.calendar_name} | {event.title}")
             description = (event.description or "").strip()
             if description:
@@ -1532,7 +1536,7 @@ class EventOccurrencePanel(tk.Frame):
         ttk.Label(container, text="Event").grid(row=1, column=0, sticky="w", pady=(12, 0))
         ttk.Label(
             container,
-            text=f"{event.title} — {occurrence.strftime('%A, %B %d, %Y %I:%M %p').lstrip('0')}",
+            text=f"{event.title} - {utils.format_datetime(occurrence, date_format='%A, %B %d, %Y')}",
         ).grid(row=1, column=1, sticky="w", pady=(12, 0))
 
         ttk.Label(container, text="Custom Title").grid(row=2, column=0, sticky="w", pady=(12, 0))
@@ -1651,10 +1655,10 @@ class EventEditorPanel(tk.Frame):
         self.date_var = tk.StringVar(value=(event.start_time.strftime("%Y-%m-%d") if event else default_date.strftime("%Y-%m-%d")))
         ttk.Entry(container, textvariable=self.date_var).grid(row=6, column=0, sticky="ew", pady=(0, 8))
 
-        ttk.Label(container, text="Time (HH:MM)").grid(row=5, column=1, sticky="w")
-        default_time = event.start_time.strftime("%H:%M") if event else datetime.now().strftime("%H:%M")
-        self.time_var = tk.StringVar(value=default_time)
-        ttk.Entry(container, textvariable=self.time_var).grid(row=6, column=1, sticky="ew", pady=(0, 8))
+        ttk.Label(container, text="Time").grid(row=5, column=1, sticky="w")
+        default_time = event.start_time if event else datetime.now()
+        self.time_input = TimeInput(container, initial=default_time, entry_width=8)
+        self.time_input.grid(row=6, column=1, sticky="ew", pady=(0, 8))
 
         ttk.Label(container, text="Duration (minutes)").grid(row=7, column=0, sticky="w")
         self.duration_var = tk.StringVar(value=str(event.duration_minutes if event else 60))
@@ -1706,7 +1710,10 @@ class EventEditorPanel(tk.Frame):
             if calendar_model is None:
                 raise ValueError("Pick a calendar.")
             start_date = datetime.strptime(self.date_var.get().strip(), "%Y-%m-%d").date()
-            start_time = datetime.strptime(self.time_var.get().strip(), "%H:%M").time()
+            try:
+                start_time = utils.parse_time_string(self.time_input.get().strip())
+            except ValueError as exc:
+                raise ValueError(f"Time must be in {utils.time_input_hint()} format.") from exc
             start_datetime = datetime.combine(start_date, start_time)
             duration_minutes = max(1, int(self.duration_var.get().strip()))
             reminder_minutes_before = int(self.reminder_var.get().strip() or 0)
@@ -1774,17 +1781,17 @@ class RecapRangePanel(tk.Frame):
         self.start_date_var = tk.StringVar(value=default_start.strftime("%Y-%m-%d"))
         ttk.Entry(container, textvariable=self.start_date_var, width=18).grid(row=2, column=0, sticky="ew", pady=(0, 8))
 
-        ttk.Label(container, text="Start Time (HH:MM)").grid(row=1, column=1, sticky="w")
-        self.start_time_var = tk.StringVar(value=default_start.strftime("%H:%M"))
-        ttk.Entry(container, textvariable=self.start_time_var, width=12).grid(row=2, column=1, sticky="ew", pady=(0, 8))
+        ttk.Label(container, text="Start Time").grid(row=1, column=1, sticky="w")
+        self.start_time_input = TimeInput(container, initial=default_start, entry_width=8)
+        self.start_time_input.grid(row=2, column=1, sticky="ew", pady=(0, 8))
 
         ttk.Label(container, text="End Date (YYYY-MM-DD)").grid(row=3, column=0, sticky="w")
         self.end_date_var = tk.StringVar(value=default_end.strftime("%Y-%m-%d"))
         ttk.Entry(container, textvariable=self.end_date_var, width=18).grid(row=4, column=0, sticky="ew", pady=(0, 8))
 
-        ttk.Label(container, text="End Time (HH:MM)").grid(row=3, column=1, sticky="w")
-        self.end_time_var = tk.StringVar(value=default_end.strftime("%H:%M"))
-        ttk.Entry(container, textvariable=self.end_time_var, width=12).grid(row=4, column=1, sticky="ew", pady=(0, 8))
+        ttk.Label(container, text="End Time").grid(row=3, column=1, sticky="w")
+        self.end_time_input = TimeInput(container, initial=default_end, entry_width=8)
+        self.end_time_input.grid(row=4, column=1, sticky="ew", pady=(0, 8))
 
         ttk.Label(container, text="Calendars").grid(row=5, column=0, columnspan=2, sticky="w", pady=(4, 0))
         calendar_mode_frame = ttk.Frame(container)
@@ -1827,11 +1834,15 @@ class RecapRangePanel(tk.Frame):
     def _generate(self) -> None:
         try:
             start_date = datetime.strptime(self.start_date_var.get().strip(), "%Y-%m-%d").date()
-            start_time = datetime.strptime(self.start_time_var.get().strip(), "%H:%M").time()
+            start_time = utils.parse_time_string(self.start_time_input.get().strip())
             end_date = datetime.strptime(self.end_date_var.get().strip(), "%Y-%m-%d").date()
-            end_time = datetime.strptime(self.end_time_var.get().strip(), "%H:%M").time()
+            end_time = utils.parse_time_string(self.end_time_input.get().strip())
         except ValueError:
-            messagebox.showerror("Invalid Input", "Use YYYY-MM-DD for dates and HH:MM for times.", parent=self)
+            messagebox.showerror(
+                "Invalid Input",
+                f"Use YYYY-MM-DD for dates and {utils.time_input_hint()} for times.",
+                parent=self,
+            )
             return
         start = datetime.combine(start_date, start_time)
         end = datetime.combine(end_date, end_time)
@@ -1895,9 +1906,9 @@ class RecapRangePanel(tk.Frame):
         anchor = self._anchor_day
         start_date = anchor - timedelta(days=1)
         self.start_date_var.set(start_date.strftime("%Y-%m-%d"))
-        self.start_time_var.set("17:00")
+        self.start_time_input.set(dt_time(17, 0))
         self.end_date_var.set(anchor.strftime("%Y-%m-%d"))
-        self.end_time_var.set("07:00")
+        self.end_time_input.set(dt_time(7, 0))
 
 
 class RecapReportPanel(tk.Frame):

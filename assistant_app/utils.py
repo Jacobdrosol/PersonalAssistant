@@ -1,7 +1,78 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, time as dt_time, timedelta
 import calendar
+
+
+_USE_24_HOUR_TIME = True
+
+
+def set_use_24_hour_time(value: bool) -> None:
+    global _USE_24_HOUR_TIME
+    _USE_24_HOUR_TIME = bool(value)
+
+
+def use_24_hour_time() -> bool:
+    return _USE_24_HOUR_TIME
+
+
+def time_input_hint(use_24_hour: bool | None = None) -> str:
+    return "HH:MM"
+
+
+def format_time(value: datetime | dt_time, use_24_hour: bool | None = None, *, include_seconds: bool = False) -> str:
+    use_24_hour = _USE_24_HOUR_TIME if use_24_hour is None else bool(use_24_hour)
+    time_value = value.time() if isinstance(value, datetime) else value
+    if use_24_hour:
+        fmt = "%H:%M:%S" if include_seconds else "%H:%M"
+        return time_value.strftime(fmt)
+    fmt = "%I:%M:%S %p" if include_seconds else "%I:%M %p"
+    return time_value.strftime(fmt).lstrip("0")
+
+
+def format_datetime(
+    value: datetime,
+    use_24_hour: bool | None = None,
+    *,
+    date_format: str = "%Y-%m-%d",
+    include_seconds: bool = False,
+) -> str:
+    date_part = value.strftime(date_format)
+    time_part = format_time(value, use_24_hour, include_seconds=include_seconds)
+    return f"{date_part} {time_part}".strip()
+
+
+def parse_time_string(value: str, use_24_hour: bool | None = None) -> dt_time:
+    cleaned = value.strip()
+    if not cleaned:
+        raise ValueError("Time value cannot be blank.")
+    normalized = cleaned.upper()
+    formats_12 = ("%I:%M %p", "%I %p", "%I:%M%p", "%I%p")
+    formats_24 = ("%H:%M", "%H")
+    if use_24_hour is True:
+        formats = formats_24 + formats_12
+    elif use_24_hour is False:
+        formats = formats_12 + formats_24
+    else:
+        formats = formats_12 + formats_24
+    for fmt in formats:
+        try:
+            parsed = datetime.strptime(normalized if "%p" in fmt else cleaned, fmt).time()
+            return parsed.replace(second=0, microsecond=0)
+        except ValueError:
+            continue
+    raise ValueError(f"Invalid time value '{value}'.")
+
+
+def format_time_string(value: str, use_24_hour: bool | None = None) -> str:
+    text = (value or "").strip()
+    if not text:
+        return ""
+    try:
+        parsed = parse_time_string(text, use_24_hour)
+    except ValueError:
+        return text
+    return format_time(parsed, use_24_hour)
 
 
 def to_iso(dt: datetime) -> str:

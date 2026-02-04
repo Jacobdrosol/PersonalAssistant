@@ -20,6 +20,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from .environment import ensure_user_data_dir
 from .version import __version__
+from . import utils
 
 
 @dataclass(frozen=True)
@@ -581,7 +582,7 @@ class ContactTab(ttk.Frame):
         return "@" in value and "." in value.split("@")[-1]
 
     def _log(self, message: str) -> None:
-        line = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {message}"
+        line = f"{utils.format_datetime(datetime.now(), include_seconds=True)} {message}"
         with self._log_lock:
             try:
                 with self.log_path.open("a", encoding="utf-8") as handle:
@@ -591,9 +592,10 @@ class ContactTab(ttk.Frame):
                 pass
 
     def _compose_body(self, name: str, email: str, description: str, sent_at: datetime) -> str:
-        timestamp = sent_at.strftime("%Y-%m-%d %H:%M:%S %Z").strip()
-        if not timestamp:
-            timestamp = sent_at.strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = utils.format_datetime(sent_at, include_seconds=True)
+        tzname = sent_at.strftime("%Z").strip()
+        if tzname:
+            timestamp = f"{timestamp} {tzname}"
         return (
             "New submission from Personal Assistant:\n\n"
             f"Name: {name}\n"

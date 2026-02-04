@@ -13,6 +13,7 @@ from .settings_store import (
     normalize_jira_base_url,
 )
 from .special_features import SpecialFeature
+from .time_widgets import TimeInput
 
 
 class SettingsTab(ttk.Frame):
@@ -25,9 +26,11 @@ class SettingsTab(ttk.Frame):
         daily_notifications_enabled: bool,
         daily_start: str,
         daily_end: str,
+        use_24_hour_time: bool,
         on_setting_toggle: Callable[[str, bool], None],
         on_hours_change: Callable[[str, str], None],
         on_theme_change: Callable[[str], None],
+        on_time_format_change: Callable[[bool], None],
         on_jira_settings_change: Callable[[JiraSettings], None],
         on_jira_test_connection: Callable[[JiraSettings], None],
         special_features: list[SpecialFeature],
@@ -49,9 +52,12 @@ class SettingsTab(ttk.Frame):
         self.desktop_var = tk.BooleanVar(value=desktop_enabled)
         self.start_menu_var = tk.BooleanVar(value=start_menu_enabled)
         self.daily_notifications_var = tk.BooleanVar(value=daily_notifications_enabled)
-        self.daily_start_var = tk.StringVar(value=daily_start)
-        self.daily_end_var = tk.StringVar(value=daily_end)
+        self._use_24_hour_time = bool(use_24_hour_time)
+        self._time_format_callback = on_time_format_change
+        self._daily_start_storage = daily_start
+        self._daily_end_storage = daily_end
         self.theme_var = tk.StringVar(value=theme_name if theme_name in {"dark", "light"} else "dark")
+        self.time_format_var = tk.StringVar(value="24" if self._use_24_hour_time else "12")
         self.jira_use_default_var = tk.BooleanVar(value=jira_settings.use_default_base)
         self.jira_base_var = tk.StringVar(value=jira_settings.base_url or DEFAULT_JIRA_BASE_URL)
         self.jira_email_var = tk.StringVar(value=jira_settings.email)
@@ -99,14 +105,24 @@ class SettingsTab(ttk.Frame):
         hours_row.pack(anchor="w", pady=(2, 2))
         ttk.Label(hours_row, text="Work hours:", style="SidebarHeading.TLabel").pack(side=tk.LEFT)
         ttk.Label(hours_row, text="Start").pack(side=tk.LEFT, padx=(12, 2))
-        self.daily_start_entry = ttk.Entry(hours_row, textvariable=self.daily_start_var, width=10)
-        self.daily_start_entry.pack(side=tk.LEFT)
+        self.daily_start_input = TimeInput(
+            hours_row,
+            initial=daily_start,
+            use_24_hour=self._use_24_hour_time,
+            entry_width=8,
+        )
+        self.daily_start_input.pack(side=tk.LEFT)
         ttk.Label(hours_row, text="End").pack(side=tk.LEFT, padx=(12, 2))
-        self.daily_end_entry = ttk.Entry(hours_row, textvariable=self.daily_end_var, width=10)
-        self.daily_end_entry.pack(side=tk.LEFT)
-        for widget in (self.daily_start_entry, self.daily_end_entry):
-            widget.bind("<FocusOut>", self._on_hours_changed)
-            widget.bind("<Return>", self._on_hours_changed)
+        self.daily_end_input = TimeInput(
+            hours_row,
+            initial=daily_end,
+            use_24_hour=self._use_24_hour_time,
+            entry_width=8,
+        )
+        self.daily_end_input.pack(side=tk.LEFT)
+        for widget in (self.daily_start_input, self.daily_end_input):
+            widget.bind_entry("<FocusOut>", self._on_hours_changed)
+            widget.bind_entry("<Return>", self._on_hours_changed)
         ttk.Label(
             self.daily_hours_frame,
             text='Hourly notifications to update your "Daily Update Log" and half-hour notifications at the end of your workday to send it.',
@@ -132,6 +148,26 @@ class SettingsTab(ttk.Frame):
             value="light",
             variable=self.theme_var,
             command=self._on_theme_changed,
+        ).pack(side=tk.LEFT)
+
+        time_frame = ttk.Frame(body, padding=(0, 12))
+        time_frame.pack(fill=tk.X, anchor="w")
+        ttk.Label(time_frame, text="Time Format", style="SidebarHeading.TLabel").pack(anchor="w")
+        time_options = ttk.Frame(time_frame, padding=(24, 4))
+        time_options.pack(anchor="w", fill=tk.X)
+        ttk.Radiobutton(
+            time_options,
+            text="24-hour",
+            value="24",
+            variable=self.time_format_var,
+            command=self._on_time_format_changed,
+        ).pack(side=tk.LEFT, padx=(0, 12))
+        ttk.Radiobutton(
+            time_options,
+            text="12-hour",
+            value="12",
+            variable=self.time_format_var,
+            command=self._on_time_format_changed,
         ).pack(side=tk.LEFT)
 
         self._build_special_features_section(body, special_features)
@@ -215,8 +251,17 @@ class SettingsTab(ttk.Frame):
         self._update_daily_hours_visibility()
 
     def update_daily_hours(self, start: str, end: str) -> None:
-        self.daily_start_var.set(start)
-        self.daily_end_var.set(end)
+        self._daily_start_storage = start
+        self._daily_end_storage = end
+        self.daily_start_input.set(start)
+        self.daily_end_input.set(end)
+
+    def update_time_format(self, use_24_hour: bool) -> None:
+        self._use_24_hour_time = bool(use_24_hour)
+        self.time_format_var.set("24" if self._use_24_hour_time else "12")
+        self.daily_start_input.set_use_24_hour(self._use_24_hour_time)
+        self.daily_end_input.set_use_24_hour(self._use_24_hour_time)
+        self.update_daily_hours(self._daily_start_storage, self._daily_end_storage)
 
     def update_theme_selection(self, theme_name: str) -> None:
         self.theme_var.set(theme_name if theme_name in {"dark", "light"} else "dark")
@@ -230,11 +275,20 @@ class SettingsTab(ttk.Frame):
         if not bool(self.daily_notifications_var.get()):
             return
         if self._hours_callback:
-            self._hours_callback(self.daily_start_var.get().strip(), self.daily_end_var.get().strip())
+            self._hours_callback(self.daily_start_input.get().strip(), self.daily_end_input.get().strip())
 
     def _on_theme_changed(self) -> None:
         if self._theme_callback:
             self._theme_callback(self.theme_var.get())
+
+    def _on_time_format_changed(self) -> None:
+        use_24_hour = self.time_format_var.get() == "24"
+        if use_24_hour == self._use_24_hour_time:
+            return
+        self._use_24_hour_time = use_24_hour
+        self.update_daily_hours(self._daily_start_storage, self._daily_end_storage)
+        if self._time_format_callback:
+            self._time_format_callback(use_24_hour)
 
     def _update_daily_hours_visibility(self) -> None:
         if bool(self.daily_notifications_var.get()):

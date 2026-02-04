@@ -39,6 +39,7 @@ from .shortcuts import (
 )
 from .version import __version__
 from . import updater
+from . import utils
 from .theme import ThemePalette, get_theme, THEMES
 
 
@@ -62,6 +63,7 @@ class PersonalAssistantApp(tk.Tk):
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         self.settings = settings
         self.settings_path = settings_path
+        utils.set_use_24_hour_time(self.settings.use_24_hour_time)
         self._special_feature_keys = sanitize_special_feature_keys(self.settings.special_features)
         if self._special_feature_keys != self.settings.special_features:
             self.settings.special_features = self._special_feature_keys
@@ -95,9 +97,11 @@ class PersonalAssistantApp(tk.Tk):
             daily_notifications_enabled=self.settings.daily_update_notifications,
             daily_start=self.settings.daily_update_start,
             daily_end=self.settings.daily_update_end,
+            use_24_hour_time=self.settings.use_24_hour_time,
             on_setting_toggle=self._handle_setting_toggle,
             on_hours_change=self._handle_daily_hours_change,
             on_theme_change=self._handle_theme_change,
+            on_time_format_change=self._handle_time_format_change,
             on_jira_settings_change=self._handle_jira_settings_update,
             on_jira_test_connection=self._handle_jira_test_connection,
             special_features=describe_special_features(self._special_feature_keys),
@@ -761,6 +765,13 @@ class PersonalAssistantApp(tk.Tk):
         self._apply_theme_to_children()
         save_settings(self.settings_path, self.settings)
 
+    def _handle_time_format_change(self, use_24_hour: bool) -> None:
+        self.settings.use_24_hour_time = bool(use_24_hour)
+        utils.set_use_24_hour_time(self.settings.use_24_hour_time)
+        save_settings(self.settings_path, self.settings)
+        self.settings_tab.update_time_format(self.settings.use_24_hour_time)
+        self._apply_time_format_to_children()
+
     def _apply_special_feature_keys(self, keys: list[str]) -> None:
         cleaned = sanitize_special_feature_keys(keys)
         if cleaned != self._special_feature_keys:
@@ -837,22 +848,18 @@ class PersonalAssistantApp(tk.Tk):
         self._sync_settings_button_state()
         self._update_tab_button_styles()
 
+    def _apply_time_format_to_children(self) -> None:
+        for tab, _label in self._core_tabs.values():
+            if hasattr(tab, "apply_time_format"):
+                tab.apply_time_format(self.settings.use_24_hour_time)
+            elif hasattr(tab, "refresh"):
+                tab.refresh()
+        for tab in self._special_tab_cache.values():
+            if hasattr(tab, "apply_time_format"):
+                tab.apply_time_format(self.settings.use_24_hour_time)
+
     def _parse_time_string(self, value: str) -> dt_time:
-        cleaned = value.strip()
-        if not cleaned:
-            raise ValueError("Time value cannot be blank.")
-        normalized = cleaned.upper()
-        for fmt in ("%I:%M %p", "%I %p", "%I:%M%p", "%I%p"):
-            try:
-                return datetime.strptime(normalized, fmt).time().replace(second=0, microsecond=0)
-            except ValueError:
-                continue
-        for fmt in ("%H:%M", "%H"):
-            try:
-                return datetime.strptime(cleaned, fmt).time().replace(second=0, microsecond=0)
-            except ValueError:
-                continue
-        raise ValueError(f"Invalid time value '{value}'. Use formats like 8:00 AM or 17:00.")
+        return utils.parse_time_string(value)
 
     def _coerce_time_to_dt(self, value: str, fallback: str) -> dt_time:
         try:
@@ -870,7 +877,7 @@ class PersonalAssistantApp(tk.Tk):
     # ---------------------------------------------------------------- Events
     def show_notification(self, payload: NotificationPayload) -> None:
         body_text = payload.body.strip() if payload.body else ""
-        fallback = payload.occurs_at.strftime("%I:%M %p").lstrip("0")
+        fallback = utils.format_time(payload.occurs_at)
         self.system_notifier.notify(payload.title, body_text or fallback)
         window = NotificationWindow(self, payload, self.theme)
         self.notifications.append(window)
@@ -1124,7 +1131,7 @@ class NotificationWindow(tk.Toplevel):
     def _derive_time_text(self, payload: NotificationPayload) -> str:
         if payload.kind == "event" and (payload.body or "").startswith("All day"):
             return "All day"
-        return payload.occurs_at.strftime("%I:%M %p").lstrip("0")
+        return utils.format_time(payload.occurs_at)
 
     def _derive_body_text(self, payload: NotificationPayload) -> str:
         if payload.kind == "event":

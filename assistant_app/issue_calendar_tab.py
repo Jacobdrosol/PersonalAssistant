@@ -85,6 +85,9 @@ class IssueCalendarTab(ttk.Frame):
         self._build_ui()
         self.refresh()
 
+    def apply_time_format(self, use_24_hour: bool) -> None:
+        self.refresh()
+
     # ------------------------------------------------------------------ UI
     def _build_ui(self) -> None:
         for child in self.winfo_children():
@@ -771,7 +774,7 @@ class IssueCalendarTab(ttk.Frame):
                 note_lines = []
                 for note in notes:
                     when = note.updated_at or note.created_at
-                    timestamp = when.strftime("%Y-%m-%d %H:%M")
+                    timestamp = utils.format_datetime(when)
                     note_lines.append(f"{timestamp} - {note.content}")
                 note_text = "\n".join(note_lines)
 
@@ -961,7 +964,7 @@ class IssueCalendarTab(ttk.Frame):
         note_index: Dict[str, IssueNote] = {}
         for note in note_rows:
             when = note.updated_at or note.created_at
-            when_str = when.strftime("%Y-%m-%d %H:%M")
+            when_str = utils.format_datetime(when)
             entry_id = notes_tree.insert("", tk.END, values=(when_str, note.content))
             note_index[entry_id] = note
 
@@ -974,7 +977,7 @@ class IssueCalendarTab(ttk.Frame):
             except ValueError as exc:
                 messagebox.showerror("Note", str(exc), parent=panel)
                 return
-            now = datetime.now().strftime("%Y-%m-%d %H:%M")
+            now = utils.format_datetime(datetime.now())
             entry_id = notes_tree.insert("", tk.END, values=(now, text))
             note_index[entry_id] = IssueNote(
                 id=note_id,
@@ -1001,7 +1004,7 @@ class IssueCalendarTab(ttk.Frame):
                 return
             note.content = text.strip()
             note.updated_at = datetime.now()
-            notes_tree.item(selection[0], values=(note.updated_at.strftime("%Y-%m-%d %H:%M"), note.content))
+            notes_tree.item(selection[0], values=(utils.format_datetime(note.updated_at), note.content))
 
         def delete_note() -> None:
             selection = notes_tree.selection()

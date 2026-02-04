@@ -22,6 +22,7 @@ class AppSettings:
     daily_update_notifications: bool = True
     daily_update_start: str = "08:00"
     daily_update_end: str = "17:00"
+    use_24_hour_time: bool = True
     theme: str = "dark"
     jira: JiraSettings = field(default_factory=JiraSettings)
     special_features: list[str] = field(default_factory=list)
@@ -76,6 +77,7 @@ def load_settings(path: Path) -> AppSettings:
         daily_update_notifications=bool(payload.get("daily_update_notifications", True)),
         daily_update_start=_coerce_time_string(payload.get("daily_update_start"), "08:00"),
         daily_update_end=_coerce_time_string(payload.get("daily_update_end"), "17:00"),
+        use_24_hour_time=bool(payload.get("use_24_hour_time", True)),
         theme=str(payload.get("theme", "dark")).lower() if payload.get("theme") else "dark",
         jira=jira_settings,
         special_features=special_features,

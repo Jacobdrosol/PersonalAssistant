@@ -11,6 +11,7 @@ import sys
 import threading
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
+from .. import utils
 
 try:  # COM initialization helpers
     import pythoncom  # type: ignore
@@ -604,7 +605,7 @@ class SummarizationEngine:
     def build_summary_document(records: Sequence[EmailRecord], summaries: Dict[str, str]) -> str:
         lines: List[str] = []
         for record in sorted(records, key=lambda r: r.received_time):
-            header = record.received_time.strftime("%Y-%m-%d %H:%M")
+            header = utils.format_datetime(record.received_time)
             lines.append(f"[{header}] {record.subject}  -  {record.sender}")
             summary = summaries.get(record.entry_id, "")
             if summary:

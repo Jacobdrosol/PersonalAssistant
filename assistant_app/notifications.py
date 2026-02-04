@@ -8,6 +8,7 @@ from typing import Callable, Dict, Iterable, List
 
 from .database import Database
 from .models import Event
+from . import utils
 
 
 @dataclass(frozen=True)
@@ -141,7 +142,7 @@ class NotificationManager:
             if task.target_date:
                 target_str = task.target_date.isoformat()
                 if getattr(task, 'require_time', None):
-                    target_str = f"{target_str} {task.require_time}"
+                    target_str = f"{target_str} {utils.format_time_string(task.require_time)}"
             else:
                 target_str = ''
             key = f"scrum:{task.id}:{severity}:{target_str}"
@@ -179,7 +180,7 @@ class NotificationManager:
         if occurrence.time() == datetime.min.time():
             components.append("All day")
         else:
-            components.append(occurrence.strftime("%I:%M %p").lstrip("0"))
+            components.append(utils.format_time(occurrence))
         if event.description:
             components.append(event.description)
         return " - ".join(comp for comp in components if comp)
