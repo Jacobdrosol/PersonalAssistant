@@ -29,6 +29,8 @@ from .models import (
     IssueItem,
     IssueNote,
     IssuePublication,
+    ProductionLogClient,
+    ProductionLogSheetConfig,
 )
 
 MISSING = object()
@@ -105,6 +107,7 @@ class Database:
             self._ensure_scrum_schema()
             self._ensure_sql_assist_schema()
             self._ensure_issue_calendar_schema()
+            self._ensure_production_log_schema()
 
     def _ensure_column(self, table: str, column: str, definition: str) -> None:
         existing = {
@@ -521,6 +524,33 @@ class Database:
         )
         self._assign_saved_queries_to_instances()
         self._ensure_saved_query_unique_scope()
+
+    def _ensure_production_log_schema(self) -> None:
+        self._conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS production_log_clients (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                workbook_path TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS production_log_sheet_configs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_id INTEGER NOT NULL REFERENCES production_log_clients(id) ON DELETE CASCADE,
+                sheet_name TEXT NOT NULL,
+                header_row INTEGER NOT NULL DEFAULT 5,
+                data_start_row INTEGER NOT NULL DEFAULT 6,
+                column_mappings TEXT NOT NULL DEFAULT '{}',
+                UNIQUE(client_id, sheet_name)
+            );
+            """
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_prod_log_sheet_client ON production_log_sheet_configs(client_id)"
+        )
+        self._conn.commit()
 
     def _assign_saved_queries_to_instances(self) -> None:
         rows = self._conn.execute(
@@ -2520,6 +2550,161 @@ class Database:
                         """,
                         (item_id, content, note_created, note_updated),
                     )
+            self._conn.commit()
+
+    # Production log ------------------------------------------------------
+    def get_production_log_clients(self) -> List[ProductionLogClient]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT id, name, workbook_path, created_at, updated_at
+                FROM production_log_clients
+                ORDER BY name
+                """
+            ).fetchall()
+        clients: List[ProductionLogClient] = []
+        for row in rows:
+            created_at = utils.from_iso(row["created_at"]) or datetime.now()
+            updated_at = utils.from_iso(row["updated_at"]) if row["updated_at"] else None
+            clients.append(
+                ProductionLogClient(
+                    id=row["id"],
+                    name=row["name"],
+                    workbook_path=row["workbook_path"],
+                    created_at=created_at,
+                    updated_at=updated_at,
+                )
+            )
+        return clients
+
+    def create_production_log_client(self, name: str) -> int:
+        trimmed = name.strip()
+        if not trimmed:
+            raise ValueError("Client name cannot be blank.")
+        with self._lock:
+            cursor = self._conn.execute(
+                "INSERT INTO production_log_clients (name, created_at) VALUES (?, ?)",
+                (trimmed, utils.to_iso(datetime.now())),
+            )
+            self._conn.commit()
+            return cursor.lastrowid
+
+    def update_production_log_client(self, client_id: int, name: str) -> None:
+        trimmed = name.strip()
+        if not trimmed:
+            raise ValueError("Client name cannot be blank.")
+        with self._lock:
+            self._conn.execute(
+                "UPDATE production_log_clients SET name = ?, updated_at = ? WHERE id = ?",
+                (trimmed, utils.to_iso(datetime.now()), client_id),
+            )
+            self._conn.commit()
+
+    def delete_production_log_client(self, client_id: int) -> None:
+        with self._lock:
+            self._conn.execute("DELETE FROM production_log_clients WHERE id = ?", (client_id,))
+            self._conn.commit()
+
+    def update_production_log_client_workbook(self, client_id: int, workbook_path: Optional[str]) -> None:
+        with self._lock:
+            self._conn.execute(
+                "UPDATE production_log_clients SET workbook_path = ?, updated_at = ? WHERE id = ?",
+                (workbook_path, utils.to_iso(datetime.now()), client_id),
+            )
+            self._conn.commit()
+
+    def get_production_log_sheet_configs(self, client_id: int) -> List[ProductionLogSheetConfig]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT id, client_id, sheet_name, header_row, data_start_row, column_mappings
+                FROM production_log_sheet_configs
+                WHERE client_id = ?
+                ORDER BY sheet_name
+                """,
+                (client_id,),
+            ).fetchall()
+        configs: List[ProductionLogSheetConfig] = []
+        for row in rows:
+            try:
+                mappings = json.loads(row["column_mappings"]) if row["column_mappings"] else {}
+            except Exception:
+                mappings = {}
+            if not isinstance(mappings, dict):
+                mappings = {}
+            configs.append(
+                ProductionLogSheetConfig(
+                    id=row["id"],
+                    client_id=row["client_id"],
+                    sheet_name=row["sheet_name"],
+                    header_row=int(row["header_row"] or 5),
+                    data_start_row=int(row["data_start_row"] or 6),
+                    column_mappings={str(k): str(v) for k, v in mappings.items() if v},
+                )
+            )
+        return configs
+
+    def get_production_log_sheet_config(self, client_id: int, sheet_name: str) -> Optional[ProductionLogSheetConfig]:
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT id, client_id, sheet_name, header_row, data_start_row, column_mappings
+                FROM production_log_sheet_configs
+                WHERE client_id = ? AND sheet_name = ?
+                """,
+                (client_id, sheet_name),
+            ).fetchone()
+        if row is None:
+            return None
+        try:
+            mappings = json.loads(row["column_mappings"]) if row["column_mappings"] else {}
+        except Exception:
+            mappings = {}
+        if not isinstance(mappings, dict):
+            mappings = {}
+        return ProductionLogSheetConfig(
+            id=row["id"],
+            client_id=row["client_id"],
+            sheet_name=row["sheet_name"],
+            header_row=int(row["header_row"] or 5),
+            data_start_row=int(row["data_start_row"] or 6),
+            column_mappings={str(k): str(v) for k, v in mappings.items() if v},
+        )
+
+    def upsert_production_log_sheet_config(
+        self,
+        *,
+        client_id: int,
+        sheet_name: str,
+        header_row: int = 5,
+        data_start_row: int = 6,
+        column_mappings: dict[str, str],
+    ) -> None:
+        cleaned_mappings = {str(k): str(v) for k, v in column_mappings.items() if v}
+        payload = json.dumps(cleaned_mappings, ensure_ascii=False)
+        with self._lock:
+            existing = self._conn.execute(
+                "SELECT id FROM production_log_sheet_configs WHERE client_id = ? AND sheet_name = ?",
+                (client_id, sheet_name),
+            ).fetchone()
+            if existing:
+                self._conn.execute(
+                    """
+                    UPDATE production_log_sheet_configs
+                    SET header_row = ?, data_start_row = ?, column_mappings = ?
+                    WHERE id = ?
+                    """,
+                    (header_row, data_start_row, payload, existing["id"]),
+                )
+            else:
+                self._conn.execute(
+                    """
+                    INSERT INTO production_log_sheet_configs
+                        (client_id, sheet_name, header_row, data_start_row, column_mappings)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (client_id, sheet_name, header_row, data_start_row, payload),
+                )
             self._conn.commit()
 
 

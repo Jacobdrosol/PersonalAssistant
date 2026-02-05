@@ -318,3 +318,22 @@ class IssuePublication:
     publication_code: str
     color: str
     is_visible: bool
+
+
+@dataclass(slots=True)
+class ProductionLogClient:
+    id: int
+    name: str
+    workbook_path: Optional[str]
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+
+@dataclass(slots=True)
+class ProductionLogSheetConfig:
+    id: int
+    client_id: int
+    sheet_name: str
+    header_row: int
+    data_start_row: int
+    column_mappings: dict[str, str]

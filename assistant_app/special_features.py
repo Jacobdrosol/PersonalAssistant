@@ -53,7 +53,7 @@ def _build_issue_calendar(app: "PersonalAssistantApp") -> object:
 
 
 def _build_production_log(app: "PersonalAssistantApp") -> object:
-    return ProductionLogView(app.notebook)
+    return ProductionLogView(app.notebook, app.db, app.theme)
 
 
 def _build_sql_builder(app: "PersonalAssistantApp") -> object:
