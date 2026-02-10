@@ -109,5 +109,11 @@ class TimeInput(ttk.Frame):
     def bind_entry(self, sequence: str, func: Callable, add: str | None = None) -> str:
         return self.entry.bind(sequence, func, add=add)
 
+    def configure_state(self, state: str) -> None:
+        """Set the input state ('normal' or 'disabled') for the entry and AM/PM toggle."""
+        self.entry.configure(state=state)
+        combo_state = "readonly" if state != "disabled" else "disabled"
+        self.ampm_combo.configure(state=combo_state)
+
 
 __all__ = ["TimeInput"]

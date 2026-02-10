@@ -76,7 +76,8 @@ class Database:
                     repeat TEXT NOT NULL DEFAULT 'none',
                     repeat_interval INTEGER NOT NULL DEFAULT 1,
                     repeat_until TEXT,
-                    reminder_minutes_before INTEGER DEFAULT 0
+                    reminder_minutes_before INTEGER DEFAULT 0,
+                    manual_schedule INTEGER NOT NULL DEFAULT 0
                 );
 
                 CREATE TABLE IF NOT EXISTS event_overrides (
@@ -87,6 +88,7 @@ class Database:
                     description TEXT,
                     calendar_color TEXT,
                     note TEXT,
+                    manual_schedule INTEGER,
                     UNIQUE(event_id, occurrence_date)
                 );
 
@@ -100,6 +102,8 @@ class Database:
                 """
             )
             self._ensure_column("calendars", "production_calendar_id", "INTEGER")
+            self._ensure_column("events", "manual_schedule", "INTEGER NOT NULL DEFAULT 0")
+            self._ensure_column("event_overrides", "manual_schedule", "INTEGER")
             self._ensure_calendar_name_uniqueness()
             self._conn.commit()
             default_pc_id = self._ensure_default_production_calendar()
@@ -751,7 +755,7 @@ class Database:
                 events = self._conn.execute(
                     """
                     SELECT id, title, description, start_time, duration_minutes,
-                           repeat, repeat_interval, repeat_until, reminder_minutes_before
+                           repeat, repeat_interval, repeat_until, reminder_minutes_before, manual_schedule
                     FROM events
                     WHERE calendar_id = ?
                     ORDER BY start_time
@@ -768,13 +772,13 @@ class Database:
                 )
                 for event_row in events:
                     overrides = self._conn.execute(
-                        """
-                        SELECT occurrence_date, title, description, calendar_color, note
-                        FROM event_overrides
-                        WHERE event_id = ?
-                        ORDER BY occurrence_date
-                        """,
-                        (event_row["id"],),
+                          """
+                          SELECT occurrence_date, title, description, calendar_color, note, manual_schedule
+                          FROM event_overrides
+                          WHERE event_id = ?
+                          ORDER BY occurrence_date
+                          """,
+                          (event_row["id"],),
                     ).fetchall()
                     payload_calendars[-1]["events"].append(
                         {
@@ -783,20 +787,26 @@ class Database:
                             "start_time": event_row["start_time"],
                             "duration_minutes": event_row["duration_minutes"],
                             "repeat": event_row["repeat"],
-                            "repeat_interval": event_row["repeat_interval"],
-                            "repeat_until": event_row["repeat_until"],
-                            "reminder_minutes_before": event_row["reminder_minutes_before"],
-                            "overrides": [
-                                {
-                                    "occurrence_date": ovr["occurrence_date"],
-                                    "title": ovr["title"],
-                                    "description": ovr["description"],
-                                    "calendar_color": ovr["calendar_color"],
-                                    "note": ovr["note"],
-                                }
-                                for ovr in overrides
-                            ],
-                        }
+                              "repeat_interval": event_row["repeat_interval"],
+                              "repeat_until": event_row["repeat_until"],
+                              "reminder_minutes_before": event_row["reminder_minutes_before"],
+                              "manual_schedule": bool(event_row["manual_schedule"]),
+                              "overrides": [
+                                  {
+                                      "occurrence_date": ovr["occurrence_date"],
+                                      "title": ovr["title"],
+                                      "description": ovr["description"],
+                                      "calendar_color": ovr["calendar_color"],
+                                      "note": ovr["note"],
+                                      "manual_schedule": (
+                                          None
+                                          if ovr["manual_schedule"] is None
+                                          else bool(ovr["manual_schedule"])
+                                      ),
+                                  }
+                                  for ovr in overrides
+                              ],
+                          }
                     )
             payload: dict[str, object] = {
                 "schema": "production_calendar/v1",
@@ -866,6 +876,7 @@ class Database:
                     else:
                         repeat_until_dt = None
                     reminder_minutes_before = event_payload.get("reminder_minutes_before")
+                    manual_schedule_value = bool(event_payload.get("manual_schedule", False))
                     reminder_value: Optional[int]
                     if reminder_minutes_before is None:
                         reminder_value = None
@@ -873,23 +884,24 @@ class Database:
                         reminder_value = int(reminder_minutes_before)
                     cursor = self._conn.execute(
                         """
-                        INSERT INTO events (
-                            calendar_id, title, description, start_time, duration_minutes,
-                            repeat, repeat_interval, repeat_until, reminder_minutes_before
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            new_calendar_id,
-                            title,
-                            description,
-                            utils.to_iso(start_time),
-                            duration_minutes,
-                            repeat_value,
-                            repeat_interval,
-                            utils.to_iso(repeat_until_dt) if repeat_until_dt else None,
-                            reminder_value,
-                        ),
-                    )
+                          INSERT INTO events (
+                              calendar_id, title, description, start_time, duration_minutes,
+                              repeat, repeat_interval, repeat_until, reminder_minutes_before, manual_schedule
+                          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          """,
+                          (
+                              new_calendar_id,
+                              title,
+                              description,
+                              utils.to_iso(start_time),
+                              duration_minutes,
+                              repeat_value,
+                              repeat_interval,
+                              utils.to_iso(repeat_until_dt) if repeat_until_dt else None,
+                              reminder_value,
+                              1 if manual_schedule_value else 0,
+                          ),
+                      )
                     new_event_id = cursor.lastrowid
                     for override_payload in event_payload.get("overrides", []) or []:
                         occ_raw = str(override_payload.get("occurrence_date") or "").strip()
@@ -899,10 +911,16 @@ class Database:
                             occ_date = date.fromisoformat(occ_raw)
                         except ValueError:
                             continue
+                        manual_override_raw = override_payload.get("manual_schedule")
+                        manual_override = None
+                        if manual_override_raw is not None:
+                            manual_override = bool(manual_override_raw)
                         self._conn.execute(
                             """
-                            INSERT INTO event_overrides (event_id, occurrence_date, title, description, calendar_color, note)
-                            VALUES (?, ?, ?, ?, ?, ?)
+                            INSERT INTO event_overrides (
+                                event_id, occurrence_date, title, description, calendar_color, note, manual_schedule
+                            )
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
                             """,
                             (
                                 new_event_id,
@@ -911,6 +929,7 @@ class Database:
                                 str(override_payload.get("description") or None),
                                 str(override_payload.get("calendar_color") or None),
                                 str(override_payload.get("note") or None),
+                                None if manual_override is None else (1 if manual_override else 0),
                             ),
                         )
             self._conn.commit()
@@ -998,7 +1017,7 @@ class Database:
         query = (
             "SELECT e.id, e.calendar_id, c.name AS calendar_name, c.color AS calendar_color, "
             "e.title, e.description, e.start_time, e.duration_minutes, e.repeat, e.repeat_interval, "
-            "e.repeat_until, e.reminder_minutes_before "
+            "e.repeat_until, e.reminder_minutes_before, e.manual_schedule "
             "FROM events e JOIN calendars c ON e.calendar_id = c.id"
         )
         params: List[object] = []
@@ -1026,6 +1045,7 @@ class Database:
                     repeat_interval=row["repeat_interval"],
                     repeat_until=utils.from_iso(row["repeat_until"]),
                     reminder_minutes_before=row["reminder_minutes_before"],
+                    manual_schedule=bool(row["manual_schedule"]),
                 )
             )
         return events
@@ -1043,7 +1063,7 @@ class Database:
         with self._lock:
             rows = self._conn.execute(
                 f"""
-                SELECT id, event_id, occurrence_date, title, description, calendar_color, note
+                SELECT id, event_id, occurrence_date, title, description, calendar_color, note, manual_schedule
                 FROM event_overrides
                 WHERE event_id IN ({placeholders})
                   AND occurrence_date BETWEEN ? AND ?
@@ -1061,6 +1081,7 @@ class Database:
                 description=row["description"],
                 calendar_color=row["calendar_color"],
                 note=row["note"],
+                manual_schedule=None if row["manual_schedule"] is None else bool(row["manual_schedule"]),
             )
         return result
 
@@ -1068,7 +1089,7 @@ class Database:
         with self._lock:
             row = self._conn.execute(
                 """
-                SELECT id, event_id, occurrence_date, title, description, calendar_color, note
+                SELECT id, event_id, occurrence_date, title, description, calendar_color, note, manual_schedule
                 FROM event_overrides
                 WHERE event_id = ? AND occurrence_date = ?
                 """,
@@ -1084,6 +1105,7 @@ class Database:
             description=row["description"],
             calendar_color=row["calendar_color"],
             note=row["note"],
+            manual_schedule=None if row["manual_schedule"] is None else bool(row["manual_schedule"]),
         )
 
     def upsert_event_override(
@@ -1095,18 +1117,22 @@ class Database:
         description: Optional[str],
         calendar_color: Optional[str],
         note: Optional[str],
+        manual_schedule: Optional[bool],
     ) -> None:
         with self._lock:
             self._conn.execute(
                 """
-                INSERT INTO event_overrides (event_id, occurrence_date, title, description, calendar_color, note)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO event_overrides (
+                    event_id, occurrence_date, title, description, calendar_color, note, manual_schedule
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(event_id, occurrence_date)
                 DO UPDATE SET
                     title = excluded.title,
                     description = excluded.description,
                     calendar_color = excluded.calendar_color,
-                    note = excluded.note
+                    note = excluded.note,
+                    manual_schedule = excluded.manual_schedule
                 """,
                 (
                     event_id,
@@ -1115,6 +1141,7 @@ class Database:
                     description,
                     calendar_color,
                     note,
+                    None if manual_schedule is None else (1 if manual_schedule else 0),
                 ),
             )
             self._conn.commit()
@@ -1132,7 +1159,7 @@ class Database:
             row = self._conn.execute(
                 "SELECT e.id, e.calendar_id, c.name AS calendar_name, c.color AS calendar_color, "
                 "e.title, e.description, e.start_time, e.duration_minutes, e.repeat, e.repeat_interval, "
-                "e.repeat_until, e.reminder_minutes_before "
+                "e.repeat_until, e.reminder_minutes_before, e.manual_schedule "
                 "FROM events e JOIN calendars c ON e.calendar_id = c.id WHERE e.id = ?",
                 (event_id,),
             ).fetchone()
@@ -1151,6 +1178,7 @@ class Database:
             repeat_interval=row["repeat_interval"],
             repeat_until=utils.from_iso(row["repeat_until"]),
             reminder_minutes_before=row["reminder_minutes_before"],
+            manual_schedule=bool(row["manual_schedule"]),
         )
 
     def create_event(
@@ -1165,14 +1193,15 @@ class Database:
         repeat_interval: int,
         repeat_until: Optional[datetime],
         reminder_minutes_before: Optional[int],
+        manual_schedule: bool,
     ) -> int:
         with self._lock:
             cursor = self._conn.execute(
                 """
                 INSERT INTO events (
                     calendar_id, title, description, start_time, duration_minutes,
-                    repeat, repeat_interval, repeat_until, reminder_minutes_before
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    repeat, repeat_interval, repeat_until, reminder_minutes_before, manual_schedule
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     calendar_id,
@@ -1184,6 +1213,7 @@ class Database:
                     max(1, repeat_interval),
                     utils.to_iso(repeat_until) if repeat_until else None,
                     reminder_minutes_before,
+                    1 if manual_schedule else 0,
                 ),
             )
             self._conn.commit()
@@ -1202,6 +1232,7 @@ class Database:
         repeat_interval: Optional[int] = MISSING,
         repeat_until: Optional[datetime | None] = MISSING,
         reminder_minutes_before: Optional[int | None] = MISSING,
+        manual_schedule: Optional[bool] = MISSING,
     ) -> None:
         fields: List[str] = []
         values: List[object] = []
@@ -1232,6 +1263,9 @@ class Database:
         if reminder_minutes_before is not MISSING:
             fields.append("reminder_minutes_before = ?")
             values.append(reminder_minutes_before)
+        if manual_schedule is not MISSING:
+            fields.append("manual_schedule = ?")
+            values.append(1 if manual_schedule else 0)
         if not fields:
             return
         values.append(event_id)

@@ -6,9 +6,11 @@ from typing import Callable, Iterable, Optional, Sequence, TYPE_CHECKING
 
 from .plugins import EmailIngestManager
 from .ui.views.email_ingest import EmailIngestView
+from .ui.views.export_validator import ExportValidatorView
 from .ui.views.jira_tab import JiraTabView
 from .ui.views.knowledge_bank import KnowledgeBankView
 from .ui.views.production_log import ProductionLogView
+from .ui.views.select_builder import SelectBuilderView
 from .ui.views.sql_builder import SqlBuilderView
 from .ui.views.sql_assist import SqlAssistView
 from .issue_calendar_tab import IssueCalendarTab
@@ -58,6 +60,14 @@ def _build_production_log(app: "PersonalAssistantApp") -> object:
 
 def _build_sql_builder(app: "PersonalAssistantApp") -> object:
     return SqlBuilderView(app.notebook)
+
+
+def _build_select_builder(app: "PersonalAssistantApp") -> object:
+    return SelectBuilderView(app.notebook)
+
+
+def _build_export_validator(app: "PersonalAssistantApp") -> object:
+    return ExportValidatorView(app.notebook)
 
 
 def _build_knowledge_bank(app: "PersonalAssistantApp") -> object:
@@ -116,12 +126,37 @@ SPECIAL_FEATURES: dict[str, SpecialFeature] = {
         insert_after="sql_assist",
         tab_builder=_build_sql_builder,
     ),
+    "select_builder": SpecialFeature(
+        key="select_builder",
+        title="Select Builder",
+        description=(
+            "An assisted build tool for designed Selections based on criteria commonly found in the base "
+            "system. To be used as an xml exporter tool, or, to be copied over into the system so that you "
+            "may validate the criteria quickly."
+        ),
+        tab_label="Select Builder",
+        insert_after="sql_builder",
+        tab_builder=_build_select_builder,
+    ),
+    "export_validator": SpecialFeature(
+        key="export_validator",
+        title="Export Validator",
+        description=(
+            "A validation tool where configurations may be loaded in for a production instance via "
+            "uploading the instance's xml, these configurations may be updated at any time, validate "
+            "exported configurations against the configurations stored in the database for a production "
+            "instance."
+        ),
+        tab_label="Export Validator",
+        insert_after="select_builder",
+        tab_builder=_build_export_validator,
+    ),
     "knowledge_bank": SpecialFeature(
         key="knowledge_bank",
         title="Knowledge Bank",
         description="Documents and knowledge center to assist with work.",
         tab_label="Knowledge Bank",
-        insert_after="sql_builder",
+        insert_after="export_validator",
         tab_builder=_build_knowledge_bank,
     ),
 }
@@ -133,6 +168,8 @@ SPECIAL_UNLOCK_CODES: dict[str, Sequence[str]] = {
     "5398": ("issue_calendar",),
     "4826": ("production_log",),
     "6074": ("sql_builder",),
+    "2758": ("select_builder",),
+    "9136": ("export_validator",),
     "4183": ("knowledge_bank",),
 }
 

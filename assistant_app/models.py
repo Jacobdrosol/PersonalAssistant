@@ -40,6 +40,7 @@ class Event:
     repeat_interval: int
     repeat_until: Optional[datetime]
     reminder_minutes_before: Optional[int]
+    manual_schedule: bool
 
     @property
     def end_time(self) -> datetime:
@@ -127,6 +128,7 @@ class EventOverride:
     description: Optional[str]
     calendar_color: Optional[str]
     note: Optional[str]
+    manual_schedule: Optional[bool]
 
 
 @dataclass(slots=True)

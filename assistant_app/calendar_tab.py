@@ -174,6 +174,11 @@ class CalendarTab(ttk.Frame):
         self.recap_button = ttk.Button(toolbar, text="Generate Recap", command=self.open_recap_dialog)
         self.recap_button.grid(row=0, column=5, padx=(12, 0))
 
+        self.manual_schedule_button = ttk.Button(
+            toolbar, text="Generate Manual Schedule", command=self.open_manual_schedule_dialog
+        )
+        self.manual_schedule_button.grid(row=0, column=6, padx=(6, 0))
+
         grid_frame = ttk.Frame(left)
         grid_frame.grid(row=1, column=0, sticky="nsew")
         for c in range(7):
@@ -300,6 +305,7 @@ class CalendarTab(ttk.Frame):
             self.today_btn,
             self.add_event_button,
             self.recap_button,
+            self.manual_schedule_button,
             self.day_add_btn,
             self.day_customize_btn,
             self.day_edit_btn,
@@ -953,6 +959,8 @@ class CalendarTab(ttk.Frame):
                     return True
             elif value:
                 return True
+        if override.manual_schedule is not None:
+            return True
         return False
 
     def _highlight_selected_day(self) -> None:
@@ -1096,6 +1104,235 @@ class CalendarTab(ttk.Frame):
             )
         self._open_modal(builder)
 
+    def open_manual_schedule_dialog(self) -> None:
+        production = self._current_production()
+        if production is None:
+            messagebox.showinfo("Manual Schedule", "Select a production calendar first.")
+            return
+        if not self.calendars:
+            messagebox.showinfo(
+                "Manual Schedule",
+                "Add at least one calendar to this production calendar to generate a report.",
+            )
+            return
+        default_start = datetime.combine(self.selected_day, datetime.min.time())
+        default_end = default_start + timedelta(hours=23, minutes=59)
+
+        def builder(parent: tk.Frame) -> tk.Frame:
+            return ManualScheduleRangePanel(
+                parent,
+                default_start=default_start,
+                default_end=default_end,
+                calendars=self.calendars,
+                selected_day=self.selected_day,
+                on_generate=lambda start, end, calendar_ids, next_only: self._handle_manual_schedule_range(
+                    start,
+                    end,
+                    production,
+                    calendar_ids,
+                    next_only,
+                ),
+                on_cancel=self._close_modal,
+            )
+
+        self._open_modal(builder)
+
+    def _handle_manual_schedule_range(
+        self,
+        start: datetime,
+        end: Optional[datetime],
+        production: ProductionCalendar,
+        calendar_ids: Optional[List[int]],
+        next_only: bool,
+    ) -> None:
+        self._close_modal()
+        self._show_manual_schedule_report(start, end, production, calendar_ids, next_only)
+
+    def _show_manual_schedule_report(
+        self,
+        start: datetime,
+        end: Optional[datetime],
+        production: ProductionCalendar,
+        calendar_ids: Optional[List[int]],
+        next_only: bool,
+    ) -> None:
+        resolved_calendar_ids = (
+            [cal.id for cal in self.calendars] if calendar_ids is None else calendar_ids
+        )
+        if not resolved_calendar_ids:
+            messagebox.showinfo("Manual Schedule", "Select at least one calendar to generate a report.")
+            return
+        try:
+            events = self.db.get_events(calendar_ids=resolved_calendar_ids)
+        except Exception as exc:
+            messagebox.showerror("Manual Schedule", f"Could not load events: {exc}")
+            return
+        if not events:
+            messagebox.showinfo("Manual Schedule", "No events found for the selected calendars.")
+            return
+
+        if next_only:
+            lookahead_days = 365 * 10
+            lookahead_end = start + timedelta(days=lookahead_days)
+            overrides = self.db.get_event_overrides(
+                (event.id for event in events),
+                start.date(),
+                lookahead_end.date(),
+            )
+            entries: List[Tuple[datetime, Event, Optional[EventOverride]]] = []
+            for event in events:
+                occurrence = event._first_occurrence_at_or_after(start)
+                if occurrence is None:
+                    continue
+                repeat_until = event.repeat_until or lookahead_end
+                while occurrence <= lookahead_end and occurrence <= repeat_until:
+                    override = overrides.get((event.id, occurrence.date()))
+                    if self._resolve_manual_schedule(event, override):
+                        entries.append((occurrence, event, override))
+                        break
+                    if event.repeat == "none":
+                        break
+                    next_occurrence = event._advance(occurrence)
+                    if next_occurrence == occurrence:
+                        break
+                    occurrence = next_occurrence
+            entries.sort(
+                key=lambda item: (
+                    item[0],
+                    item[1].calendar_name.lower(),
+                    item[1].title.lower(),
+                )
+            )
+            report_text = self._format_manual_schedule_report_next(
+                entries,
+                production,
+                start,
+            )
+        else:
+            if end is None:
+                messagebox.showinfo("Manual Schedule", "Select an end date for the range.")
+                return
+            overrides = self.db.get_event_overrides(
+                (event.id for event in events),
+                start.date(),
+                end.date(),
+            )
+            entries: List[Tuple[datetime, datetime, Event, Optional[EventOverride]]] = []
+            for event in events:
+                for occurrence in event.occurrences_between(start, end):
+                    override = overrides.get((event.id, occurrence.date()))
+                    if not self._resolve_manual_schedule(event, override):
+                        continue
+                    end_time = occurrence + timedelta(minutes=event.duration_minutes)
+                    entries.append((occurrence, end_time, event, override))
+            entries.sort(
+                key=lambda item: (
+                    item[0],
+                    item[2].calendar_name.lower(),
+                    item[2].title.lower(),
+                )
+            )
+            report_text = self._format_manual_schedule_report_range(
+                entries,
+                production,
+                start,
+                end,
+            )
+
+        def builder(parent: tk.Frame) -> tk.Frame:
+            return ManualScheduleReportPanel(
+                parent,
+                production_name=production.name,
+                report_text=report_text,
+                on_close=self._close_modal,
+            )
+
+        self._open_modal(builder)
+
+    @staticmethod
+    def _resolve_manual_schedule(event: Event, override: Optional[EventOverride]) -> bool:
+        if override and override.manual_schedule is not None:
+            return bool(override.manual_schedule)
+        return bool(event.manual_schedule)
+
+    @staticmethod
+    def _format_repeat_summary(event: Event) -> str:
+        if event.repeat == "none":
+            return "One-off"
+        units = {
+            "daily": "day",
+            "weekly": "week",
+            "monthly": "month",
+            "yearly": "year",
+        }
+        unit = units.get(event.repeat, event.repeat)
+        if event.repeat_interval == 1:
+            return f"Every {unit}"
+        return f"Every {event.repeat_interval} {unit}s"
+
+    def _format_manual_schedule_report_next(
+        self,
+        entries: List[Tuple[datetime, Event, Optional[EventOverride]]],
+        production: ProductionCalendar,
+        start: datetime,
+    ) -> str:
+        start_label = utils.format_datetime(start)
+        lines: List[str] = [
+            f"Production Calendar: {production.name}",
+            f"From: {start_label} (first upcoming only)",
+            f"Total items: {len(entries)}",
+            "",
+        ]
+        if not entries:
+            lines.append("No manual schedule items found.")
+            return "\n".join(lines)
+        for index, (occurrence, event, _override) in enumerate(entries, start=1):
+            start_str = utils.format_datetime(occurrence)
+            lines.append(f"{index}. {start_str} | {event.calendar_name} | {event.title}")
+            repeat_summary = self._format_repeat_summary(event)
+            lines.append(f"   Type: {repeat_summary}")
+            if event.repeat != "none":
+                next_occurrence = event._advance(occurrence)
+                if event.repeat_until and next_occurrence > event.repeat_until:
+                    next_occurrence = None
+                if next_occurrence:
+                    lines.append(f"   Next after this: {utils.format_datetime(next_occurrence)}")
+            lines.append("")
+        if lines[-1] == "":
+            lines.pop()
+        return "\n".join(lines)
+
+    def _format_manual_schedule_report_range(
+        self,
+        entries: List[Tuple[datetime, datetime, Event, Optional[EventOverride]]],
+        production: ProductionCalendar,
+        start: datetime,
+        end: datetime,
+    ) -> str:
+        start_label = utils.format_datetime(start)
+        end_label = utils.format_datetime(end)
+        lines: List[str] = [
+            f"Production Calendar: {production.name}",
+            f"Range: {start_label} to {end_label}",
+            f"Total items: {len(entries)}",
+            "",
+        ]
+        if not entries:
+            lines.append("No manual schedule items found in this range.")
+            return "\n".join(lines)
+        for index, (occurrence, end_time, event, _override) in enumerate(entries, start=1):
+            start_str = utils.format_datetime(occurrence)
+            end_str = utils.format_datetime(end_time)
+            lines.append(f"{index}. {start_str} - {end_str} | {event.calendar_name} | {event.title}")
+            description = (event.description or "").strip()
+            if description:
+                for desc_line in description.splitlines():
+                    lines.append(f"   {desc_line}")
+            lines.append("")
+        if lines[-1] == "":
+            lines.pop()
+        return "\n".join(lines)
+
     def _format_recap_report(
         self,
         entries: List[Tuple[datetime, datetime, Event]],
@@ -1171,7 +1408,7 @@ class CalendarTab(ttk.Frame):
         self,
         event: Event,
         occurrence_date: date,
-        payload: dict[str, Optional[str]],
+        payload: dict[str, object],
     ) -> None:
         try:
             self.db.upsert_event_override(
@@ -1181,6 +1418,7 @@ class CalendarTab(ttk.Frame):
                 description=payload.get("description") or None,
                 calendar_color=payload.get("color") or None,
                 note=payload.get("note") or None,
+                manual_schedule=payload.get("manual_schedule"),
             )
         except Exception as exc:
             messagebox.showerror("Customize Event", f"Could not save customization: {exc}", parent=self)
@@ -1508,7 +1746,7 @@ class EventOccurrencePanel(tk.Frame):
         event: Event,
         occurrence: datetime,
         override: Optional[EventOverride],
-        on_submit: Callable[[dict[str, Optional[str]]], None],
+        on_submit: Callable[[dict[str, object]], None],
         on_clear: Callable[[], None],
         on_cancel: Callable[[], None],
     ) -> None:
@@ -1557,14 +1795,27 @@ class EventOccurrencePanel(tk.Frame):
         ttk.Button(color_row, text="Choose...", command=self._pick_color).pack(side=tk.LEFT, padx=(8, 0))
         ttk.Button(color_row, text="Clear", command=self._clear_color).pack(side=tk.LEFT, padx=(6, 0))
 
-        ttk.Label(container, text="Notes").grid(row=4, column=0, sticky="nw", pady=(12, 0))
+        ttk.Label(container, text="Manual Schedule").grid(row=4, column=0, sticky="w", pady=(12, 0))
+        manual_default = (
+            override.manual_schedule
+            if override and override.manual_schedule is not None
+            else event.manual_schedule
+        )
+        self.manual_schedule_var = tk.BooleanVar(value=bool(manual_default))
+        ttk.Checkbutton(
+            container,
+            text="Requires manual scheduling",
+            variable=self.manual_schedule_var,
+        ).grid(row=4, column=1, sticky="w", pady=(12, 0))
+
+        ttk.Label(container, text="Notes").grid(row=5, column=0, sticky="nw", pady=(12, 0))
         self.note_text = tk.Text(container, height=5, wrap="word", bg="#ffffff", fg="#1c1d2b")
         if override and override.note:
             self.note_text.insert("1.0", override.note)
-        self.note_text.grid(row=4, column=1, sticky="ew", pady=(12, 0))
+        self.note_text.grid(row=5, column=1, sticky="ew", pady=(12, 0))
 
         button_row = ttk.Frame(container)
-        button_row.grid(row=5, column=0, columnspan=2, sticky="e", pady=(18, 0))
+        button_row.grid(row=6, column=0, columnspan=2, sticky="e", pady=(18, 0))
         ttk.Button(button_row, text="Cancel", command=self._on_cancel).pack(side=tk.RIGHT, padx=(8, 0))
         ttk.Button(button_row, text="Save", command=self._save).pack(side=tk.RIGHT, padx=(8, 0))
         ttk.Button(button_row, text="Clear Override", command=self._clear_override).pack(side=tk.LEFT)
@@ -1583,13 +1834,23 @@ class EventOccurrencePanel(tk.Frame):
     def _save(self) -> None:
         title = self.title_var.get().strip()
         note = self.note_text.get("1.0", tk.END).strip()
+        manual_value = bool(self.manual_schedule_var.get())
+        manual_override: Optional[bool] = None
+        if manual_value != bool(self._event.manual_schedule):
+            manual_override = manual_value
         payload = {
             "title": title or None,
             "description": None,
             "color": self._color_value or None,
             "note": note or None,
+            "manual_schedule": manual_override,
         }
-        if not payload["title"] and not payload["note"] and payload["color"] is None:
+        if (
+            not payload["title"]
+            and not payload["note"]
+            and payload["color"] is None
+            and payload["manual_schedule"] is None
+        ):
             self._on_clear()
         else:
             self._on_submit(payload)
@@ -1669,34 +1930,43 @@ class EventEditorPanel(tk.Frame):
         self.reminder_var = tk.StringVar(value=str(reminder_default))
         ttk.Entry(container, textvariable=self.reminder_var).grid(row=8, column=1, sticky="ew", pady=(0, 8))
 
-        ttk.Label(container, text="Repeat").grid(row=9, column=0, sticky="w")
+        ttk.Label(container, text="Manual Schedule").grid(row=9, column=0, sticky="w")
+        manual_default = bool(event.manual_schedule) if event else False
+        self.manual_schedule_var = tk.BooleanVar(value=manual_default)
+        ttk.Checkbutton(
+            container,
+            text="Requires manual scheduling",
+            variable=self.manual_schedule_var,
+        ).grid(row=9, column=1, sticky="w", pady=(0, 8))
+
+        ttk.Label(container, text="Repeat").grid(row=10, column=0, sticky="w")
         self.repeat_var = tk.StringVar()
         labels = [label for label, _ in REPEAT_OPTIONS]
         repeat_combo = ttk.Combobox(container, values=labels, textvariable=self.repeat_var, state="readonly")
         repeat_label = next((label for label, value in REPEAT_OPTIONS if event and value == event.repeat), "None")
         self.repeat_var.set(repeat_label)
         repeat_combo.current(labels.index(repeat_label))
-        repeat_combo.grid(row=10, column=0, sticky="ew", pady=(0, 8))
+        repeat_combo.grid(row=11, column=0, sticky="ew", pady=(0, 8))
 
-        ttk.Label(container, text="Repeat every (interval)").grid(row=9, column=1, sticky="w")
+        ttk.Label(container, text="Repeat every (interval)").grid(row=10, column=1, sticky="w")
         self.repeat_interval_var = tk.StringVar(value=str(event.repeat_interval if event else 1))
-        ttk.Entry(container, textvariable=self.repeat_interval_var).grid(row=10, column=1, sticky="ew", pady=(0, 8))
+        ttk.Entry(container, textvariable=self.repeat_interval_var).grid(row=11, column=1, sticky="ew", pady=(0, 8))
 
-        ttk.Label(container, text="Repeat until (YYYY-MM-DD)").grid(row=11, column=0, sticky="w")
+        ttk.Label(container, text="Repeat until (YYYY-MM-DD)").grid(row=12, column=0, sticky="w")
         repeat_until_value = (
             event.repeat_until.strftime("%Y-%m-%d") if event and event.repeat_until else ""
         )
         self.repeat_until_var = tk.StringVar(value=repeat_until_value)
-        ttk.Entry(container, textvariable=self.repeat_until_var).grid(row=12, column=0, sticky="ew", pady=(0, 8))
+        ttk.Entry(container, textvariable=self.repeat_until_var).grid(row=13, column=0, sticky="ew", pady=(0, 8))
 
-        ttk.Label(container, text="Description").grid(row=11, column=1, sticky="w")
+        ttk.Label(container, text="Description").grid(row=12, column=1, sticky="w")
         self.description_text = tk.Text(container, height=5, width=40)
-        self.description_text.grid(row=12, column=1, sticky="ew", pady=(0, 8))
+        self.description_text.grid(row=13, column=1, sticky="ew", pady=(0, 8))
         if event:
             self.description_text.insert("1.0", event.description)
 
         button_row = ttk.Frame(container)
-        button_row.grid(row=13, column=0, columnspan=2, sticky="e")
+        button_row.grid(row=14, column=0, columnspan=2, sticky="e")
         ttk.Button(button_row, text="Cancel", command=self._cancel).pack(side=tk.RIGHT, padx=(0, 6))
         ttk.Button(button_row, text="Save", command=self._save).pack(side=tk.RIGHT)
 
@@ -1723,6 +1993,7 @@ class EventEditorPanel(tk.Frame):
             repeat_until_value = self.repeat_until_var.get().strip()
             repeat_until_date = datetime.strptime(repeat_until_value, "%Y-%m-%d").date() if repeat_until_value else None
             description = self.description_text.get("1.0", tk.END).strip()
+            manual_schedule = bool(self.manual_schedule_var.get())
         except ValueError as exc:
             messagebox.showerror("Invalid Data", str(exc), parent=self)
             return
@@ -1737,6 +2008,7 @@ class EventEditorPanel(tk.Frame):
             "repeat_interval": repeat_interval,
             "repeat_until": datetime.combine(repeat_until_date, datetime.min.time()) if repeat_until_date else None,
             "reminder_minutes_before": reminder_minutes_before,
+            "manual_schedule": manual_schedule,
         }
         self._on_submit(payload)
 
@@ -1911,6 +2183,190 @@ class RecapRangePanel(tk.Frame):
         self.end_time_input.set(dt_time(7, 0))
 
 
+class ManualScheduleRangePanel(tk.Frame):
+    def __init__(
+        self,
+        parent: tk.Misc,
+        *,
+        default_start: datetime,
+        default_end: datetime,
+        calendars: List[Calendar],
+        selected_day: date,
+        on_generate: Callable[[datetime, Optional[datetime], Optional[List[int]], bool], None],
+        on_cancel: Callable[[], None],
+    ) -> None:
+        super().__init__(parent, bg="#1d1e2c", bd=1, relief="ridge")
+        self._on_generate = on_generate
+        self._on_cancel = on_cancel
+        self._calendars = calendars
+        self._anchor_day = selected_day
+        self._calendar_vars: Dict[int, tk.BooleanVar] = {}
+        self._calendar_menu: tk.Menu | None = None
+        self.calendar_mode_var = tk.StringVar(value="all")
+        self.calendar_button_var = tk.StringVar(value="All calendars selected")
+        self.use_range_var = tk.BooleanVar(value=False)
+        self.place(relx=0.5, rely=0.5, anchor="center")
+
+        container = ttk.Frame(self, padding=16)
+        container.grid(row=0, column=0, sticky="nsew")
+        container.columnconfigure(0, weight=1)
+        container.columnconfigure(1, weight=1)
+
+        header = ttk.Frame(container)
+        header.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 12))
+        ttk.Label(header, text="Generate Manual Schedule", style="SidebarHeading.TLabel").pack(side=tk.LEFT)
+        ttk.Button(header, text="Close", command=self._cancel).pack(side=tk.RIGHT)
+
+        ttk.Label(container, text="Start Date (YYYY-MM-DD)").grid(row=1, column=0, sticky="w")
+        self.start_date_var = tk.StringVar(value=default_start.strftime("%Y-%m-%d"))
+        ttk.Entry(container, textvariable=self.start_date_var, width=18).grid(
+            row=2, column=0, sticky="ew", pady=(0, 8)
+        )
+
+        ttk.Label(container, text="Start Time").grid(row=1, column=1, sticky="w")
+        self.start_time_input = TimeInput(container, initial=default_start, entry_width=8)
+        self.start_time_input.grid(row=2, column=1, sticky="ew", pady=(0, 8))
+
+        ttk.Label(container, text="End Date (YYYY-MM-DD)").grid(row=3, column=0, sticky="w")
+        self.end_date_var = tk.StringVar(value=default_end.strftime("%Y-%m-%d"))
+        self.end_date_entry = ttk.Entry(container, textvariable=self.end_date_var, width=18)
+        self.end_date_entry.grid(row=4, column=0, sticky="ew", pady=(0, 8))
+
+        ttk.Label(container, text="End Time").grid(row=3, column=1, sticky="w")
+        self.end_time_input = TimeInput(container, initial=default_end, entry_width=8)
+        self.end_time_input.grid(row=4, column=1, sticky="ew", pady=(0, 8))
+
+        ttk.Checkbutton(
+            container,
+            text="Limit to date range (include all occurrences)",
+            variable=self.use_range_var,
+            command=self._sync_range_controls,
+        ).grid(row=5, column=0, columnspan=2, sticky="w", pady=(2, 6))
+
+        ttk.Label(container, text="Calendars").grid(row=6, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        calendar_mode_frame = ttk.Frame(container)
+        calendar_mode_frame.grid(row=7, column=0, columnspan=2, sticky="w")
+        ttk.Radiobutton(
+            calendar_mode_frame,
+            text="All calendars",
+            value="all",
+            variable=self.calendar_mode_var,
+            command=self._sync_calendar_controls,
+        ).pack(side=tk.LEFT)
+        ttk.Radiobutton(
+            calendar_mode_frame,
+            text="Selected calendars",
+            value="selected",
+            variable=self.calendar_mode_var,
+            command=self._sync_calendar_controls,
+        ).pack(side=tk.LEFT, padx=(12, 0))
+
+        self.calendar_dropdown_frame = ttk.Frame(container)
+        self.calendar_dropdown_frame.grid(row=8, column=0, columnspan=2, sticky="w")
+        self.calendar_dropdown_button = tk.Menubutton(
+            self.calendar_dropdown_frame,
+            textvariable=self.calendar_button_var,
+            indicatoron=True,
+            borderwidth=1,
+            relief=tk.RAISED,
+            width=32,
+        )
+        self.calendar_dropdown_button.pack(side=tk.LEFT, pady=(2, 0))
+        self._build_calendar_menu()
+        self.calendar_dropdown_frame.grid_remove()
+
+        button_row = ttk.Frame(container)
+        button_row.grid(row=9, column=0, columnspan=2, sticky="ew", pady=(12, 0))
+        ttk.Button(button_row, text="Cancel", command=self._cancel).pack(side=tk.RIGHT, padx=(0, 6))
+        ttk.Button(button_row, text="Generate", command=self._generate).pack(side=tk.RIGHT)
+
+        self._sync_range_controls()
+
+    def _sync_range_controls(self) -> None:
+        use_range = self.use_range_var.get()
+        state = "normal" if use_range else "disabled"
+        self.end_date_entry.configure(state=state)
+        self.end_time_input.configure_state(state)
+
+    def _generate(self) -> None:
+        try:
+            start_date = datetime.strptime(self.start_date_var.get().strip(), "%Y-%m-%d").date()
+            start_time = utils.parse_time_string(self.start_time_input.get().strip())
+        except ValueError:
+            messagebox.showerror(
+                "Invalid Input",
+                f"Use YYYY-MM-DD for dates and {utils.time_input_hint()} for times.",
+                parent=self,
+            )
+            return
+        start = datetime.combine(start_date, start_time)
+        use_range = self.use_range_var.get()
+        end: Optional[datetime] = None
+        if use_range:
+            try:
+                end_date = datetime.strptime(self.end_date_var.get().strip(), "%Y-%m-%d").date()
+                end_time = utils.parse_time_string(self.end_time_input.get().strip())
+            except ValueError:
+                messagebox.showerror(
+                    "Invalid Input",
+                    f"Use YYYY-MM-DD for dates and {utils.time_input_hint()} for times.",
+                    parent=self,
+                )
+                return
+            end = datetime.combine(end_date, end_time)
+            if end < start:
+                messagebox.showerror("Invalid Range", "End must be after the start.", parent=self)
+                return
+        ok, calendar_ids = self._resolve_calendar_ids()
+        if not ok:
+            return
+        self._on_generate(start, end, calendar_ids, not use_range)
+
+    def _cancel(self) -> None:
+        self._on_cancel()
+
+    def _build_calendar_menu(self) -> None:
+        menu = tk.Menu(self.calendar_dropdown_button, tearoff=False)
+        for calendar in self._calendars:
+            var = tk.BooleanVar(value=True)
+            self._calendar_vars[calendar.id] = var
+            menu.add_checkbutton(label=calendar.name, variable=var, command=self._update_calendar_menu_label)
+        self._calendar_menu = menu
+        self.calendar_dropdown_button["menu"] = self._calendar_menu
+        self._update_calendar_menu_label()
+
+    def _update_calendar_menu_label(self) -> None:
+        selected_ids = [cal_id for cal_id, var in self._calendar_vars.items() if var.get()]
+        if not self._calendar_vars:
+            label = "No calendars available"
+        elif len(selected_ids) == len(self._calendar_vars):
+            label = "All calendars selected"
+        elif not selected_ids:
+            label = "Select calendars"
+        else:
+            selected_names = [cal.name for cal in self._calendars if cal.id in selected_ids]
+            if len(selected_names) <= 2:
+                label = ", ".join(selected_names)
+            else:
+                label = f"{len(selected_names)} calendars selected"
+        self.calendar_button_var.set(label)
+
+    def _sync_calendar_controls(self) -> None:
+        if self.calendar_mode_var.get() == "selected":
+            self.calendar_dropdown_frame.grid()
+        else:
+            self.calendar_dropdown_frame.grid_remove()
+
+    def _resolve_calendar_ids(self) -> Tuple[bool, Optional[List[int]]]:
+        if self.calendar_mode_var.get() == "all":
+            return True, None
+        selected_ids = [cal_id for cal_id, var in self._calendar_vars.items() if var.get()]
+        if not selected_ids:
+            messagebox.showerror("Manual Schedule", "Select at least one calendar.", parent=self)
+            return False, None
+        return True, selected_ids
+
+
 class RecapReportPanel(tk.Frame):
     def __init__(
         self,
@@ -1982,6 +2438,88 @@ class RecapReportPanel(tk.Frame):
             self.clipboard_clear()
             self.clipboard_append(self.report_text)
             messagebox.showinfo("Recap", "Recap copied to clipboard.", parent=self)
+        except Exception as exc:
+            messagebox.showerror("Copy Failed", str(exc), parent=self)
+
+    def _close(self) -> None:
+        self._on_close()
+
+
+class ManualScheduleReportPanel(tk.Frame):
+    def __init__(
+        self,
+        parent: tk.Misc,
+        *,
+        production_name: str,
+        report_text: str,
+        on_close: Callable[[], None],
+    ) -> None:
+        super().__init__(parent, bg="#1d1e2c", bd=1, relief="ridge")
+        self.report_text = report_text
+        self._on_close = on_close
+        self.place(relx=0.5, rely=0.5, anchor="center")
+        container = ttk.Frame(self, padding=16)
+        container.grid(row=0, column=0, sticky="nsew")
+        container.columnconfigure(0, weight=1)
+        container.rowconfigure(1, weight=1)
+
+        header = ttk.Frame(container)
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        ttk.Label(
+            header,
+            text=f"Manual Schedule • {production_name}",
+            style="SidebarHeading.TLabel",
+        ).pack(side=tk.LEFT)
+        ttk.Button(header, text="Close", command=self._close).pack(side=tk.RIGHT)
+
+        text_frame = ttk.Frame(container)
+        text_frame.grid(row=1, column=0, sticky="nsew")
+        text_frame.columnconfigure(0, weight=1)
+        text_frame.rowconfigure(0, weight=1)
+
+        self.text_widget = tk.Text(
+            text_frame,
+            wrap="word",
+            height=24,
+            width=82,
+            background="#1c1d2b",
+            foreground="#E8EAF6",
+            insertbackground="#E8EAF6",
+        )
+        self.text_widget.grid(row=0, column=0, sticky="nsew")
+        self.text_widget.insert("1.0", report_text)
+        self.text_widget.configure(state="disabled")
+
+        scrollbar = ttk.Scrollbar(text_frame, orient=tk.VERTICAL, command=self.text_widget.yview)
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        self.text_widget.configure(yscrollcommand=scrollbar.set)
+
+        button_row = ttk.Frame(container)
+        button_row.grid(row=2, column=0, sticky="ew", pady=(12, 0))
+        ttk.Button(button_row, text="Export...", command=self._export).pack(side=tk.LEFT)
+        ttk.Button(button_row, text="Copy", command=self._copy).pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Button(button_row, text="Close", command=self._close).pack(side=tk.RIGHT)
+
+    def _export(self) -> None:
+        path = filedialog.asksaveasfilename(
+            title="Export Manual Schedule",
+            defaultextension=".txt",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+            initialfile=f"manual_schedule_{datetime.now():%Y%m%d_%H%M}.txt",
+        )
+        if not path:
+            return
+        try:
+            Path(path).write_text(self.report_text, encoding="utf-8")
+            messagebox.showinfo("Export Complete", "Manual schedule report exported successfully.", parent=self)
+        except Exception as exc:
+            messagebox.showerror("Export Failed", str(exc), parent=self)
+
+    def _copy(self) -> None:
+        try:
+            self.clipboard_clear()
+            self.clipboard_append(self.report_text)
+            messagebox.showinfo("Manual Schedule", "Report copied to clipboard.", parent=self)
         except Exception as exc:
             messagebox.showerror("Copy Failed", str(exc), parent=self)
 
