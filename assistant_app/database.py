@@ -121,7 +121,86 @@ class Database:
         if column not in existing:
             self._conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
+    def _table_exists(self, name: str) -> bool:
+        row = self._conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+            (name,),
+        ).fetchone()
+        return row is not None
+
+    def _events_reference_old_calendars(self) -> bool:
+        row = self._conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'events'"
+        ).fetchone()
+        if not row or not row["sql"]:
+            return False
+        return "calendars_old" in row["sql"].lower()
+
+    def _rebuild_events_table(self) -> None:
+        columns = {
+            row["name"] for row in self._conn.execute("PRAGMA table_info(events)").fetchall()
+        }
+        has_manual_schedule = "manual_schedule" in columns
+        self._conn.execute("PRAGMA foreign_keys = OFF")
+        self._conn.executescript(
+            """
+            CREATE TABLE events_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                calendar_id INTEGER NOT NULL REFERENCES calendars(id) ON DELETE CASCADE,
+                title TEXT NOT NULL,
+                description TEXT,
+                start_time TEXT NOT NULL,
+                duration_minutes INTEGER NOT NULL DEFAULT 60,
+                repeat TEXT NOT NULL DEFAULT 'none',
+                repeat_interval INTEGER NOT NULL DEFAULT 1,
+                repeat_until TEXT,
+                reminder_minutes_before INTEGER DEFAULT 0,
+                manual_schedule INTEGER NOT NULL DEFAULT 0
+            );
+            """
+        )
+        if has_manual_schedule:
+            self._conn.execute(
+                """
+                INSERT INTO events_new (
+                    id, calendar_id, title, description, start_time, duration_minutes,
+                    repeat, repeat_interval, repeat_until, reminder_minutes_before, manual_schedule
+                )
+                SELECT id, calendar_id, title, description, start_time, duration_minutes,
+                       repeat, repeat_interval, repeat_until, reminder_minutes_before, manual_schedule
+                FROM events
+                """
+            )
+        else:
+            self._conn.execute(
+                """
+                INSERT INTO events_new (
+                    id, calendar_id, title, description, start_time, duration_minutes,
+                    repeat, repeat_interval, repeat_until, reminder_minutes_before, manual_schedule
+                )
+                SELECT id, calendar_id, title, description, start_time, duration_minutes,
+                       repeat, repeat_interval, repeat_until, reminder_minutes_before, 0
+                FROM events
+                """
+            )
+        self._conn.execute("DROP TABLE events")
+        self._conn.execute("ALTER TABLE events_new RENAME TO events")
+        self._conn.execute("PRAGMA foreign_keys = ON")
+
+    def _repair_calendar_tables(self) -> None:
+        if self._table_exists("calendars_old") and not self._table_exists("calendars"):
+            self._conn.execute("PRAGMA foreign_keys = OFF")
+            self._conn.execute("ALTER TABLE calendars_old RENAME TO calendars")
+            self._conn.execute("PRAGMA foreign_keys = ON")
+        if self._events_reference_old_calendars():
+            self._rebuild_events_table()
+        if self._table_exists("calendars_old"):
+            self._conn.execute("PRAGMA foreign_keys = OFF")
+            self._conn.execute("DROP TABLE calendars_old")
+            self._conn.execute("PRAGMA foreign_keys = ON")
+
     def _ensure_calendar_name_uniqueness(self) -> None:
+        self._repair_calendar_tables()
         row = self._conn.execute(
             "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'calendars'"
         ).fetchone()
@@ -140,10 +219,9 @@ class Database:
                 break
         if has_global_unique or unique_name_index:
             self._conn.execute("PRAGMA foreign_keys = OFF")
-            self._conn.execute("ALTER TABLE calendars RENAME TO calendars_old")
             self._conn.executescript(
                 """
-                CREATE TABLE calendars (
+                CREATE TABLE calendars_new (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     production_calendar_id INTEGER REFERENCES production_calendars(id),
                     name TEXT NOT NULL,
@@ -154,12 +232,13 @@ class Database:
             )
             self._conn.execute(
                 """
-                INSERT INTO calendars (id, production_calendar_id, name, color, is_visible)
+                INSERT INTO calendars_new (id, production_calendar_id, name, color, is_visible)
                 SELECT id, production_calendar_id, name, color, is_visible
-                FROM calendars_old
+                FROM calendars
                 """
             )
-            self._conn.execute("DROP TABLE calendars_old")
+            self._conn.execute("DROP TABLE calendars")
+            self._conn.execute("ALTER TABLE calendars_new RENAME TO calendars")
             self._conn.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_calendars_prod_name "
                 "ON calendars(production_calendar_id, name)"
