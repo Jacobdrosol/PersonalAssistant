@@ -334,6 +334,7 @@ class ProductionLogSheetConfig:
     id: int
     client_id: int
     sheet_name: str
+    template_key: Optional[str]
     header_row: int
     data_start_row: int
     column_mappings: dict[str, str]

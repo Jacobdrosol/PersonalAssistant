@@ -18,19 +18,463 @@ except Exception:  # pragma: no cover - handled at runtime
     get_column_letter = None
 
 
-FIELD_DEFS = [
-    ("run_date", "Run Date"),
-    ("dist_file_dry", "Distribution File - Dry"),
-    ("dist_file_live", "Distribution File - Live"),
-    ("dist_file_name", "Distribution File Name"),
-    ("dist_id", "Dist ID"),
-    ("dist_id_dry", "Dist ID - Dry"),
-    ("dist_id_live", "Dist ID - Live"),
-    ("count", "Count"),
-    ("count_dry", "Count - Dry"),
-    ("count_live", "Count - Live"),
+FIELD_LABELS = {
+    "run_date": "Run Date",
+    "dry_file_name": "Dry - File Name",
+    "live_file_name": "Live - File Name",
+    "dry_dist_id": "Dry - Dist ID",
+    "live_dist_id": "Live - Dist ID",
+    "dry_run_counts": "Dry Run Counts",
+    "live_run_counts": "Live Run Counts",
+    "system_a_count_hyphen": "System-A Count",
+    "system_a_pkg_code_hyphen": "System-A PKG Code",
+    "lettershop_recd": "Lettershop REC'd",
+    "comments": "Comments",
+    "mass_cancel": "Mass Cancel",
+    "coreqc_email": "CoreQC-email",
+    "check_sl": "Check SL",
+    "send_approval_engage": "Send Approval to Engage",
+    "dry_report_name": "Dry - Report Name",
+    "live_report_name": "Live - Report Name",
+    "dry_vs_live_run_counts": "Dry Run Counts vs Live Run Counts",
+    "dist_file_name": "Dist File Name",
+    "dist_run_id": "Dist Run ID",
+    "cpn330": "CPN330",
+    "csv_counts": "CSV Counts",
+    "smc_initialization": "SMC Initialization",
+    "email_mktg_srv": "Email Mktg Srv",
+    "system_a_counts": "System A counts",
+    "system_a_count_plain": "System A Count",
+    "system_a_pkg_code_plain": "System A PKG Code",
+    "send_approval_email": "Send Approval Email",
+    "job_ran_successfully": "Job Ran Successfully",
+    "counts": "Counts",
+    "errors": "Errors",
+    "in_archive": "In Archive",
+    "dist_id": "Dist ID",
+    "dist_file": "Dist File",
+    "records_exported": "Records Exported",
+    "output_recd": "Output REC'd",
+    "in_cdsfiles": "In CDSFiles",
+    "error_comments": "Error Comments",
+    "select_set": "Select Set",
+    "jobstream": "Jobstream",
+}
+
+SHEET_TEMPLATES: list[tuple[str, str, list[str]]] = [
+    (
+        "single_bills_mailed",
+        "Single Bills - Mailed",
+        [
+            "dry_file_name",
+            "live_file_name",
+            "dry_dist_id",
+            "live_dist_id",
+            "dry_run_counts",
+            "live_run_counts",
+            "run_date",
+            "system_a_count_hyphen",
+            "system_a_pkg_code_hyphen",
+            "lettershop_recd",
+            "comments",
+            "mass_cancel",
+            "select_set",
+            "jobstream",
+        ],
+    ),
+    (
+        "single_bills_emailed",
+        "Single Bills - Emailed",
+        [
+            "dry_file_name",
+            "live_file_name",
+            "dry_dist_id",
+            "live_dist_id",
+            "dry_run_counts",
+            "live_run_counts",
+            "run_date",
+            "coreqc_email",
+            "check_sl",
+            "send_approval_engage",
+            "comments",
+            "mass_cancel",
+            "select_set",
+            "jobstream",
+        ],
+    ),
+    (
+        "gift_bills_mailed",
+        "Gift Bills - Mailed",
+        [
+            "dry_file_name",
+            "live_file_name",
+            "dry_dist_id",
+            "live_dist_id",
+            "dry_run_counts",
+            "live_run_counts",
+            "run_date",
+            "system_a_count_hyphen",
+            "system_a_pkg_code_hyphen",
+            "lettershop_recd",
+            "comments",
+            "mass_cancel",
+            "select_set",
+            "jobstream",
+        ],
+    ),
+    (
+        "gift_bills_emailed",
+        "Gift Bills - Emailed",
+        [
+            "dry_file_name",
+            "live_file_name",
+            "dry_dist_id",
+            "live_dist_id",
+            "dry_run_counts",
+            "live_run_counts",
+            "run_date",
+            "coreqc_email",
+            "check_sl",
+            "send_approval_engage",
+            "comments",
+            "mass_cancel",
+            "select_set",
+            "jobstream",
+        ],
+    ),
+    (
+        "single_renewals_mailed",
+        "Single Renewals - Mailed",
+        [
+            "dry_file_name",
+            "live_file_name",
+            "dry_dist_id",
+            "live_dist_id",
+            "dry_run_counts",
+            "live_run_counts",
+            "run_date",
+            "system_a_count_hyphen",
+            "system_a_pkg_code_hyphen",
+            "lettershop_recd",
+            "comments",
+            "select_set",
+            "jobstream",
+        ],
+    ),
+    (
+        "single_renewals_emailed",
+        "Single Renewals - Emailed",
+        [
+            "dry_file_name",
+            "live_file_name",
+            "dry_dist_id",
+            "live_dist_id",
+            "dry_run_counts",
+            "live_run_counts",
+            "run_date",
+            "coreqc_email",
+            "check_sl",
+            "send_approval_engage",
+            "comments",
+            "select_set",
+            "jobstream",
+        ],
+    ),
+    (
+        "single_unren_renewals_mailed",
+        "Single UnRen Renewals - Mailed",
+        [
+            "dry_file_name",
+            "live_file_name",
+            "dry_dist_id",
+            "live_dist_id",
+            "dry_run_counts",
+            "live_run_counts",
+            "run_date",
+            "system_a_count_hyphen",
+            "system_a_pkg_code_hyphen",
+            "lettershop_recd",
+            "comments",
+            "select_set",
+            "jobstream",
+        ],
+    ),
+    (
+        "single_unren_renewals_emailed",
+        "Single UnRen Renewals - Emailed",
+        [
+            "dry_file_name",
+            "live_file_name",
+            "dry_dist_id",
+            "live_dist_id",
+            "dry_run_counts",
+            "live_run_counts",
+            "run_date",
+            "coreqc_email",
+            "check_sl",
+            "send_approval_engage",
+            "comments",
+            "select_set",
+            "jobstream",
+        ],
+    ),
+    (
+        "auto_renewal_links_mailed",
+        "Auto Renewal Links - Mailed",
+        [
+            "dry_file_name",
+            "live_file_name",
+            "dry_dist_id",
+            "live_dist_id",
+            "dry_run_counts",
+            "live_run_counts",
+            "run_date",
+            "system_a_count_hyphen",
+            "system_a_pkg_code_hyphen",
+            "lettershop_recd",
+            "comments",
+            "select_set",
+            "jobstream",
+        ],
+    ),
+    (
+        "auto_renewal_links_emailed",
+        "Auto Renewal Links - Emailed",
+        [
+            "dry_file_name",
+            "live_file_name",
+            "dry_dist_id",
+            "live_dist_id",
+            "dry_run_counts",
+            "live_run_counts",
+            "run_date",
+            "coreqc_email",
+            "check_sl",
+            "send_approval_engage",
+            "comments",
+            "select_set",
+            "jobstream",
+        ],
+    ),
+    (
+        "auto_renewal_apply",
+        "Auto Renewal Apply",
+        [
+            "dry_run_counts",
+            "live_run_counts",
+            "dry_dist_id",
+            "live_dist_id",
+            "dry_report_name",
+            "live_report_name",
+            "comments",
+            "dry_vs_live_run_counts",
+            "select_set",
+            "jobstream",
+        ],
+    ),
+    (
+        "gift_renewal_mailed",
+        "Gift Renewal - Mailed",
+        [
+            "dry_file_name",
+            "live_file_name",
+            "dry_dist_id",
+            "live_dist_id",
+            "dry_run_counts",
+            "live_run_counts",
+            "run_date",
+            "system_a_count_hyphen",
+            "system_a_pkg_code_hyphen",
+            "lettershop_recd",
+            "comments",
+            "select_set",
+            "jobstream",
+        ],
+    ),
+    (
+        "gift_renewal_emailed",
+        "Gift Renewal - Emailed",
+        [
+            "dry_file_name",
+            "live_file_name",
+            "dry_dist_id",
+            "live_dist_id",
+            "dry_run_counts",
+            "live_run_counts",
+            "run_date",
+            "coreqc_email",
+            "check_sl",
+            "send_approval_engage",
+            "comments",
+            "select_set",
+            "jobstream",
+        ],
+    ),
+    (
+        "gift_unren_renewal_mailed",
+        "Gift UnRen Renewal - Mailed",
+        [
+            "dry_file_name",
+            "live_file_name",
+            "dry_dist_id",
+            "live_dist_id",
+            "dry_run_counts",
+            "live_run_counts",
+            "run_date",
+            "system_a_count_hyphen",
+            "system_a_pkg_code_hyphen",
+            "lettershop_recd",
+            "comments",
+            "select_set",
+            "jobstream",
+        ],
+    ),
+    (
+        "gift_unren_renewal_emailed",
+        "Gift UnRen Renewal - Emailed",
+        [
+            "dry_file_name",
+            "live_file_name",
+            "dry_dist_id",
+            "live_dist_id",
+            "dry_run_counts",
+            "live_run_counts",
+            "run_date",
+            "coreqc_email",
+            "check_sl",
+            "send_approval_engage",
+            "comments",
+            "select_set",
+            "jobstream",
+        ],
+    ),
+    (
+        "ancillary_acks",
+        "Ancillary Acks",
+        [
+            "dist_file_name",
+            "dist_run_id",
+            "run_date",
+            "cpn330",
+            "csv_counts",
+            "smc_initialization",
+            "email_mktg_srv",
+            "system_a_counts",
+            "lettershop_recd",
+            "comments",
+            "select_set",
+            "jobstream",
+        ],
+    ),
+    (
+        "cold_donor_mailed",
+        "Cold Donor - Mailed",
+        [
+            "dist_file_name",
+            "dist_run_id",
+            "run_date",
+            "system_a_count_plain",
+            "system_a_pkg_code_plain",
+            "lettershop_recd",
+            "comments",
+        ],
+    ),
+    (
+        "cold_donor_emailed",
+        "Cold Donor - Emailed",
+        [
+            "dist_file_name",
+            "dist_run_id",
+            "run_date",
+            "coreqc_email",
+            "check_sl",
+            "send_approval_email",
+            "comments",
+            "select_set",
+            "jobstream",
+        ],
+    ),
+    (
+        "recurring_donations",
+        "Recurring Donations",
+        [
+            "run_date",
+            "job_ran_successfully",
+            "counts",
+            "errors",
+            "in_archive",
+            "comments",
+            "select_set",
+            "jobstream",
+        ],
+    ),
+    (
+        "premium_ship",
+        "Premium Ship",
+        [
+            "run_date",
+            "in_archive",
+            "dist_id",
+            "job_ran_successfully",
+            "counts",
+            "errors",
+            "comments",
+            "select_set",
+            "jobstream",
+        ],
+    ),
+    (
+        "single_copy_ship",
+        "Single Copy Ship",
+        [
+            "run_date",
+            "in_archive",
+            "dist_id",
+            "job_ran_successfully",
+            "counts",
+            "errors",
+            "comments",
+            "select_set",
+            "jobstream",
+        ],
+    ),
+    (
+        "cycle_end",
+        "Cycle End",
+        [
+            "run_date",
+            "dist_file",
+            "dist_run_id",
+            "records_exported",
+            "output_recd",
+            "system_a_count_plain",
+            "system_a_pkg_code_plain",
+            "comments",
+            "select_set",
+            "jobstream",
+        ],
+    ),
+    (
+        "eod",
+        "EOD",
+        [
+            "run_date",
+            "job_ran_successfully",
+            "errors",
+            "in_archive",
+            "in_cdsfiles",
+            "error_comments",
+            "comments",
+            "select_set",
+            "jobstream",
+        ],
+    ),
 ]
-FIELD_LABELS = {key: label for key, label in FIELD_DEFS}
+
+TEMPLATE_LABELS = {key: label for key, label, _fields in SHEET_TEMPLATES}
+TEMPLATE_FIELDS = {key: fields for key, _label, fields in SHEET_TEMPLATES}
+TEMPLATE_KEY_BY_LABEL = {label: key for key, label, _fields in SHEET_TEMPLATES}
+TEMPLATE_PLACEHOLDER = "Select sheet type..."
 
 
 class ProductionLogView(ttk.Frame):
@@ -54,15 +498,21 @@ class ProductionLogView(ttk.Frame):
         self.current_client_id: Optional[int] = None
         self.sheet_configs: dict[str, ProductionLogSheetConfig] = {}
         self._column_choice_map: dict[str, str] = {}
+        self._last_column_choices: list[str] = []
+        self._active_template_key: Optional[str] = None
+        self._active_field_keys: list[str] = []
 
         self.client_var = tk.StringVar(value="")
         self.workbook_var = tk.StringVar(value="")
         self.sheet_var = tk.StringVar(value="")
+        self.template_var = tk.StringVar(value=TEMPLATE_PLACEHOLDER)
         self.status_var = tk.StringVar(value="Read-only preview mode.")
 
         self._field_vars: dict[str, tk.StringVar] = {
-            key: tk.StringVar(value="") for key, _ in FIELD_DEFS
+            key: tk.StringVar(value="") for key in FIELD_LABELS
         }
+        self._mapping_inputs: dict[str, ttk.Combobox] = {}
+        self._mapping_field_frame: Optional[ttk.Frame] = None
 
         self._configure_styles()
         self.configure(style="ProdLog.Root.TFrame")
@@ -96,18 +546,18 @@ class ProductionLogView(ttk.Frame):
 
         body = ttk.Frame(self, style="ProdLog.Root.TFrame")
         body.pack(fill=tk.BOTH, expand=True, pady=(14, 0))
-        body.columnconfigure(0, weight=1)
-        body.columnconfigure(1, weight=2)
-        body.rowconfigure(1, weight=1)
 
-        left = ttk.Frame(body, style="ProdLog.Root.TFrame")
-        left.grid(row=0, column=0, rowspan=2, sticky="nsew", padx=(0, 12))
+        paned = ttk.Panedwindow(body, orient=tk.HORIZONTAL)
+        paned.pack(fill=tk.BOTH, expand=True)
+
+        left = ttk.Frame(paned, style="ProdLog.Root.TFrame")
         left.columnconfigure(0, weight=1)
 
-        right = ttk.Frame(body, style="ProdLog.Root.TFrame")
-        right.grid(row=0, column=1, rowspan=2, sticky="nsew")
+        right = ttk.Frame(paned, style="ProdLog.Root.TFrame")
         right.columnconfigure(0, weight=1)
-        right.rowconfigure(1, weight=1)
+
+        paned.add(left, weight=1)
+        paned.add(right, weight=2)
 
         client_card = ttk.Frame(left, style="ProdLog.Card.TFrame", padding=(16, 14))
         client_card.pack(fill=tk.X, pady=(0, 12))
@@ -157,27 +607,35 @@ class ProductionLogView(ttk.Frame):
             style="ProdLog.BodyMuted.TLabel",
         ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(4, 8))
 
-        self._mapping_inputs = {}
-        for row_idx, (key, label) in enumerate(FIELD_DEFS, start=2):
-            ttk.Label(mapping_card, text=label, style="ProdLog.Card.TLabel").grid(
-                row=row_idx, column=0, sticky="w", pady=2, padx=(0, 8)
-            )
-            combo = ttk.Combobox(
-                mapping_card,
-                textvariable=self._field_vars[key],
-                state="readonly",
-                width=26,
-            )
-            combo.grid(row=row_idx, column=1, sticky="w", pady=2)
-            self._mapping_inputs[key] = combo
+        ttk.Label(mapping_card, text="Sheet Type", style="ProdLog.Card.TLabel").grid(
+            row=2, column=0, sticky="w", pady=2, padx=(0, 8)
+        )
+        self.template_combo = ttk.Combobox(
+            mapping_card,
+            textvariable=self.template_var,
+            state="readonly",
+            width=28,
+        )
+        self.template_combo["values"] = [TEMPLATE_PLACEHOLDER] + [
+            label for _key, label, _fields in SHEET_TEMPLATES
+        ]
+        self.template_combo.grid(row=2, column=1, sticky="w", pady=2)
+        self.template_combo.bind("<<ComboboxSelected>>", self._on_template_selected)
+
+        self._mapping_field_frame = ttk.Frame(mapping_card, style="ProdLog.Card.TFrame")
+        self._mapping_field_frame.grid(row=3, column=0, columnspan=2, sticky="nsew", pady=(6, 0))
+        self._mapping_field_frame.columnconfigure(1, weight=1)
+        self._render_mapping_fields()
 
         button_row = ttk.Frame(mapping_card, style="ProdLog.Card.TFrame")
-        button_row.grid(row=len(FIELD_DEFS) + 2, column=0, columnspan=2, sticky="e", pady=(10, 0))
+        button_row.grid(row=4, column=0, columnspan=2, sticky="e", pady=(10, 0))
         ttk.Button(button_row, text="Clear Mapping", command=self._clear_mapping).pack(side=tk.LEFT, padx=(0, 6))
         ttk.Button(button_row, text="Save Mapping", command=self._save_mapping).pack(side=tk.LEFT)
 
-        preview_card = ttk.Frame(right, style="ProdLog.Card.TFrame", padding=(16, 14))
-        preview_card.grid(row=0, column=0, sticky="nsew")
+        right_pane = ttk.Panedwindow(right, orient=tk.VERTICAL)
+        right_pane.pack(fill=tk.BOTH, expand=True)
+
+        preview_card = ttk.Frame(right_pane, style="ProdLog.Card.TFrame", padding=(16, 14))
         preview_card.columnconfigure(0, weight=1)
         preview_card.rowconfigure(1, weight=1)
         ttk.Label(preview_card, text="Preview (read-only)", style="ProdLog.Section.TLabel").grid(
@@ -187,12 +645,18 @@ class ProductionLogView(ttk.Frame):
         self.preview_tree.grid(row=1, column=0, sticky="nsew", pady=(8, 0))
         scroll = ttk.Scrollbar(preview_card, orient=tk.VERTICAL, command=self.preview_tree.yview)
         scroll.grid(row=1, column=1, sticky="ns", pady=(8, 0))
-        self.preview_tree.configure(yscrollcommand=scroll.set)
+        scroll_x = ttk.Scrollbar(preview_card, orient=tk.HORIZONTAL, command=self.preview_tree.xview)
+        scroll_x.grid(row=2, column=0, sticky="ew", pady=(6, 0))
+        self.preview_tree.configure(yscrollcommand=scroll.set, xscrollcommand=scroll_x.set)
         ttk.Label(
             preview_card,
             text="Showing the first 10 rows starting at row 6.",
             style="ProdLog.BodyMuted.TLabel",
-        ).grid(row=2, column=0, sticky="w", pady=(8, 0))
+        ).grid(row=3, column=0, sticky="w", pady=(8, 0))
+
+        preview_spacer = ttk.Frame(right_pane, style="ProdLog.Root.TFrame")
+        right_pane.add(preview_card, weight=1)
+        right_pane.add(preview_spacer, weight=0)
 
     # ------------------------------------------------------------------ Client management
     def _load_clients(self) -> None:
@@ -355,6 +819,7 @@ class ProductionLogView(ttk.Frame):
     def _load_column_choices(self, sheet_name: str) -> None:
         path_text = (self.workbook_var.get() or "").strip()
         self._column_choice_map = {}
+        self._last_column_choices = []
         if not path_text or load_workbook is None:
             self._update_mapping_inputs([])
             return
@@ -404,6 +869,7 @@ class ProductionLogView(ttk.Frame):
                 choices.append(display)
         finally:
             workbook.close()
+        self._last_column_choices = choices
         self._update_mapping_inputs(choices)
 
     def _update_mapping_inputs(self, choices: list[str]) -> None:
@@ -411,9 +877,59 @@ class ProductionLogView(ttk.Frame):
         for combo in self._mapping_inputs.values():
             combo.configure(values=values)
 
+    def _render_mapping_fields(self) -> None:
+        if self._mapping_field_frame is None:
+            return
+        for child in self._mapping_field_frame.winfo_children():
+            child.destroy()
+        self._mapping_inputs = {}
+        if not self._active_field_keys:
+            ttk.Label(
+                self._mapping_field_frame,
+                text="Select a sheet type to see the available fields.",
+                style="ProdLog.BodyMuted.TLabel",
+            ).grid(row=0, column=0, sticky="w")
+            return
+        for row_idx, key in enumerate(self._active_field_keys):
+            label = FIELD_LABELS.get(key, key)
+            ttk.Label(self._mapping_field_frame, text=label, style="ProdLog.Card.TLabel").grid(
+                row=row_idx, column=0, sticky="w", pady=2, padx=(0, 8)
+            )
+            combo = ttk.Combobox(
+                self._mapping_field_frame,
+                textvariable=self._field_vars[key],
+                state="readonly",
+                width=26,
+            )
+            combo.grid(row=row_idx, column=1, sticky="w", pady=2)
+            self._mapping_inputs[key] = combo
+        self._update_mapping_inputs(self._last_column_choices)
+
+    def _set_active_template(self, template_key: Optional[str]) -> None:
+        self._active_template_key = template_key
+        fields = list(TEMPLATE_FIELDS.get(template_key or "", []))
+        priority = ["run_date", "select_set", "jobstream"]
+        ordered = [field for field in priority if field in fields]
+        ordered.extend([field for field in fields if field not in ordered])
+        self._active_field_keys = ordered
+        self._render_mapping_fields()
+
+    def _select_template(self, template_key: Optional[str]) -> None:
+        if template_key and template_key in TEMPLATE_LABELS:
+            self.template_var.set(TEMPLATE_LABELS[template_key])
+        else:
+            self.template_var.set(TEMPLATE_PLACEHOLDER)
+        self._set_active_template(template_key)
+
+    def _on_template_selected(self, _event: object | None = None) -> None:
+        label = self.template_var.get().strip()
+        template_key = TEMPLATE_KEY_BY_LABEL.get(label)
+        self._set_active_template(template_key)
+
     def _load_sheet_mapping(self, sheet_name: str) -> None:
         for var in self._field_vars.values():
             var.set("")
+        self._select_template(None)
         if self.current_client_id is None:
             return
         config = self.sheet_configs.get(sheet_name)
@@ -421,6 +937,7 @@ class ProductionLogView(ttk.Frame):
             config = self.db.get_production_log_sheet_config(self.current_client_id, sheet_name)
         if config is None:
             return
+        self._select_template(config.template_key)
         for key, column in config.column_mappings.items():
             display = self._display_for_column(column)
             if key in self._field_vars:
@@ -445,10 +962,14 @@ class ProductionLogView(ttk.Frame):
         if not sheet_name:
             messagebox.showinfo("Mapping", "Select a sheet first.", parent=self)
             return
+        if not self._active_template_key:
+            messagebox.showinfo("Mapping", "Select a sheet type first.", parent=self)
+            return
         mapping: dict[str, str] = {}
         duplicates: dict[str, list[str]] = {}
         used: dict[str, str] = {}
-        for key, var in self._field_vars.items():
+        for key in self._active_field_keys:
+            var = self._field_vars[key]
             raw = var.get().strip()
             if not raw:
                 continue
@@ -472,6 +993,7 @@ class ProductionLogView(ttk.Frame):
         self.db.upsert_production_log_sheet_config(
             client_id=self.current_client_id,
             sheet_name=sheet_name,
+            template_key=self._active_template_key,
             header_row=self._HEADER_ROW,
             data_start_row=self._DATA_START_ROW,
             column_mappings=mapping,
@@ -536,7 +1058,7 @@ class ProductionLogView(ttk.Frame):
                     header_text = str(header_val).strip() if header_val is not None else ""
                 heading = f"{letter} - {header_text}" if header_text else letter
                 self.preview_tree.heading(letter, text=heading)
-                self.preview_tree.column(letter, width=140, anchor="w")
+                self.preview_tree.column(letter, width=140, anchor="w", stretch=False)
             for row in data_rows:
                 values = []
                 for col_idx in range(1, max_col + 1):

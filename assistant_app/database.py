@@ -540,6 +540,7 @@ class Database:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 client_id INTEGER NOT NULL REFERENCES production_log_clients(id) ON DELETE CASCADE,
                 sheet_name TEXT NOT NULL,
+                template_key TEXT,
                 header_row INTEGER NOT NULL DEFAULT 5,
                 data_start_row INTEGER NOT NULL DEFAULT 6,
                 column_mappings TEXT NOT NULL DEFAULT '{}',
@@ -547,6 +548,7 @@ class Database:
             );
             """
         )
+        self._ensure_column("production_log_sheet_configs", "template_key", "TEXT")
         self._conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_prod_log_sheet_client ON production_log_sheet_configs(client_id)"
         )
@@ -2617,7 +2619,7 @@ class Database:
         with self._lock:
             rows = self._conn.execute(
                 """
-                SELECT id, client_id, sheet_name, header_row, data_start_row, column_mappings
+                SELECT id, client_id, sheet_name, template_key, header_row, data_start_row, column_mappings
                 FROM production_log_sheet_configs
                 WHERE client_id = ?
                 ORDER BY sheet_name
@@ -2637,6 +2639,7 @@ class Database:
                     id=row["id"],
                     client_id=row["client_id"],
                     sheet_name=row["sheet_name"],
+                    template_key=row["template_key"],
                     header_row=int(row["header_row"] or 5),
                     data_start_row=int(row["data_start_row"] or 6),
                     column_mappings={str(k): str(v) for k, v in mappings.items() if v},
@@ -2648,7 +2651,7 @@ class Database:
         with self._lock:
             row = self._conn.execute(
                 """
-                SELECT id, client_id, sheet_name, header_row, data_start_row, column_mappings
+                SELECT id, client_id, sheet_name, template_key, header_row, data_start_row, column_mappings
                 FROM production_log_sheet_configs
                 WHERE client_id = ? AND sheet_name = ?
                 """,
@@ -2666,6 +2669,7 @@ class Database:
             id=row["id"],
             client_id=row["client_id"],
             sheet_name=row["sheet_name"],
+            template_key=row["template_key"],
             header_row=int(row["header_row"] or 5),
             data_start_row=int(row["data_start_row"] or 6),
             column_mappings={str(k): str(v) for k, v in mappings.items() if v},
@@ -2676,6 +2680,7 @@ class Database:
         *,
         client_id: int,
         sheet_name: str,
+        template_key: Optional[str],
         header_row: int = 5,
         data_start_row: int = 6,
         column_mappings: dict[str, str],
@@ -2691,19 +2696,19 @@ class Database:
                 self._conn.execute(
                     """
                     UPDATE production_log_sheet_configs
-                    SET header_row = ?, data_start_row = ?, column_mappings = ?
+                    SET template_key = ?, header_row = ?, data_start_row = ?, column_mappings = ?
                     WHERE id = ?
                     """,
-                    (header_row, data_start_row, payload, existing["id"]),
+                    (template_key, header_row, data_start_row, payload, existing["id"]),
                 )
             else:
                 self._conn.execute(
                     """
                     INSERT INTO production_log_sheet_configs
-                        (client_id, sheet_name, header_row, data_start_row, column_mappings)
-                    VALUES (?, ?, ?, ?, ?)
+                        (client_id, sheet_name, template_key, header_row, data_start_row, column_mappings)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (client_id, sheet_name, header_row, data_start_row, payload),
+                    (client_id, sheet_name, template_key, header_row, data_start_row, payload),
                 )
             self._conn.commit()
 
