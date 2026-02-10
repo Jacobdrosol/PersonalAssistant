@@ -30,6 +30,7 @@ FIELD_DEFS = [
     ("count_dry", "Count - Dry"),
     ("count_live", "Count - Live"),
 ]
+FIELD_LABELS = {key: label for key, label in FIELD_DEFS}
 
 
 class ProductionLogView(ttk.Frame):
@@ -445,12 +446,29 @@ class ProductionLogView(ttk.Frame):
             messagebox.showinfo("Mapping", "Select a sheet first.", parent=self)
             return
         mapping: dict[str, str] = {}
+        duplicates: dict[str, list[str]] = {}
+        used: dict[str, str] = {}
         for key, var in self._field_vars.items():
             raw = var.get().strip()
             if not raw:
                 continue
             column = self._column_choice_map.get(raw, raw).strip().upper()
+            if column in used:
+                duplicates.setdefault(column, [used[column]]).append(FIELD_LABELS.get(key, key))
+            else:
+                used[column] = FIELD_LABELS.get(key, key)
             mapping[key] = column
+        if duplicates:
+            details = []
+            for column, fields in duplicates.items():
+                fields_list = ", ".join(fields)
+                details.append(f"{column}: {fields_list}")
+            messagebox.showerror(
+                "Mapping",
+                "Each column can map to only one field.\n\nConflicts:\n" + "\n".join(details),
+                parent=self,
+            )
+            return
         self.db.upsert_production_log_sheet_config(
             client_id=self.current_client_id,
             sheet_name=sheet_name,
