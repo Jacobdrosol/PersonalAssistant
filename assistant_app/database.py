@@ -29,6 +29,8 @@ from .models import (
     IssueItem,
     IssueNote,
     IssuePublication,
+    ExportValidatorConfig,
+    ExportValidatorInstance,
     ProductionLogClient,
     ProductionLogSheetConfig,
 )
@@ -112,6 +114,7 @@ class Database:
             self._ensure_sql_assist_schema()
             self._ensure_issue_calendar_schema()
             self._ensure_production_log_schema()
+            self._ensure_export_validator_schema()
 
     def _ensure_column(self, table: str, column: str, definition: str) -> None:
         existing = {
@@ -634,6 +637,32 @@ class Database:
         self._ensure_column("production_log_sheet_configs", "template_key", "TEXT")
         self._conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_prod_log_sheet_client ON production_log_sheet_configs(client_id)"
+        )
+        self._conn.commit()
+
+    def _ensure_export_validator_schema(self) -> None:
+        self._conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS export_validator_instances (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS export_validator_configs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                instance_id INTEGER NOT NULL REFERENCES export_validator_instances(id) ON DELETE CASCADE,
+                item_type TEXT NOT NULL,
+                source_filename TEXT,
+                xml_content TEXT NOT NULL,
+                stored_at TEXT NOT NULL,
+                UNIQUE(instance_id, item_type)
+            );
+            """
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_export_validator_instance ON export_validator_configs(instance_id)"
         )
         self._conn.commit()
 
@@ -2823,6 +2852,146 @@ class Database:
                     """,
                     (client_id, sheet_name, template_key, header_row, data_start_row, payload),
                 )
+            self._conn.commit()
+
+    # Export validator ------------------------------------------------------
+    def get_export_validator_instances(self) -> List[ExportValidatorInstance]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT id, name, created_at, updated_at
+                FROM export_validator_instances
+                ORDER BY name
+                """
+            ).fetchall()
+        instances: List[ExportValidatorInstance] = []
+        for row in rows:
+            created_at = utils.from_iso(row["created_at"]) or datetime.now()
+            updated_at = utils.from_iso(row["updated_at"]) if row["updated_at"] else None
+            instances.append(
+                ExportValidatorInstance(
+                    id=row["id"],
+                    name=row["name"],
+                    created_at=created_at,
+                    updated_at=updated_at,
+                )
+            )
+        return instances
+
+    def create_export_validator_instance(self, name: str) -> int:
+        trimmed = name.strip()
+        if not trimmed:
+            raise ValueError("Instance name cannot be blank.")
+        now = utils.to_iso(datetime.now())
+        with self._lock:
+            cursor = self._conn.execute(
+                "INSERT INTO export_validator_instances (name, created_at, updated_at) VALUES (?, ?, ?)",
+                (trimmed, now, now),
+            )
+            self._conn.commit()
+            return cursor.lastrowid
+
+    def update_export_validator_instance(self, instance_id: int, name: str) -> None:
+        trimmed = name.strip()
+        if not trimmed:
+            raise ValueError("Instance name cannot be blank.")
+        with self._lock:
+            self._conn.execute(
+                "UPDATE export_validator_instances SET name = ?, updated_at = ? WHERE id = ?",
+                (trimmed, utils.to_iso(datetime.now()), instance_id),
+            )
+            self._conn.commit()
+
+    def delete_export_validator_instance(self, instance_id: int) -> None:
+        with self._lock:
+            self._conn.execute(
+                "DELETE FROM export_validator_instances WHERE id = ?",
+                (instance_id,),
+            )
+            self._conn.commit()
+
+    def get_export_validator_configs(self, instance_id: int) -> List[ExportValidatorConfig]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT id, instance_id, item_type, source_filename, xml_content, stored_at
+                FROM export_validator_configs
+                WHERE instance_id = ?
+                ORDER BY item_type
+                """,
+                (instance_id,),
+            ).fetchall()
+        configs: List[ExportValidatorConfig] = []
+        for row in rows:
+            stored_at = utils.from_iso(row["stored_at"]) or datetime.now()
+            configs.append(
+                ExportValidatorConfig(
+                    id=row["id"],
+                    instance_id=row["instance_id"],
+                    item_type=row["item_type"],
+                    source_filename=row["source_filename"],
+                    xml_content=row["xml_content"],
+                    stored_at=stored_at,
+                )
+            )
+        return configs
+
+    def get_export_validator_config(
+        self, instance_id: int, item_type: str
+    ) -> Optional[ExportValidatorConfig]:
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT id, instance_id, item_type, source_filename, xml_content, stored_at
+                FROM export_validator_configs
+                WHERE instance_id = ? AND item_type = ?
+                """,
+                (instance_id, item_type),
+            ).fetchone()
+        if row is None:
+            return None
+        stored_at = utils.from_iso(row["stored_at"]) or datetime.now()
+        return ExportValidatorConfig(
+            id=row["id"],
+            instance_id=row["instance_id"],
+            item_type=row["item_type"],
+            source_filename=row["source_filename"],
+            xml_content=row["xml_content"],
+            stored_at=stored_at,
+        )
+
+    def upsert_export_validator_config(
+        self,
+        *,
+        instance_id: int,
+        item_type: str,
+        source_filename: Optional[str],
+        xml_content: str,
+    ) -> None:
+        trimmed_type = item_type.strip()
+        if not trimmed_type:
+            raise ValueError("Item type is required.")
+        stored_at = utils.to_iso(datetime.now())
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO export_validator_configs (
+                    instance_id, item_type, source_filename, xml_content, stored_at
+                ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(instance_id, item_type)
+                DO UPDATE SET
+                    source_filename = excluded.source_filename,
+                    xml_content = excluded.xml_content,
+                    stored_at = excluded.stored_at
+                """,
+                (
+                    instance_id,
+                    trimmed_type,
+                    source_filename,
+                    xml_content,
+                    stored_at,
+                ),
+            )
             self._conn.commit()
 
 

@@ -67,7 +67,7 @@ def _build_select_builder(app: "PersonalAssistantApp") -> object:
 
 
 def _build_export_validator(app: "PersonalAssistantApp") -> object:
-    return ExportValidatorView(app.notebook)
+    return ExportValidatorView(app.notebook, app.db, app.theme)
 
 
 def _build_knowledge_bank(app: "PersonalAssistantApp") -> object:

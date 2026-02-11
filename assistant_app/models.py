@@ -340,3 +340,21 @@ class ProductionLogSheetConfig:
     header_row: int
     data_start_row: int
     column_mappings: dict[str, str]
+
+
+@dataclass(slots=True)
+class ExportValidatorInstance:
+    id: int
+    name: str
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+
+@dataclass(slots=True)
+class ExportValidatorConfig:
+    id: int
+    instance_id: int
+    item_type: str
+    source_filename: Optional[str]
+    xml_content: str
+    stored_at: datetime
