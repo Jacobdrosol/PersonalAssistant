@@ -55,6 +55,8 @@ class SqlAssistView(ttk.Frame):
         self._tree_table_map: dict[str, SqlTable] = {}
         self._all_data_sources: List[SqlDataSource] = []
         self._source_item_map: Dict[str, SqlDataSource] = {}
+        self._last_data_source_backup: Optional[List[SqlDataSourceDetail]] = None
+        self._last_data_source_backup_instance_id: Optional[int] = None
         self.saved_queries: List[SqlSavedQuery] = []
         self._filtered_queries: List[SqlSavedQuery] = []
         self.current_query_id: Optional[int] = None
@@ -192,6 +194,27 @@ class SqlAssistView(ttk.Frame):
             command=self._refresh_data_sources,
         )
         self.refresh_sources_btn.grid(row=0, column=1, padx=(0, 6))
+        self.delete_source_btn = ttk.Button(
+            sources_controls,
+            text="Delete Selected",
+            command=self._delete_selected_data_source,
+            state=tk.DISABLED,
+        )
+        self.delete_source_btn.grid(row=0, column=2, padx=(0, 6))
+        self.delete_all_sources_btn = ttk.Button(
+            sources_controls,
+            text="Delete All",
+            command=self._delete_all_data_sources,
+            state=tk.DISABLED,
+        )
+        self.delete_all_sources_btn.grid(row=0, column=3, padx=(0, 6))
+        self.undo_sources_btn = ttk.Button(
+            sources_controls,
+            text="Undo",
+            command=self._undo_data_source_change,
+            state=tk.DISABLED,
+        )
+        self.undo_sources_btn.grid(row=0, column=4)
 
         sources_search = ttk.Frame(self.sources_tab)
         sources_search.grid(row=1, column=0, sticky="ew", pady=(8, 8))
@@ -227,6 +250,7 @@ class SqlAssistView(ttk.Frame):
         self.sources_tree.column("updated", width=160, anchor="center")
         self.sources_tree.column("status", width=260, anchor="w")
         self.sources_tree.bind("<Double-1>", self._open_data_source_detail)
+        self.sources_tree.bind("<<TreeviewSelect>>", lambda _: self._update_data_source_controls())
         self.sources_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         sources_scroll = ttk.Scrollbar(sources_container, orient=tk.VERTICAL, command=self.sources_tree.yview)
         sources_scroll.pack(side=tk.RIGHT, fill=tk.Y)
@@ -357,8 +381,6 @@ class SqlAssistView(ttk.Frame):
 
     def _initialize_contents(self) -> None:
         self.refresh_instances()
-        self._refresh_data_sources()
-        self._refresh_saved_queries()
         self.instance_combo.focus_set()
 
     # ------------------------------------------------------------------ Data management
@@ -404,6 +426,8 @@ class SqlAssistView(ttk.Frame):
         has_instance = self.current_instance_id is not None
         self.export_btn.configure(state=tk.NORMAL if has_instance else tk.DISABLED)
         self.import_tables_btn.configure(state=tk.NORMAL if has_instance else tk.DISABLED)
+        self.import_sources_btn.configure(state=tk.NORMAL if has_instance else tk.DISABLED)
+        self.refresh_sources_btn.configure(state=tk.NORMAL if has_instance else tk.DISABLED)
         self.delete_btn.configure(state=tk.NORMAL if has_instance else tk.DISABLED)
         if has_instance and self._last_import_instance_id == self.current_instance_id and self._last_import_backup:
             self.undo_btn.configure(state=tk.NORMAL)
@@ -417,8 +441,12 @@ class SqlAssistView(ttk.Frame):
         if not has_instance:
             if self.search_text_var.get():
                 self.search_text_var.set("")
+            if self.data_source_search_var.get():
+                self.data_source_search_var.set("")
             self.summary_var.set("Create or import an instance to begin.")
         self._update_instance_header(selected_instance if has_instance else None)
+        self._refresh_data_sources()
+        self._update_data_source_controls()
         self._refresh_saved_queries()
 
     def _select_instance_by_name(self, name: str) -> None:
@@ -426,9 +454,14 @@ class SqlAssistView(ttk.Frame):
             if instance.name == name:
                 self.current_instance_id = instance.id
                 self._load_tables(instance.id)
+                self._refresh_data_sources()
                 self._refresh_saved_queries(select_id=None)
                 self.export_btn.configure(state=tk.NORMAL)
                 self.import_tables_btn.configure(state=tk.NORMAL)
+                self.import_sources_btn.configure(state=tk.NORMAL)
+                self.refresh_sources_btn.configure(state=tk.NORMAL)
+                self.delete_btn.configure(state=tk.NORMAL)
+                self._update_data_source_controls()
                 if (
                     self._last_import_backup
                     and self._last_import_instance_id == self.current_instance_id
@@ -445,11 +478,15 @@ class SqlAssistView(ttk.Frame):
         self._base_table_count = 0
         self._base_column_count = 0
         self._populate_tree([])
+        self._refresh_data_sources()
         self._refresh_saved_queries(select_id=None)
         self.export_btn.configure(state=tk.DISABLED)
         self.import_tables_btn.configure(state=tk.DISABLED)
+        self.import_sources_btn.configure(state=tk.DISABLED)
+        self.refresh_sources_btn.configure(state=tk.DISABLED)
         self.delete_btn.configure(state=tk.DISABLED)
         self.undo_btn.configure(state=tk.DISABLED)
+        self._update_data_source_controls()
         self._update_instance_header(None)
 
     def _load_tables(self, instance_id: int) -> None:
@@ -1022,8 +1059,12 @@ class SqlAssistView(ttk.Frame):
         )
 
     def _refresh_data_sources(self) -> None:
+        if self.current_instance_id is None:
+            self._all_data_sources = []
+            self._apply_data_source_filter()
+            return
         try:
-            self._all_data_sources = self.db.get_sql_data_sources()
+            self._all_data_sources = self.db.get_sql_data_sources(self.current_instance_id)
         except Exception as exc:
             self._all_data_sources = []
             messagebox.showerror("Data Sources", f"Unable to load data sources: {exc}", parent=self)
@@ -1081,6 +1122,25 @@ class SqlAssistView(ttk.Frame):
                 tk.END,
                 values=("No matching data sources found.", "", "", ""),
             )
+        self._update_data_source_controls()
+
+    def _update_data_source_controls(self) -> None:
+        has_instance = self.current_instance_id is not None
+        has_sources = bool(self._all_data_sources)
+        selection = self.sources_tree.selection()
+        selected_source = self._source_item_map.get(selection[0]) if selection else None
+        can_undo = (
+            has_instance
+            and self._last_data_source_backup is not None
+            and self._last_data_source_backup_instance_id == self.current_instance_id
+        )
+        self.delete_source_btn.configure(
+            state=tk.NORMAL if has_instance and selected_source is not None else tk.DISABLED
+        )
+        self.delete_all_sources_btn.configure(
+            state=tk.NORMAL if has_instance and has_sources else tk.DISABLED
+        )
+        self.undo_sources_btn.configure(state=tk.NORMAL if can_undo else tk.DISABLED)
 
     def _clear_data_source_search(self) -> None:
         if self.data_source_search_var.get():
@@ -1088,19 +1148,136 @@ class SqlAssistView(ttk.Frame):
         else:
             self._apply_data_source_filter()
 
+    def _capture_data_source_backup(self) -> bool:
+        if self.current_instance_id is None:
+            return False
+        try:
+            backup = self.db.export_sql_data_sources(self.current_instance_id)
+        except Exception as exc:
+            messagebox.showerror("Data Sources", f"Unable to create undo snapshot: {exc}", parent=self)
+            return False
+        self._last_data_source_backup = backup
+        self._last_data_source_backup_instance_id = self.current_instance_id
+        self._update_data_source_controls()
+        return True
+
+    def _confirm_typed_phrase(
+        self,
+        *,
+        title: str,
+        prompt: str,
+        expected: str,
+    ) -> bool:
+        typed = simpledialog.askstring(title, prompt, parent=self)
+        if typed is None:
+            return False
+        if typed.strip() != expected:
+            messagebox.showinfo(title, "Confirmation text did not match. No changes were made.", parent=self)
+            return False
+        return True
+
     def _open_data_source_detail(self, event: tk.Event) -> None:
         item_id = self.sources_tree.focus()
         if not item_id:
+            return
+        if self.current_instance_id is None:
             return
         source = self._source_item_map.get(item_id)
         if source is None:
             return
         try:
-            detail = self.db.get_sql_data_source_details(source.id)  # type: ignore[arg-type]
+            detail = self.db.get_sql_data_source_details(
+                source.id,  # type: ignore[arg-type]
+                self.current_instance_id,
+            )
         except Exception as exc:
             messagebox.showerror("Data Source", f"Unable to load details: {exc}", parent=self)
             return
         self._show_data_source_detail(detail)
+
+    def _delete_selected_data_source(self) -> None:
+        if self.current_instance_id is None:
+            return
+        selection = self.sources_tree.selection()
+        if not selection:
+            messagebox.showinfo("Data Sources", "Select a data source to delete.", parent=self)
+            return
+        source = self._source_item_map.get(selection[0])
+        if source is None or source.id is None:
+            messagebox.showinfo("Data Sources", "Select a valid data source to delete.", parent=self)
+            return
+        if not messagebox.askyesno(
+            "Delete Data Source",
+            f"Delete data source '{source.title}' from this instance?",
+            parent=self,
+        ):
+            return
+        if not self._confirm_typed_phrase(
+            title="Delete Data Source",
+            prompt=(
+                "Type the data source title exactly to confirm deletion:\n\n"
+                f"{source.title}"
+            ),
+            expected=source.title,
+        ):
+            return
+        if not self._capture_data_source_backup():
+            return
+        try:
+            self.db.delete_sql_data_source(self.current_instance_id, source.id)
+        except Exception as exc:
+            messagebox.showerror("Data Sources", f"Delete failed: {exc}", parent=self)
+            return
+        self._refresh_data_sources()
+        messagebox.showinfo("Data Sources", f"Deleted '{source.title}'.", parent=self)
+
+    def _delete_all_data_sources(self) -> None:
+        if self.current_instance_id is None:
+            return
+        total = len(self._all_data_sources)
+        if total == 0:
+            messagebox.showinfo("Data Sources", "No data sources to delete.", parent=self)
+            return
+        if not messagebox.askyesno(
+            "Delete All Data Sources",
+            f"Delete all {total} data source(s) for this instance?",
+            parent=self,
+        ):
+            return
+        if not self._confirm_typed_phrase(
+            title="Delete All Data Sources",
+            prompt="Type DELETE ALL to confirm removing every data source for this instance.",
+            expected="DELETE ALL",
+        ):
+            return
+        if not self._capture_data_source_backup():
+            return
+        try:
+            deleted = self.db.clear_sql_data_sources(self.current_instance_id)
+        except Exception as exc:
+            messagebox.showerror("Data Sources", f"Delete failed: {exc}", parent=self)
+            return
+        self._refresh_data_sources()
+        messagebox.showinfo("Data Sources", f"Deleted {deleted} data source(s).", parent=self)
+
+    def _undo_data_source_change(self) -> None:
+        if (
+            self.current_instance_id is None
+            or self._last_data_source_backup is None
+            or self._last_data_source_backup_instance_id != self.current_instance_id
+        ):
+            messagebox.showinfo("Data Sources", "No data source changes to undo for this instance.", parent=self)
+            self._update_data_source_controls()
+            return
+        try:
+            self.db.replace_sql_data_sources(self.current_instance_id, self._last_data_source_backup)
+        except Exception as exc:
+            messagebox.showerror("Data Sources", f"Undo failed: {exc}", parent=self)
+            return
+        self._last_data_source_backup = None
+        self._last_data_source_backup_instance_id = None
+        self._refresh_data_sources()
+        messagebox.showinfo("Data Sources", "Data source changes were undone.", parent=self)
 
     def _show_data_source_detail(self, detail: SqlDataSourceDetail) -> None:
         source = detail.source
@@ -1546,6 +1723,9 @@ class SqlAssistView(ttk.Frame):
 
     # ------------------------------------------------------------------ Table import
     def _import_data_sources(self) -> None:
+        if self.current_instance_id is None:
+            messagebox.showinfo("Data Sources", "Select an instance before importing.", parent=self)
+            return
         path = filedialog.askopenfilename(
             parent=self,
             title="Import Data Sources",
@@ -1561,8 +1741,10 @@ class SqlAssistView(ttk.Frame):
         if not bundles:
             messagebox.showinfo("Data Sources", "No data sources were found in the CSV.", parent=self)
             return
+        if not self._capture_data_source_backup():
+            return
         try:
-            self.db.replace_sql_data_sources(bundles)
+            self.db.replace_sql_data_sources(self.current_instance_id, bundles)
         except Exception as exc:
             messagebox.showerror("Import Failed", str(exc), parent=self)
             return

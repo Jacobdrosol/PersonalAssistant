@@ -447,7 +447,8 @@ class Database:
 
             CREATE TABLE IF NOT EXISTS sql_data_sources (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT NOT NULL UNIQUE,
+                instance_id INTEGER NOT NULL REFERENCES sql_instances(id) ON DELETE CASCADE,
+                title TEXT NOT NULL,
                 description TEXT,
                 is_base INTEGER NOT NULL DEFAULT 0,
                 is_in_error INTEGER NOT NULL DEFAULT 0,
@@ -458,7 +459,8 @@ class Database:
                 updated_by TEXT,
                 is_visible INTEGER,
                 visible_updated_at TEXT,
-                visible_updated_by TEXT
+                visible_updated_by TEXT,
+                UNIQUE(instance_id, title)
             );
 
             CREATE TABLE IF NOT EXISTS sql_data_source_joins (
@@ -562,6 +564,7 @@ class Database:
         self._ensure_column("sql_instances", "updated_at", "TEXT")
         self._ensure_column("sql_tables", "description", "TEXT")
         self._ensure_column("sql_columns", "description", "TEXT")
+        self._ensure_column("sql_data_sources", "instance_id", "INTEGER")
         self._ensure_column("sql_data_sources", "description", "TEXT")
         self._ensure_column("sql_data_sources", "is_base", "INTEGER NOT NULL DEFAULT 0")
         self._ensure_column("sql_data_sources", "is_in_error", "INTEGER NOT NULL DEFAULT 0")
@@ -602,6 +605,10 @@ class Database:
         self._ensure_column("sql_saved_queries", "content", "TEXT")
         self._ensure_column("sql_saved_queries", "updated_at", "TEXT")
         self._ensure_column("sql_saved_queries", "instance_id", "INTEGER")
+        self._ensure_sql_data_source_instance_scope()
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sql_data_sources_instance ON sql_data_sources(instance_id)"
+        )
         self._conn.execute(
             """
             CREATE UNIQUE INDEX IF NOT EXISTS idx_sql_saved_queries_instance_name
@@ -663,6 +670,287 @@ class Database:
         )
         self._conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_export_validator_instance ON export_validator_configs(instance_id)"
+        )
+        self._conn.commit()
+
+    def _ensure_sql_data_source_instance_scope(self) -> None:
+        columns = [
+            row["name"].lower()
+            for row in self._conn.execute("PRAGMA table_info(sql_data_sources)").fetchall()
+        ]
+        if not columns:
+            return
+        has_instance_id = "instance_id" in columns
+        indexes = self._conn.execute("PRAGMA index_list(sql_data_sources)").fetchall()
+        has_scoped_unique = False
+        has_title_only_unique = False
+        for idx in indexes:
+            if not idx["unique"]:
+                continue
+            idx_name = idx["name"]
+            idx_cols = [
+                info["name"].lower()
+                for info in self._conn.execute(f"PRAGMA index_info({idx_name})").fetchall()
+                if info["name"]
+            ]
+            if idx_cols == ["title"]:
+                has_title_only_unique = True
+            elif idx_cols == ["instance_id", "title"]:
+                has_scoped_unique = True
+
+        needs_rebuild = not has_instance_id or has_title_only_unique or not has_scoped_unique
+        if needs_rebuild:
+            # Legacy table shape used a global unique title; treat those rows as global data.
+            use_existing_instance_ids = has_instance_id and not has_title_only_unique
+            self._rebuild_sql_data_source_tables(old_has_instance_id=use_existing_instance_ids)
+            return
+
+        default_instance = self._default_sql_instance_id()
+        if default_instance is not None:
+            self._conn.execute(
+                "UPDATE sql_data_sources SET instance_id = ? WHERE instance_id IS NULL",
+                (default_instance,),
+            )
+        self._conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_sql_data_sources_instance_title
+            ON sql_data_sources(instance_id, title)
+            """
+        )
+        self._conn.commit()
+
+    def _rebuild_sql_data_source_tables(self, *, old_has_instance_id: bool) -> None:
+        self._conn.execute("DROP TABLE IF EXISTS sql_data_source_expressions_new")
+        self._conn.execute("DROP TABLE IF EXISTS sql_data_source_joins_new")
+        self._conn.execute("DROP TABLE IF EXISTS sql_data_sources_new")
+
+        self._conn.execute(
+            """
+            CREATE TABLE sql_data_sources_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                instance_id INTEGER NOT NULL REFERENCES sql_instances(id) ON DELETE CASCADE,
+                title TEXT NOT NULL,
+                description TEXT,
+                is_base INTEGER NOT NULL DEFAULT 0,
+                is_in_error INTEGER NOT NULL DEFAULT 0,
+                error_message TEXT,
+                parent_source TEXT,
+                select_set TEXT,
+                updated_at TEXT,
+                updated_by TEXT,
+                is_visible INTEGER,
+                visible_updated_at TEXT,
+                visible_updated_by TEXT,
+                UNIQUE(instance_id, title)
+            )
+            """
+        )
+        self._conn.execute(
+            """
+            CREATE TABLE sql_data_source_joins_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_id INTEGER NOT NULL REFERENCES sql_data_sources_new(id) ON DELETE CASCADE,
+                alias TEXT,
+                sequence TEXT,
+                description TEXT,
+                join_object TEXT,
+                join_type TEXT,
+                row_expected INTEGER,
+                join_index TEXT,
+                is_base_join INTEGER,
+                join_in_error INTEGER,
+                join_error_message TEXT,
+                updated_at TEXT,
+                updated_by TEXT,
+                comment TEXT,
+                relate_sequence TEXT,
+                relate_alias TEXT,
+                relate_name TEXT,
+                clause_updated_at TEXT,
+                clause_updated_by TEXT
+            )
+            """
+        )
+        self._conn.execute(
+            """
+            CREATE TABLE sql_data_source_expressions_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_id INTEGER NOT NULL REFERENCES sql_data_sources_new(id) ON DELETE CASCADE,
+                expression_name TEXT,
+                select_json_id TEXT,
+                note TEXT,
+                validated_field_name TEXT,
+                is_csharp_valid INTEGER,
+                is_sql_valid INTEGER,
+                updated_at TEXT,
+                updated_by TEXT
+            )
+            """
+        )
+
+        source_select = """
+            SELECT id, title, description, is_base, is_in_error, error_message,
+                   parent_source, select_set, updated_at, updated_by, is_visible,
+                   visible_updated_at, visible_updated_by
+            FROM sql_data_sources
+            ORDER BY id
+        """
+        if old_has_instance_id:
+            source_select = """
+                SELECT id, instance_id, title, description, is_base, is_in_error, error_message,
+                       parent_source, select_set, updated_at, updated_by, is_visible,
+                       visible_updated_at, visible_updated_by
+                FROM sql_data_sources
+                ORDER BY id
+            """
+        source_rows = self._conn.execute(source_select).fetchall()
+
+        join_rows = self._conn.execute(
+            """
+            SELECT source_id, alias, sequence, description, join_object, join_type,
+                   row_expected, join_index, is_base_join, join_in_error,
+                   join_error_message, updated_at, updated_by, comment,
+                   relate_sequence, relate_alias, relate_name,
+                   clause_updated_at, clause_updated_by
+            FROM sql_data_source_joins
+            ORDER BY id
+            """
+        ).fetchall()
+        joins_by_source: Dict[int, List[sqlite3.Row]] = {}
+        for row in join_rows:
+            source_id = row["source_id"]
+            if source_id is None:
+                continue
+            joins_by_source.setdefault(source_id, []).append(row)
+
+        expr_rows = self._conn.execute(
+            """
+            SELECT source_id, expression_name, select_json_id, note, validated_field_name,
+                   is_csharp_valid, is_sql_valid, updated_at, updated_by
+            FROM sql_data_source_expressions
+            ORDER BY id
+            """
+        ).fetchall()
+        exprs_by_source: Dict[int, List[sqlite3.Row]] = {}
+        for row in expr_rows:
+            source_id = row["source_id"]
+            if source_id is None:
+                continue
+            exprs_by_source.setdefault(source_id, []).append(row)
+
+        instance_ids = [row["id"] for row in self._conn.execute("SELECT id FROM sql_instances").fetchall()]
+        default_instance = self._default_sql_instance_id()
+        if not instance_ids and default_instance is not None:
+            instance_ids = [default_instance]
+        instance_id_set = set(instance_ids)
+
+        for source in source_rows:
+            source_id = source["id"]
+            target_instance_ids: List[int]
+            if old_has_instance_id:
+                source_instance = source["instance_id"]
+                if source_instance is None or source_instance not in instance_id_set:
+                    target_instance_ids = [default_instance] if default_instance is not None else []
+                else:
+                    target_instance_ids = [source_instance]
+            else:
+                target_instance_ids = list(instance_ids)
+
+            for instance_id in target_instance_ids:
+                cursor = self._conn.execute(
+                    """
+                    INSERT INTO sql_data_sources_new (
+                        instance_id, title, description, is_base, is_in_error, error_message,
+                        parent_source, select_set, updated_at, updated_by,
+                        is_visible, visible_updated_at, visible_updated_by
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        instance_id,
+                        source["title"],
+                        source["description"],
+                        source["is_base"],
+                        source["is_in_error"],
+                        source["error_message"],
+                        source["parent_source"],
+                        source["select_set"],
+                        source["updated_at"],
+                        source["updated_by"],
+                        source["is_visible"],
+                        source["visible_updated_at"],
+                        source["visible_updated_by"],
+                    ),
+                )
+                new_source_id = cursor.lastrowid
+                for join in joins_by_source.get(source_id, []):
+                    self._conn.execute(
+                        """
+                        INSERT INTO sql_data_source_joins_new (
+                            source_id, alias, sequence, description, join_object, join_type,
+                            row_expected, join_index, is_base_join, join_in_error,
+                            join_error_message, updated_at, updated_by, comment,
+                            relate_sequence, relate_alias, relate_name,
+                            clause_updated_at, clause_updated_by
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            new_source_id,
+                            join["alias"],
+                            join["sequence"],
+                            join["description"],
+                            join["join_object"],
+                            join["join_type"],
+                            join["row_expected"],
+                            join["join_index"],
+                            join["is_base_join"],
+                            join["join_in_error"],
+                            join["join_error_message"],
+                            join["updated_at"],
+                            join["updated_by"],
+                            join["comment"],
+                            join["relate_sequence"],
+                            join["relate_alias"],
+                            join["relate_name"],
+                            join["clause_updated_at"],
+                            join["clause_updated_by"],
+                        ),
+                    )
+                for expr in exprs_by_source.get(source_id, []):
+                    self._conn.execute(
+                        """
+                        INSERT INTO sql_data_source_expressions_new (
+                            source_id, expression_name, select_json_id, note,
+                            validated_field_name, is_csharp_valid, is_sql_valid,
+                            updated_at, updated_by
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            new_source_id,
+                            expr["expression_name"],
+                            expr["select_json_id"],
+                            expr["note"],
+                            expr["validated_field_name"],
+                            expr["is_csharp_valid"],
+                            expr["is_sql_valid"],
+                            expr["updated_at"],
+                            expr["updated_by"],
+                        ),
+                    )
+
+        self._conn.execute("DROP TABLE sql_data_source_expressions")
+        self._conn.execute("DROP TABLE sql_data_source_joins")
+        self._conn.execute("DROP TABLE sql_data_sources")
+        self._conn.execute("ALTER TABLE sql_data_sources_new RENAME TO sql_data_sources")
+        self._conn.execute("ALTER TABLE sql_data_source_joins_new RENAME TO sql_data_source_joins")
+        self._conn.execute("ALTER TABLE sql_data_source_expressions_new RENAME TO sql_data_source_expressions")
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sql_data_sources_instance ON sql_data_sources(instance_id)"
+        )
+        self._conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_sql_data_sources_instance_title
+            ON sql_data_sources(instance_id, title)
+            """
         )
         self._conn.commit()
 
@@ -1756,7 +2044,9 @@ class Database:
                 )
         return sorted(tables.values(), key=lambda t: t.name.lower())
 
-    def get_sql_data_sources(self) -> List[SqlDataSource]:
+    def get_sql_data_sources(self, instance_id: Optional[int]) -> List[SqlDataSource]:
+        if instance_id is None:
+            return []
         with self._lock:
             rows = self._conn.execute(
                 """
@@ -1764,8 +2054,10 @@ class Database:
                        parent_source, select_set, updated_at, updated_by, is_visible,
                        visible_updated_at, visible_updated_by
                 FROM sql_data_sources
+                WHERE instance_id = ?
                 ORDER BY LOWER(title)
-                """
+                """,
+                (instance_id,),
             ).fetchall()
         sources: List[SqlDataSource] = []
         for row in rows:
@@ -1788,7 +2080,129 @@ class Database:
             )
         return sources
 
-    def get_sql_data_source_details(self, source_id: int) -> SqlDataSourceDetail:
+    def export_sql_data_sources(self, instance_id: Optional[int]) -> List[SqlDataSourceDetail]:
+        if instance_id is None:
+            return []
+        with self._lock:
+            source_rows = self._conn.execute(
+                """
+                SELECT id, title, description, is_base, is_in_error, error_message,
+                       parent_source, select_set, updated_at, updated_by, is_visible,
+                       visible_updated_at, visible_updated_by
+                FROM sql_data_sources
+                WHERE instance_id = ?
+                ORDER BY LOWER(title)
+                """,
+                (instance_id,),
+            ).fetchall()
+            if not source_rows:
+                return []
+            source_ids = [row["id"] for row in source_rows]
+            placeholders = ", ".join("?" for _ in source_ids)
+            joins_rows = self._conn.execute(
+                f"""
+                SELECT source_id, id, alias, sequence, description, join_object, join_type,
+                       row_expected, join_index, is_base_join, join_in_error,
+                       join_error_message, updated_at, updated_by, comment,
+                       relate_sequence, relate_alias, relate_name,
+                       clause_updated_at, clause_updated_by
+                FROM sql_data_source_joins
+                WHERE source_id IN ({placeholders})
+                ORDER BY source_id, COALESCE(sequence, ''), COALESCE(alias, '')
+                """,
+                source_ids,
+            ).fetchall()
+            expr_rows = self._conn.execute(
+                f"""
+                SELECT source_id, id, expression_name, select_json_id, note, validated_field_name,
+                       is_csharp_valid, is_sql_valid, updated_at, updated_by
+                FROM sql_data_source_expressions
+                WHERE source_id IN ({placeholders})
+                ORDER BY source_id, COALESCE(expression_name, ''), id
+                """,
+                source_ids,
+            ).fetchall()
+
+        joins_by_source: Dict[int, List[SqlDataSourceJoin]] = {}
+        for row in joins_rows:
+            source_id = row["source_id"]
+            joins_by_source.setdefault(source_id, []).append(
+                SqlDataSourceJoin(
+                    id=row["id"],
+                    source_id=source_id,
+                    alias=row["alias"],
+                    sequence=row["sequence"],
+                    description=row["description"],
+                    join_object=row["join_object"],
+                    join_type=row["join_type"],
+                    row_expected=self._int_to_bool(row["row_expected"]),
+                    join_index=row["join_index"],
+                    is_base_join=self._int_to_bool(row["is_base_join"]),
+                    join_in_error=self._int_to_bool(row["join_in_error"]),
+                    join_error_message=row["join_error_message"],
+                    updated_at=row["updated_at"],
+                    updated_by=row["updated_by"],
+                    comment=row["comment"],
+                    relate_sequence=row["relate_sequence"],
+                    relate_alias=row["relate_alias"],
+                    relate_name=row["relate_name"],
+                    clause_updated_at=row["clause_updated_at"],
+                    clause_updated_by=row["clause_updated_by"],
+                )
+            )
+
+        exprs_by_source: Dict[int, List[SqlDataSourceExpression]] = {}
+        for row in expr_rows:
+            source_id = row["source_id"]
+            exprs_by_source.setdefault(source_id, []).append(
+                SqlDataSourceExpression(
+                    id=row["id"],
+                    source_id=source_id,
+                    expression_name=row["expression_name"],
+                    select_json_id=row["select_json_id"],
+                    note=row["note"],
+                    validated_field_name=row["validated_field_name"],
+                    is_csharp_valid=self._int_to_bool(row["is_csharp_valid"]),
+                    is_sql_valid=self._int_to_bool(row["is_sql_valid"]),
+                    updated_at=row["updated_at"],
+                    updated_by=row["updated_by"],
+                )
+            )
+
+        results: List[SqlDataSourceDetail] = []
+        for row in source_rows:
+            source_id = row["id"]
+            source = SqlDataSource(
+                id=source_id,
+                title=row["title"],
+                description=row["description"],
+                is_base=bool(row["is_base"]),
+                is_in_error=bool(row["is_in_error"]),
+                error_message=row["error_message"],
+                parent_source=row["parent_source"],
+                select_set=row["select_set"],
+                updated_at=row["updated_at"],
+                updated_by=row["updated_by"],
+                is_visible=self._int_to_bool(row["is_visible"]),
+                visible_updated_at=row["visible_updated_at"],
+                visible_updated_by=row["visible_updated_by"],
+            )
+            results.append(
+                SqlDataSourceDetail(
+                    source=source,
+                    joins=list(joins_by_source.get(source_id, [])),
+                    expressions=list(exprs_by_source.get(source_id, [])),
+                )
+            )
+        return results
+
+    def get_sql_data_source_details(
+        self,
+        source_id: int,
+        instance_id: Optional[int],
+    ) -> SqlDataSourceDetail:
+        if instance_id is None:
+            raise ValueError("Select a SQL instance first.")
         with self._lock:
             row = self._conn.execute(
                 """
@@ -1796,12 +2210,12 @@ class Database:
                        parent_source, select_set, updated_at, updated_by, is_visible,
                        visible_updated_at, visible_updated_by
                 FROM sql_data_sources
-                WHERE id = ?
+                WHERE id = ? AND instance_id = ?
                 """,
-                (source_id,),
+                (source_id, instance_id),
             ).fetchone()
             if row is None:
-                raise ValueError(f"SQL data source {source_id} not found")
+                raise ValueError("SQL data source not found for the selected instance.")
             joins_rows = self._conn.execute(
                 """
                 SELECT id, alias, sequence, description, join_object, join_type,
@@ -1884,10 +2298,17 @@ class Database:
             )
         return SqlDataSourceDetail(source=source, joins=joins, expressions=expressions)
 
-    def replace_sql_data_sources(self, bundles: List[SqlDataSourceDetail]) -> None:
+    def replace_sql_data_sources(
+        self,
+        instance_id: int,
+        bundles: List[SqlDataSourceDetail],
+    ) -> None:
+        if not instance_id:
+            raise ValueError("A SQL instance must be selected before importing data sources.")
         with self._lock:
             existing_rows = self._conn.execute(
-                "SELECT id, title FROM sql_data_sources"
+                "SELECT id, title FROM sql_data_sources WHERE instance_id = ?",
+                (instance_id,),
             ).fetchall()
             existing = {row["title"]: row["id"] for row in existing_rows}
             incoming_titles = {bundle.source.title for bundle in bundles}
@@ -1934,12 +2355,12 @@ class Database:
                     cursor = self._conn.execute(
                         """
                         INSERT INTO sql_data_sources (
-                            title, description, is_base, is_in_error, error_message,
+                            instance_id, title, description, is_base, is_in_error, error_message,
                             parent_source, select_set, updated_at, updated_by,
                             is_visible, visible_updated_at, visible_updated_by
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
-                        (src.title,) + data,
+                        (instance_id, src.title) + data,
                     )
                     source_id = cursor.lastrowid
                 for join in bundle.joins:
@@ -1999,7 +2420,46 @@ class Database:
             for title, source_id in existing.items():
                 if title not in incoming_titles:
                     self._conn.execute("DELETE FROM sql_data_sources WHERE id = ?", (source_id,))
+            self._conn.execute(
+                "UPDATE sql_instances SET updated_at = ? WHERE id = ?",
+                (utils.to_iso(datetime.now()), instance_id),
+            )
             self._conn.commit()
+
+    def delete_sql_data_source(self, instance_id: int, source_id: int) -> None:
+        if not instance_id:
+            raise ValueError("A SQL instance must be selected before deleting data sources.")
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT id FROM sql_data_sources WHERE id = ? AND instance_id = ?",
+                (source_id, instance_id),
+            ).fetchone()
+            if row is None:
+                raise ValueError("Data source not found for the selected instance.")
+            self._conn.execute("DELETE FROM sql_data_sources WHERE id = ?", (source_id,))
+            self._conn.execute(
+                "UPDATE sql_instances SET updated_at = ? WHERE id = ?",
+                (utils.to_iso(datetime.now()), instance_id),
+            )
+            self._conn.commit()
+
+    def clear_sql_data_sources(self, instance_id: int) -> int:
+        if not instance_id:
+            raise ValueError("A SQL instance must be selected before deleting data sources.")
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT COUNT(*) AS total FROM sql_data_sources WHERE instance_id = ?",
+                (instance_id,),
+            ).fetchone()
+            total = row["total"] if row else 0
+            if total:
+                self._conn.execute("DELETE FROM sql_data_sources WHERE instance_id = ?", (instance_id,))
+                self._conn.execute(
+                    "UPDATE sql_instances SET updated_at = ? WHERE id = ?",
+                    (utils.to_iso(datetime.now()), instance_id),
+                )
+            self._conn.commit()
+            return total
 
     # Saved query operations -------------------------------------------------
     def get_sql_saved_queries(self, instance_id: Optional[int]) -> List[SqlSavedQuery]:
