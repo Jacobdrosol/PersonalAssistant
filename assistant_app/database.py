@@ -30,6 +30,7 @@ from .models import (
     IssueNote,
     IssuePublication,
     ExportValidatorConfig,
+    ExportValidatorConfigRecord,
     ExportValidatorInstance,
     ProductionLogClient,
     ProductionLogSheetConfig,
@@ -661,17 +662,89 @@ class Database:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 instance_id INTEGER NOT NULL REFERENCES export_validator_instances(id) ON DELETE CASCADE,
                 item_type TEXT NOT NULL,
-                source_filename TEXT,
+                source_filename TEXT NOT NULL DEFAULT '',
                 xml_content TEXT NOT NULL,
                 stored_at TEXT NOT NULL,
-                UNIQUE(instance_id, item_type)
+                UNIQUE(instance_id, item_type, source_filename)
+            );
+
+            CREATE TABLE IF NOT EXISTS export_validator_config_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                instance_id INTEGER NOT NULL REFERENCES export_validator_instances(id) ON DELETE CASCADE,
+                item_type TEXT NOT NULL,
+                record_key TEXT NOT NULL,
+                key_display TEXT NOT NULL,
+                record_payload TEXT NOT NULL,
+                source_filename TEXT,
+                stored_at TEXT NOT NULL,
+                UNIQUE(instance_id, item_type, record_key)
+            );
+            """
+        )
+        self._ensure_export_validator_multi_config_schema()
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_export_validator_instance ON export_validator_configs(instance_id)"
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_export_validator_instance_item "
+            "ON export_validator_configs(instance_id, item_type)"
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_export_validator_records_instance_item "
+            "ON export_validator_config_records(instance_id, item_type)"
+        )
+        self._conn.commit()
+
+    def _ensure_export_validator_multi_config_schema(self) -> None:
+        row = self._conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'export_validator_configs'"
+        ).fetchone()
+        if not row or not row["sql"]:
+            return
+
+        table_sql = row["sql"].lower()
+        has_new_unique = "unique(instance_id, item_type, source_filename)" in table_sql
+        source_filename_not_null = False
+        for col in self._conn.execute("PRAGMA table_info(export_validator_configs)").fetchall():
+            if col["name"].lower() == "source_filename":
+                source_filename_not_null = bool(col["notnull"])
+                break
+
+        if has_new_unique and source_filename_not_null:
+            return
+
+        self._conn.execute("PRAGMA foreign_keys = OFF")
+        self._conn.executescript(
+            """
+            CREATE TABLE export_validator_configs_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                instance_id INTEGER NOT NULL REFERENCES export_validator_instances(id) ON DELETE CASCADE,
+                item_type TEXT NOT NULL,
+                source_filename TEXT NOT NULL DEFAULT '',
+                xml_content TEXT NOT NULL,
+                stored_at TEXT NOT NULL,
+                UNIQUE(instance_id, item_type, source_filename)
             );
             """
         )
         self._conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_export_validator_instance ON export_validator_configs(instance_id)"
+            """
+            INSERT INTO export_validator_configs_new (
+                id, instance_id, item_type, source_filename, xml_content, stored_at
+            )
+            SELECT
+                id,
+                instance_id,
+                item_type,
+                COALESCE(NULLIF(source_filename, ''), 'config_' || CAST(id AS TEXT)),
+                xml_content,
+                stored_at
+            FROM export_validator_configs
+            """
         )
-        self._conn.commit()
+        self._conn.execute("DROP TABLE export_validator_configs")
+        self._conn.execute("ALTER TABLE export_validator_configs_new RENAME TO export_validator_configs")
+        self._conn.execute("PRAGMA foreign_keys = ON")
 
     def _ensure_sql_data_source_instance_scope(self) -> None:
         columns = [
@@ -3377,7 +3450,7 @@ class Database:
                 SELECT id, instance_id, item_type, source_filename, xml_content, stored_at
                 FROM export_validator_configs
                 WHERE instance_id = ?
-                ORDER BY item_type
+                ORDER BY item_type, stored_at DESC, id DESC
                 """,
                 (instance_id,),
             ).fetchall()
@@ -3396,6 +3469,81 @@ class Database:
             )
         return configs
 
+    def get_export_validator_record_counts(self, instance_id: int) -> Dict[str, int]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT item_type, COUNT(*) AS record_count
+                FROM export_validator_config_records
+                WHERE instance_id = ?
+                GROUP BY item_type
+                """,
+                (instance_id,),
+            ).fetchall()
+        return {str(row["item_type"]): int(row["record_count"]) for row in rows}
+
+    def get_export_validator_record_keys(
+        self, instance_id: int, item_type: str
+    ) -> Dict[str, str]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT record_key, key_display
+                FROM export_validator_config_records
+                WHERE instance_id = ? AND item_type = ?
+                """,
+                (instance_id, item_type),
+            ).fetchall()
+        return {str(row["record_key"]): str(row["key_display"]) for row in rows}
+
+    def get_export_validator_config_records(
+        self, instance_id: int, item_type: str
+    ) -> List[ExportValidatorConfigRecord]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT id, instance_id, item_type, record_key, key_display, record_payload, source_filename, stored_at
+                FROM export_validator_config_records
+                WHERE instance_id = ? AND item_type = ?
+                ORDER BY key_display, stored_at DESC, id DESC
+                """,
+                (instance_id, item_type),
+            ).fetchall()
+        results: List[ExportValidatorConfigRecord] = []
+        for row in rows:
+            stored_at = utils.from_iso(row["stored_at"]) or datetime.now()
+            results.append(
+                ExportValidatorConfigRecord(
+                    id=row["id"],
+                    instance_id=row["instance_id"],
+                    item_type=row["item_type"],
+                    record_key=row["record_key"],
+                    key_display=row["key_display"],
+                    record_payload=row["record_payload"],
+                    source_filename=row["source_filename"],
+                    stored_at=stored_at,
+                )
+            )
+        return results
+
+    def get_export_validator_record_keys_for_source(
+        self, instance_id: int, item_type: str, source_filename: Optional[str]
+    ) -> List[str]:
+        filename = source_filename or ""
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT key_display
+                FROM export_validator_config_records
+                WHERE instance_id = ?
+                  AND item_type = ?
+                  AND COALESCE(source_filename, '') = ?
+                ORDER BY key_display
+                """,
+                (instance_id, item_type, filename),
+            ).fetchall()
+        return [str(row["key_display"]) for row in rows]
+
     def get_export_validator_config(
         self, instance_id: int, item_type: str
     ) -> Optional[ExportValidatorConfig]:
@@ -3405,8 +3553,39 @@ class Database:
                 SELECT id, instance_id, item_type, source_filename, xml_content, stored_at
                 FROM export_validator_configs
                 WHERE instance_id = ? AND item_type = ?
+                ORDER BY stored_at DESC, id DESC
+                LIMIT 1
                 """,
                 (instance_id, item_type),
+            ).fetchone()
+        if row is None:
+            return None
+        stored_at = utils.from_iso(row["stored_at"]) or datetime.now()
+        return ExportValidatorConfig(
+            id=row["id"],
+            instance_id=row["instance_id"],
+            item_type=row["item_type"],
+            source_filename=row["source_filename"],
+            xml_content=row["xml_content"],
+            stored_at=stored_at,
+        )
+
+    def get_export_validator_config_by_source(
+        self, instance_id: int, item_type: str, source_filename: Optional[str]
+    ) -> Optional[ExportValidatorConfig]:
+        filename = source_filename or ""
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT id, instance_id, item_type, source_filename, xml_content, stored_at
+                FROM export_validator_configs
+                WHERE instance_id = ?
+                  AND item_type = ?
+                  AND COALESCE(source_filename, '') = ?
+                ORDER BY stored_at DESC, id DESC
+                LIMIT 1
+                """,
+                (instance_id, item_type, filename),
             ).fetchone()
         if row is None:
             return None
@@ -3431,6 +3610,9 @@ class Database:
         trimmed_type = item_type.strip()
         if not trimmed_type:
             raise ValueError("Item type is required.")
+        filename = (source_filename or "").strip()
+        if not filename:
+            filename = f"{trimmed_type}_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
         stored_at = utils.to_iso(datetime.now())
         with self._lock:
             self._conn.execute(
@@ -3438,7 +3620,7 @@ class Database:
                 INSERT INTO export_validator_configs (
                     instance_id, item_type, source_filename, xml_content, stored_at
                 ) VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(instance_id, item_type)
+                ON CONFLICT(instance_id, item_type, source_filename)
                 DO UPDATE SET
                     source_filename = excluded.source_filename,
                     xml_content = excluded.xml_content,
@@ -3447,10 +3629,74 @@ class Database:
                 (
                     instance_id,
                     trimmed_type,
-                    source_filename,
+                    filename,
                     xml_content,
                     stored_at,
                 ),
+            )
+            self._conn.commit()
+
+    def upsert_export_validator_config_record(
+        self,
+        *,
+        instance_id: int,
+        item_type: str,
+        record_key: str,
+        key_display: str,
+        record_payload: str,
+        source_filename: Optional[str],
+    ) -> None:
+        trimmed_type = item_type.strip()
+        trimmed_key = record_key.strip()
+        if not trimmed_type:
+            raise ValueError("Item type is required.")
+        if not trimmed_key:
+            raise ValueError("Record key is required.")
+        stored_at = utils.to_iso(datetime.now())
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO export_validator_config_records (
+                    instance_id, item_type, record_key, key_display, record_payload, source_filename, stored_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(instance_id, item_type, record_key)
+                DO UPDATE SET
+                    key_display = excluded.key_display,
+                    record_payload = excluded.record_payload,
+                    source_filename = excluded.source_filename,
+                    stored_at = excluded.stored_at
+                """,
+                (
+                    instance_id,
+                    trimmed_type,
+                    trimmed_key,
+                    key_display,
+                    record_payload,
+                    source_filename,
+                    stored_at,
+                ),
+            )
+            self._conn.commit()
+
+    def delete_export_validator_configs_for_item_type(self, instance_id: int, item_type: str) -> None:
+        trimmed_type = item_type.strip()
+        if not trimmed_type:
+            return
+        with self._lock:
+            self._conn.execute(
+                "DELETE FROM export_validator_configs WHERE instance_id = ? AND item_type = ?",
+                (instance_id, trimmed_type),
+            )
+            self._conn.commit()
+
+    def delete_export_validator_config_records_for_item_type(self, instance_id: int, item_type: str) -> None:
+        trimmed_type = item_type.strip()
+        if not trimmed_type:
+            return
+        with self._lock:
+            self._conn.execute(
+                "DELETE FROM export_validator_config_records WHERE instance_id = ? AND item_type = ?",
+                (instance_id, trimmed_type),
             )
             self._conn.commit()
 

@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import datetime
 import html
+import json
 from pathlib import Path
-from typing import Iterable, Optional
+import re
+import traceback
+from typing import Callable, Iterable, Optional
 from xml.etree import ElementTree as ET
 
 import tkinter as tk
@@ -11,7 +15,15 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from ... import utils
 from ...database import Database
-from ...models import ExportValidatorConfig, ExportValidatorInstance
+from ...export_validator_engine import (
+    ExportValidationError,
+    collect_records_from_xml_text,
+    get_file_type as rule_file_type,
+    load_rule,
+    load_export_types_from_file,
+    run_validation,
+)
+from ...models import ExportValidatorConfig, ExportValidatorConfigRecord, ExportValidatorInstance
 from ...theme import ThemePalette
 
 ITEM_TYPES: list[tuple[str, str]] = [
@@ -25,6 +37,7 @@ ITEM_TYPES: list[tuple[str, str]] = [
     ("promotion_offers", "Promotion Offers"),
     ("data_quality_tests", "Data Quality Tests"),
     ("workflow_rules", "Workflow Rules"),
+    ("scripts", "Scripts"),
     ("system_option_values", "System Option Values"),
     ("extended_distribution_staging_tables", "Extended Distribution Staging Tables"),
 ]
@@ -33,6 +46,53 @@ ITEM_TYPE_SAMPLE_FILES = {
     "agreement_choices": "AGREEMENT CHOICE.xml",
     "data_quality_tests": "DATA QUALITY TEST.xml",
 }
+
+ITEM_TYPE_RULES: dict[str, str] = {
+    "promotions": "Promotion",
+    "select_sets": "Select Sets",
+    "jobstreams": "Jobstreams",
+    "http_endpoints": "HTTP Endpoints",
+    "agreement_choices": "Agreement Choices",
+    "subscription_choices": "Subscription Choices",
+    "item_choices": "Item Choices",
+    "promotion_offers": "Promotion Offers",
+    "data_quality_tests": "DQT",
+    "workflow_rules": "Workflow Rules",
+    "scripts": "Scripts",
+    "system_option_values": "System Option Values",
+    "extended_distribution_staging_tables": "Extended Distribution Staging Tables",
+}
+
+ITEM_TYPE_IMPORT_ALIASES: dict[str, tuple[str, ...]] = {
+    "agreement_choices": ("agreement choices", "agreement choice", "agrchoice", "agr choice"),
+    "data_quality_tests": ("dqt", "data quality tests", "data quality test", "automated test", "autotest"),
+    "extended_distribution_staging_tables": (
+        "extended distribution staging tables",
+        "extended distribution staging table",
+        "exdiststagingtables",
+        "extendeddistributionstagingtable",
+    ),
+    "http_endpoints": ("http endpoints", "http endpoint", "httpendpoint"),
+    "item_choices": ("item choices", "item choice", "itemchoice"),
+    "jobstreams": ("jobstreams", "jobstream"),
+    "promotions": ("promotions", "promotion"),
+    "promotion_offers": ("promotion offers", "promotion offer"),
+    "scripts": ("scripts", "script"),
+    "select_sets": ("select sets", "select set", "selectset"),
+    "subscription_choices": ("subscription choices", "subscription choice", "subchoice"),
+    "system_option_values": (
+        "system option values",
+        "system option value",
+        "sysoptval",
+        "sys opt val",
+    ),
+    "workflow_rules": ("workflow rules", "workflow rule", "workflow"),
+}
+
+VALIDATION_MODES = (
+    "Mass (1:1)",
+    "Compressed (candidate subset)",
+)
 
 
 class ExportValidatorView(ttk.Frame):
@@ -51,17 +111,22 @@ class ExportValidatorView(ttk.Frame):
 
         self.instances: list[ExportValidatorInstance] = []
         self.current_instance_id: Optional[int] = None
-        self.configs: dict[str, ExportValidatorConfig] = {}
+        self.configs: dict[str, list[ExportValidatorConfig]] = {}
+        self.record_counts: dict[str, int] = {}
         self.selected_item_type: Optional[str] = None
         self._inventory_path = Path("Sample_Exports_Field_Inventory.md")
         self._inventory_specs: dict[str, dict[str, object]] = {}
         self._inventory_mtime: Optional[float] = None
+        self._rules_path = Path(__file__).resolve().parents[2] / "export_rules.json"
+        self._export_rules: dict[str, object] = {}
 
         self.instance_var = tk.StringVar(value="")
         self.status_var = tk.StringVar(value="Select or create an instance to begin.")
+        self.validation_mode_var = tk.StringVar(value=VALIDATION_MODES[0])
 
         self._configure_styles()
         self.configure(style="ExportValidator.Root.TFrame")
+        self._load_export_rules()
         self._build_ui()
         self._load_instances()
         self.after(0, self._show_lock_overlay)
@@ -119,7 +184,7 @@ class ExportValidatorView(ttk.Frame):
         )
         ttk.Label(
             config_card,
-            text="Select an item type and load its configuration XML.",
+            text="Select an item type and load configuration files (XML/CSV).",
             style="ExportValidator.BodyMuted.TLabel",
         ).grid(row=1, column=0, sticky="w", pady=(4, 8))
 
@@ -145,13 +210,20 @@ class ExportValidatorView(ttk.Frame):
         self.config_tree.column("updated", width=160, anchor="w")
         self.config_tree.column("file", width=200, anchor="w")
         self.config_tree.bind("<<TreeviewSelect>>", self._on_item_selected)
+        self.config_tree.bind("<Double-1>", self._on_config_double_click)
 
         button_row = ttk.Frame(config_card, style="ExportValidator.Card.TFrame")
         button_row.grid(row=3, column=0, sticky="ew", pady=(10, 0))
         ttk.Button(button_row, text="Import Config...", command=self._import_config).pack(
             side=tk.LEFT, padx=(0, 6)
         )
-        ttk.Button(button_row, text="Replace Config...", command=self._replace_config).pack(
+        ttk.Button(button_row, text="Import Folder...", command=self._import_config_folder).pack(
+            side=tk.LEFT, padx=(0, 6)
+        )
+        ttk.Button(button_row, text="Replace Config Set...", command=self._replace_config).pack(
+            side=tk.LEFT, padx=(0, 6)
+        )
+        ttk.Button(button_row, text="View Loaded...", command=self._view_loaded_configs).pack(
             side=tk.LEFT, padx=(0, 6)
         )
         ttk.Button(button_row, text="Validate Export...", command=self._validate_export).pack(
@@ -164,10 +236,23 @@ class ExportValidatorView(ttk.Frame):
         report_card = ttk.Frame(right, style="ExportValidator.Card.TFrame", padding=(16, 14))
         report_card.grid(row=0, column=0, sticky="nsew")
         report_card.columnconfigure(0, weight=1)
-        report_card.rowconfigure(1, weight=1)
+        report_card.rowconfigure(2, weight=1)
         ttk.Label(report_card, text="Validation Report", style="ExportValidator.Section.TLabel").grid(
             row=0, column=0, sticky="w"
         )
+
+        mode_row = ttk.Frame(report_card, style="ExportValidator.Card.TFrame")
+        mode_row.grid(row=1, column=0, sticky="w", pady=(8, 0))
+        ttk.Label(mode_row, text="Mode", style="ExportValidator.Card.TLabel").pack(side=tk.LEFT)
+        self.validation_mode_combo = ttk.Combobox(
+            mode_row,
+            textvariable=self.validation_mode_var,
+            state="readonly",
+            width=28,
+            values=VALIDATION_MODES,
+        )
+        self.validation_mode_combo.pack(side=tk.LEFT, padx=(8, 0))
+        self.validation_mode_combo.current(0)
 
         self.report_text = tk.Text(
             report_card,
@@ -178,9 +263,9 @@ class ExportValidatorView(ttk.Frame):
             foreground="#E8EAF6",
             insertbackground="#E8EAF6",
         )
-        self.report_text.grid(row=1, column=0, sticky="nsew", pady=(8, 0))
+        self.report_text.grid(row=2, column=0, sticky="nsew", pady=(8, 0))
         report_scroll = ttk.Scrollbar(report_card, orient=tk.VERTICAL, command=self.report_text.yview)
-        report_scroll.grid(row=1, column=1, sticky="ns", pady=(8, 0))
+        report_scroll.grid(row=2, column=1, sticky="ns", pady=(8, 0))
         self.report_text.configure(yscrollcommand=report_scroll.set)
         self._set_report_text("Load a configuration and run validation to see results here.")
 
@@ -202,13 +287,22 @@ class ExportValidatorView(ttk.Frame):
 
     def _sync_instance_state(self) -> None:
         self.configs = {}
+        self.record_counts = {}
         if self.current_instance_id is None:
             self.status_var.set("Select or create an instance to begin.")
             self._refresh_config_tree()
             return
         configs = self.db.get_export_validator_configs(self.current_instance_id)
-        self.configs = {cfg.item_type: cfg for cfg in configs}
-        self.status_var.set("Ready to import, replace, or validate.")
+        grouped: dict[str, list[ExportValidatorConfig]] = {}
+        for config in configs:
+            grouped.setdefault(config.item_type, []).append(config)
+        self.configs = grouped
+        self.record_counts = self.db.get_export_validator_record_counts(self.current_instance_id)
+        total = sum(len(items) for items in grouped.values())
+        total_records = sum(self.record_counts.values())
+        self.status_var.set(
+            f"Ready to import, replace, or validate. Files: {total} Records: {total_records}"
+        )
         self._refresh_config_tree()
 
     def _on_instance_selected(self, _event: object) -> None:
@@ -217,6 +311,129 @@ class ExportValidatorView(ttk.Frame):
         if match:
             self.current_instance_id = match.id
         self._sync_instance_state()
+
+    def _load_export_rules(self) -> None:
+        try:
+            self._export_rules = load_export_types_from_file(self._rules_path)
+        except ExportValidationError:
+            self._export_rules = {}
+
+    def _rule_name_for_item_type(self, item_type: str) -> str:
+        return ITEM_TYPE_RULES.get(item_type, self._label_for_item(item_type))
+
+    def _validation_mode(self) -> str:
+        value = self.validation_mode_var.get().strip().lower()
+        if value.startswith("compressed"):
+            return "compressed"
+        return "strict"
+
+    def _picker_file_type(self, item_type: str) -> str:
+        rule_name = self._rule_name_for_item_type(item_type)
+        if not self._export_rules:
+            self._load_export_rules()
+        if not self._export_rules:
+            return "xml"
+        return rule_file_type(self._export_rules, rule_name)
+
+    def _prompt_item_type(self, title: str) -> Optional[str]:
+        selected = tk.StringVar(value="")
+        labels = [label for _, label in ITEM_TYPES]
+        key_by_label = {label: key for key, label in ITEM_TYPES}
+
+        overlay = tk.Frame(self, bg="#111219")
+        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+        overlay.lift()
+
+        card = ttk.Frame(overlay, style="ExportValidator.Card.TFrame", padding=(14, 12))
+        card.place(relx=0.5, rely=0.5, anchor="center")
+        ttk.Label(card, text=title, style="ExportValidator.Section.TLabel").pack(anchor="w")
+        ttk.Label(card, text="Config type", style="ExportValidator.Card.TLabel").pack(anchor="w", pady=(8, 0))
+        combo = ttk.Combobox(card, state="readonly", values=labels, width=36, textvariable=selected)
+        combo.pack(anchor="w", pady=(6, 12))
+
+        if self.selected_item_type:
+            current_label = self._label_for_item(self.selected_item_type)
+            if current_label in labels:
+                combo.set(current_label)
+        if not combo.get() and labels:
+            combo.current(0)
+
+        result: dict[str, Optional[str]] = {"item_type": None}
+
+        def finish(value: Optional[str]) -> None:
+            result["item_type"] = value
+            if overlay.winfo_exists():
+                overlay.destroy()
+
+        def on_ok() -> None:
+            label = selected.get().strip()
+            finish(key_by_label.get(label))
+
+        def on_cancel() -> None:
+            finish(None)
+
+        button_row = ttk.Frame(card, style="ExportValidator.Card.TFrame")
+        button_row.pack(anchor="e")
+        ttk.Button(button_row, text="Cancel", command=on_cancel).pack(side=tk.RIGHT)
+        ttk.Button(button_row, text="Continue", command=on_ok).pack(side=tk.RIGHT, padx=(0, 8))
+
+        overlay.bind("<Escape>", lambda _e: on_cancel())
+        combo.bind("<Return>", lambda _e: on_ok())
+        combo.focus_set()
+        self.wait_window(overlay)
+        return result["item_type"]
+
+    @staticmethod
+    def _normalize_lookup(text: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "", text.lower())
+
+    def _build_alias_index(self) -> list[tuple[str, str]]:
+        aliases: list[tuple[str, str]] = []
+        for item_type, names in ITEM_TYPE_IMPORT_ALIASES.items():
+            for name in names:
+                normalized = self._normalize_lookup(name)
+                if normalized:
+                    aliases.append((normalized, item_type))
+        aliases.sort(key=lambda pair: len(pair[0]), reverse=True)
+        return aliases
+
+    def _guess_item_type_from_file(self, root_folder: Path, file_path: Path) -> Optional[str]:
+        alias_index = self._build_alias_index()
+        candidate_parts: list[str] = []
+        relative = None
+        try:
+            relative = file_path.relative_to(root_folder)
+        except Exception:
+            relative = file_path
+
+        if relative.parts:
+            candidate_parts.append(relative.parts[0])
+        candidate_parts.append(file_path.parent.name)
+        candidate_parts.append(file_path.stem)
+        candidate_parts.append(file_path.name)
+
+        for part in candidate_parts:
+            normalized_part = self._normalize_lookup(part)
+            if not normalized_part:
+                continue
+            for alias, item_type in alias_index:
+                if (
+                    normalized_part == alias
+                    or normalized_part.startswith(alias)
+                    or alias in normalized_part
+                ):
+                    return item_type
+        return None
+
+    def _record_key_token(self, item_type: str, key_values: tuple[str, ...]) -> str:
+        if not key_values:
+            return ""
+        # Select Sets should match by select name during import conflict checks.
+        if item_type == "select_sets":
+            first = key_values[0].strip()
+            if first:
+                return first
+        return "\u001f".join(key_values)
 
     def _new_instance(self) -> None:
         name = simpledialog.askstring("New Instance", "Instance name:", parent=self)
@@ -267,13 +484,18 @@ class ExportValidatorView(ttk.Frame):
     def _refresh_config_tree(self) -> None:
         self.config_tree.delete(*self.config_tree.get_children())
         for key, label in ITEM_TYPES:
-            config = self.configs.get(key)
-            if config:
-                status = "Loaded"
-                updated = utils.format_datetime(config.stored_at)
-                filename = config.source_filename or ""
+            configs_for_type = self.configs.get(key, [])
+            record_count = self.record_counts.get(key, 0)
+            if configs_for_type:
+                latest = configs_for_type[0]
+                if record_count:
+                    status = f"{record_count} records"
+                else:
+                    status = f"{len(configs_for_type)} files"
+                updated = utils.format_datetime(latest.stored_at)
+                filename = latest.source_filename or ""
             else:
-                status = "Not loaded"
+                status = "Not loaded" if record_count == 0 else f"{record_count} records"
                 updated = ""
                 filename = ""
             self.config_tree.insert(
@@ -293,61 +515,635 @@ class ExportValidatorView(ttk.Frame):
             return
         self.selected_item_type = selection[0]
 
+    def _on_config_double_click(self, event: tk.Event) -> None:
+        row_id = self.config_tree.identify_row(event.y)
+        if row_id:
+            self.config_tree.selection_set(row_id)
+            self.selected_item_type = row_id
+            self._run_guarded(
+                "View Config Records",
+                lambda: self._open_config_records_view(initial_item_type=row_id),
+            )
+
     # ------------------------------------------------------------------ Actions
-    def _import_config(self) -> None:
-        self._load_config(replace=False)
+    def _run_guarded(self, label: str, action: Callable[[], None]) -> None:
+        try:
+            action()
+        except Exception as exc:
+            details = traceback.format_exc()
+            self._set_report_text(details)
+            messagebox.showerror(
+                "Export Validator",
+                f"{label} failed: {exc}",
+                parent=self,
+            )
 
-    def _replace_config(self) -> None:
-        self._load_config(replace=True)
+    def _view_loaded_configs(self) -> None:
+        self._run_guarded(
+            "View Config Records",
+            lambda: self._open_config_records_view(initial_item_type=self.selected_item_type),
+        )
 
-    def _load_config(self, *, replace: bool) -> None:
+    def _export_config_source_file(self, item_type: str, source_filename: Optional[str]) -> None:
         if self.current_instance_id is None:
             messagebox.showinfo("Export Validator", "Select an instance first.", parent=self)
             return
-        item_type = self.selected_item_type
-        if not item_type:
-            messagebox.showinfo("Export Validator", "Select an item type first.", parent=self)
-            return
-        existing = self.configs.get(item_type)
-        if existing and not replace:
-            messagebox.showinfo(
+        config = self.db.get_export_validator_config_by_source(
+            self.current_instance_id, item_type, source_filename
+        )
+        if config is None:
+            messagebox.showerror(
                 "Export Validator",
-                "A configuration already exists for this item type. Use Replace to overwrite it.",
+                "Could not find stored config source content for this selection.",
                 parent=self,
             )
             return
-        if replace and existing:
+
+        file_type = self._picker_file_type(item_type)
+        default_ext = ".csv" if file_type == "csv" else ".xml"
+        default_name = Path(config.source_filename or "").name
+        if not default_name:
+            default_name = f"{self._label_for_item(item_type).replace(' ', '_')}{default_ext}"
+        if not Path(default_name).suffix:
+            default_name = f"{default_name}{default_ext}"
+
+        save_path = filedialog.asksaveasfilename(
+            parent=self,
+            title=f"Export {self._label_for_item(item_type)} Config",
+            initialfile=default_name,
+            defaultextension=default_ext,
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+            if file_type == "csv"
+            else [("XML files", "*.xml"), ("All files", "*.*")],
+        )
+        if not save_path:
+            return
+        try:
+            Path(save_path).write_text(config.xml_content, encoding="utf-8")
+        except Exception as exc:
+            messagebox.showerror(
+                "Export Validator",
+                f"Could not export config: {exc}",
+                parent=self,
+            )
+            return
+        messagebox.showinfo("Export Validator", "Config exported.", parent=self)
+
+    def _open_config_records_view(self, initial_item_type: Optional[str] = None) -> None:
+        if self.current_instance_id is None:
+            messagebox.showinfo("Export Validator", "Select an instance first.", parent=self)
+            return
+
+        item_type = initial_item_type
+        if not item_type:
+            item_type = self._prompt_item_type("Select Config Type")
+        if not item_type:
+            return
+
+        label_for_type = {key: label for key, label in ITEM_TYPES}
+        type_label = label_for_type.get(item_type, item_type)
+        records = self.db.get_export_validator_config_records(self.current_instance_id, item_type)
+
+        overlay = tk.Frame(self, bg="#111219")
+        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+        overlay.lift()
+
+        card = ttk.Frame(overlay, style="ExportValidator.Card.TFrame", padding=(12, 12))
+        card.place(relx=0.5, rely=0.5, relwidth=0.94, relheight=0.90, anchor="center")
+        card.columnconfigure(0, weight=1)
+        card.rowconfigure(2, weight=1)
+
+        header = ttk.Frame(card, style="ExportValidator.Card.TFrame")
+        header.grid(row=0, column=0, sticky="ew")
+        header.columnconfigure(0, weight=1)
+        ttk.Label(header, text=f"{type_label} Config Records", style="ExportValidator.Section.TLabel").grid(
+            row=0, column=0, sticky="w"
+        )
+
+        def close_modal() -> None:
+            if overlay.winfo_exists():
+                overlay.destroy()
+
+        def export_selected() -> None:
+            selection = config_tree.selection()
+            if not selection:
+                messagebox.showinfo(
+                    "Export Validator",
+                    "Select a config first.",
+                    parent=self,
+                )
+                return
+            record = row_map.get(selection[0])
+            if record is None:
+                messagebox.showerror(
+                    "Export Validator",
+                    "Could not resolve selected config.",
+                    parent=self,
+                )
+                return
+            self._export_config_source_file(item_type, record.source_filename)
+
+        ttk.Button(header, text="Export Selected...", command=export_selected).grid(
+            row=0, column=1, sticky="e", padx=(0, 8)
+        )
+        ttk.Button(header, text="Close", command=close_modal).grid(row=0, column=2, sticky="e")
+
+        search_row = ttk.Frame(card, style="ExportValidator.Card.TFrame")
+        search_row.grid(row=1, column=0, sticky="ew", pady=(8, 10))
+        search_row.columnconfigure(1, weight=1)
+        ttk.Label(search_row, text="Search", style="ExportValidator.Card.TLabel").grid(
+            row=0, column=0, sticky="w"
+        )
+        search_var = tk.StringVar(value="")
+        search_entry = ttk.Entry(
+            search_row,
+            textvariable=search_var,
+            width=42,
+        )
+        search_entry.grid(row=0, column=1, sticky="ew", padx=(8, 8))
+        ttk.Label(
+            search_row,
+            text="Filter by config name or source file",
+            style="ExportValidator.BodyMuted.TLabel",
+        ).grid(row=0, column=2, sticky="w")
+
+        body = ttk.Frame(card, style="ExportValidator.Card.TFrame")
+        body.grid(row=2, column=0, sticky="nsew")
+        body.columnconfigure(0, weight=2)
+        body.columnconfigure(1, weight=3)
+        body.rowconfigure(0, weight=1)
+
+        list_frame = ttk.Frame(body, style="ExportValidator.Card.TFrame")
+        list_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        list_frame.columnconfigure(0, weight=1)
+        list_frame.rowconfigure(1, weight=1)
+        ttk.Label(list_frame, text="Configs", style="ExportValidator.Card.TLabel").grid(
+            row=0, column=0, sticky="w", pady=(0, 6)
+        )
+
+        config_tree = ttk.Treeview(
+            list_frame,
+            columns=("source", "stored"),
+            show="tree headings",
+            style="ExportValidator.Treeview",
+            height=16,
+        )
+        config_tree.grid(row=1, column=0, sticky="nsew")
+        config_tree.heading("#0", text="Config Name")
+        config_tree.heading("source", text="Source File")
+        config_tree.heading("stored", text="Stored")
+        config_tree.column("#0", width=220, anchor="w")
+        config_tree.column("source", width=260, anchor="w")
+        config_tree.column("stored", width=145, anchor="w")
+        config_scroll = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=config_tree.yview)
+        config_scroll.grid(row=1, column=1, sticky="ns")
+        config_tree.configure(yscrollcommand=config_scroll.set)
+
+        detail_frame = ttk.Frame(body, style="ExportValidator.Card.TFrame")
+        detail_frame.grid(row=0, column=1, sticky="nsew")
+        detail_frame.columnconfigure(0, weight=1)
+        detail_frame.rowconfigure(2, weight=1)
+        detail_frame.rowconfigure(3, weight=0)
+
+        selected_info = tk.StringVar(value="Select a config to inspect fields.")
+        record_info = tk.StringVar(value=f"Loaded configs: {len(records)}")
+        ttk.Label(detail_frame, textvariable=selected_info, style="ExportValidator.BodyMuted.TLabel").grid(
+            row=0, column=0, sticky="w"
+        )
+        ttk.Label(detail_frame, textvariable=record_info, style="ExportValidator.BodyMuted.TLabel").grid(
+            row=1, column=0, sticky="w", pady=(4, 8)
+        )
+
+        fields_text = tk.Text(
+            detail_frame,
+            wrap="none",
+            height=20,
+            background="#1c1d2b",
+            foreground="#E8EAF6",
+            insertbackground="#E8EAF6",
+        )
+        fields_text.grid(row=2, column=0, sticky="nsew")
+        fields_y = ttk.Scrollbar(detail_frame, orient=tk.VERTICAL, command=fields_text.yview)
+        fields_y.grid(row=2, column=1, sticky="ns")
+        fields_x = ttk.Scrollbar(detail_frame, orient=tk.HORIZONTAL, command=fields_text.xview)
+        fields_x.grid(row=3, column=0, sticky="ew")
+        fields_text.configure(yscrollcommand=fields_y.set, xscrollcommand=fields_x.set)
+
+        row_map: dict[str, ExportValidatorConfigRecord] = {}
+
+        def refresh_rows() -> None:
+            row_map.clear()
+            config_tree.delete(*config_tree.get_children())
+            query = search_var.get().strip().lower()
+            filtered: list[ExportValidatorConfigRecord] = []
+            for record in records:
+                source = (record.source_filename or "").lower()
+                if query and query not in record.key_display.lower() and query not in source:
+                    continue
+                filtered.append(record)
+
+            for index, record in enumerate(filtered):
+                row_id = f"record_{index}"
+                row_map[row_id] = record
+                config_tree.insert(
+                    "",
+                    tk.END,
+                    iid=row_id,
+                    text=record.key_display,
+                    values=(
+                        record.source_filename or "<unknown>",
+                        utils.format_datetime(record.stored_at),
+                    ),
+                )
+
+            if filtered:
+                first_id = next(iter(row_map.keys()))
+                config_tree.selection_set(first_id)
+                config_tree.focus(first_id)
+                on_select()
+            else:
+                selected_info.set("No configs match your search.")
+                record_info.set(f"Loaded configs: {len(records)}")
+                fields_text.configure(state="normal")
+                fields_text.delete("1.0", tk.END)
+                fields_text.insert("1.0", "No matching configs.")
+                fields_text.configure(state="disabled")
+
+        def format_fields(record: ExportValidatorConfigRecord) -> str:
+            try:
+                payload = json.loads(record.record_payload)
+            except Exception:
+                return "Could not parse stored config payload."
+
+            compare_fields = payload.get("compare_fields") if isinstance(payload, dict) else []
+            variants = payload.get("records") if isinstance(payload, dict) else []
+            if not isinstance(compare_fields, list):
+                compare_fields = []
+            if not isinstance(variants, list):
+                variants = []
+
+            lines = [
+                f"Config Name: {record.key_display}",
+                f"Source File: {record.source_filename or '<unknown>'}",
+                f"Stored: {utils.format_datetime(record.stored_at)}",
+                f"Variants: {len(variants)}",
+                "",
+            ]
+            if not variants:
+                lines.append("No field values stored.")
+                return "\n".join(lines)
+
+            def is_blankish(value: object) -> bool:
+                if value is None:
+                    return True
+                if isinstance(value, str):
+                    trimmed = value.strip()
+                    if not trimmed:
+                        return True
+                    return trimmed.lower() in {"null", "none"}
+                return False
+
+            for idx, variant in enumerate(variants, start=1):
+                variant_lines: list[str] = []
+                if len(variants) > 1:
+                    variant_lines.append(f"Variant {idx}")
+                    variant_lines.append("-" * 20)
+                if isinstance(variant, dict):
+                    fields_order = compare_fields if compare_fields else sorted(variant.keys())
+                    for field_name in fields_order:
+                        value = variant.get(field_name, "")
+                        if is_blankish(value):
+                            continue
+                        variant_lines.append(f"{field_name}: {value}")
+                else:
+                    if not is_blankish(variant):
+                        variant_lines.append(str(variant))
+                if not variant_lines:
+                    continue
+                lines.extend(variant_lines)
+                lines.append("")
+
+            if lines and lines[-1] == "":
+                lines.pop()
+            if len(lines) <= 4:
+                lines.append("")
+                lines.append("No populated fields for this config.")
+            return "\n".join(lines).rstrip()
+
+        def on_select(_event: Optional[object] = None) -> None:
+            selection = config_tree.selection()
+            if not selection:
+                return
+            row_id = selection[0]
+            record = row_map.get(row_id)
+            if record is None:
+                return
+            selected_info.set(
+                f"Config: {record.key_display}  |  Source: {record.source_filename or '<unknown>'}"
+            )
+            record_info.set(f"Loaded configs: {len(records)}")
+            fields_text.configure(state="normal")
+            fields_text.delete("1.0", tk.END)
+            fields_text.insert("1.0", format_fields(record))
+            fields_text.configure(state="disabled")
+
+        config_tree.bind("<<TreeviewSelect>>", on_select)
+        search_var.trace_add("write", lambda *_args: refresh_rows())
+        overlay.bind("<Escape>", lambda _e: close_modal())
+        search_entry.focus_set()
+        refresh_rows()
+
+        self.wait_window(overlay)
+
+    def _import_config(self) -> None:
+        self._run_guarded(
+            "Import Config",
+            lambda: self._load_config(replace=False, prompt_for_type=True),
+        )
+
+    def _replace_config(self) -> None:
+        self._run_guarded(
+            "Replace Config Set",
+            lambda: self._load_config(replace=True, prompt_for_type=True),
+        )
+
+    def _import_config_folder(self) -> None:
+        if self.current_instance_id is None:
+            messagebox.showinfo("Export Validator", "Select an instance first.", parent=self)
+            return
+        folder = filedialog.askdirectory(parent=self, title="Select Configuration Folder")
+        if not folder:
+            return
+
+        root = Path(folder)
+        files = sorted(
+            [
+                path
+                for path in root.rglob("*")
+                if path.is_file() and path.suffix.lower() in {".xml", ".csv"}
+            ]
+        )
+        if not files:
+            messagebox.showinfo(
+                "Export Validator",
+                "No XML/CSV files found in the selected folder.",
+                parent=self,
+            )
+            return
+
+        imported_by_type: dict[str, int] = defaultdict(int)
+        skipped_unmapped: list[Path] = []
+        failed_files: list[str] = []
+
+        for path in files:
+            item_type = self._guess_item_type_from_file(root, path)
+            if not item_type:
+                skipped_unmapped.append(path)
+                continue
+
+            expected_type = self._picker_file_type(item_type)
+            suffix = path.suffix.lower()
+            if expected_type == "csv" and suffix != ".csv":
+                skipped_unmapped.append(path)
+                continue
+            if expected_type == "xml" and suffix != ".xml":
+                skipped_unmapped.append(path)
+                continue
+
+            file_text = self._read_file_text(str(path))
+            if file_text is None:
+                failed_files.append(f"{path.name}: could not read")
+                continue
+
+            if expected_type == "xml":
+                try:
+                    ET.fromstring(file_text)
+                except ET.ParseError as exc:
+                    failed_files.append(f"{path.name}: invalid XML ({exc})")
+                    continue
+
+            try:
+                source_name = str(path.relative_to(root)).replace("\\", "/")
+                self.db.upsert_export_validator_config(
+                    instance_id=self.current_instance_id,
+                    item_type=item_type,
+                    source_filename=source_name,
+                    xml_content=file_text,
+                )
+                imported_by_type[item_type] += 1
+            except Exception as exc:
+                failed_files.append(f"{path.name}: {exc}")
+
+        self._sync_instance_state()
+        lines = [
+            "Export Validator Config Folder Import",
+            f"Folder: {root}",
+            f"Files scanned: {len(files)}",
+            f"Files imported: {sum(imported_by_type.values())}",
+            "",
+            "Imported by type:",
+        ]
+        if imported_by_type:
+            for item_type in sorted(imported_by_type.keys()):
+                lines.append(f"  {self._label_for_item(item_type)}: {imported_by_type[item_type]}")
+        else:
+            lines.append("  None")
+
+        if skipped_unmapped:
+            lines.append("")
+            lines.append(f"Skipped (unmapped or wrong file type): {len(skipped_unmapped)}")
+            for path in skipped_unmapped[:25]:
+                lines.append(f"  - {path.name}")
+            if len(skipped_unmapped) > 25:
+                lines.append(f"  ...and {len(skipped_unmapped) - 25} more")
+
+        if failed_files:
+            lines.append("")
+            lines.append(f"Failed imports: {len(failed_files)}")
+            for failure in failed_files[:25]:
+                lines.append(f"  - {failure}")
+            if len(failed_files) > 25:
+                lines.append(f"  ...and {len(failed_files) - 25} more")
+
+        self._set_report_text("\n".join(lines))
+        messagebox.showinfo(
+            "Export Validator",
+            (
+                f"Folder import complete.\n"
+                f"Imported: {sum(imported_by_type.values())}\n"
+                f"Skipped: {len(skipped_unmapped)}\n"
+                f"Failed: {len(failed_files)}"
+            ),
+            parent=self,
+        )
+
+    def _load_config(self, *, replace: bool, prompt_for_type: bool) -> None:
+        if self.current_instance_id is None:
+            messagebox.showinfo("Export Validator", "Select an instance first.", parent=self)
+            return
+
+        item_type = self.selected_item_type
+        if prompt_for_type:
+            picked_type = self._prompt_item_type("Select Config Type")
+            if not picked_type:
+                return
+            item_type = picked_type
+            self.selected_item_type = picked_type
+
+        if not item_type:
+            messagebox.showinfo("Export Validator", "Select an item type first.", parent=self)
+            return
+        if self.config_tree.exists(item_type):
+            self.config_tree.selection_set(item_type)
+            self.config_tree.focus(item_type)
+
+        existing_configs = self.configs.get(item_type, [])
+        if replace and existing_configs:
             confirm = messagebox.askyesno(
                 "Replace Configuration",
-                "Replace the current configuration file for this item type?",
+                (
+                    f"Replace all {len(existing_configs)} loaded configuration file(s) "
+                    "for this item type with the new file?"
+                ),
                 parent=self,
             )
             if not confirm:
                 return
+        file_type = self._picker_file_type(item_type)
         path = filedialog.askopenfilename(
             parent=self,
-            title="Select XML Configuration",
-            filetypes=[("XML files", "*.xml"), ("All files", "*.*")],
+            title=f"Select {'CSV' if file_type == 'csv' else 'XML'} Configuration",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+            if file_type == "csv"
+            else [("XML files", "*.xml"), ("All files", "*.*")],
         )
         if not path:
             return
-        xml_text = self._read_xml_file(path)
-        if xml_text is None:
+        file_text = self._read_file_text(path)
+        if file_text is None:
             return
-        if not self._parse_xml(xml_text):
+        if file_type == "xml" and not self._parse_xml(file_text):
             return
+
+        source_name = Path(path).name
+        records_saved = 0
+        records_skipped = 0
+        records_invalid = 0
+        records_failed = 0
+        overwrite_existing = False
+
+        if file_type == "xml":
+            if not self._export_rules:
+                self._load_export_rules()
+            if not self._export_rules:
+                messagebox.showerror(
+                    "Export Validator",
+                    f"Rules file not available: {self._rules_path}",
+                    parent=self,
+                )
+                return
+            try:
+                rule = load_rule(self._export_rules, self._rule_name_for_item_type(item_type))
+                collection = collect_records_from_xml_text(file_text, rule)
+            except ExportValidationError as exc:
+                messagebox.showerror("Export Validator", f"Invalid rule setup: {exc}", parent=self)
+                return
+            except ET.ParseError as exc:
+                messagebox.showerror("Export Validator", f"Invalid XML file: {exc}", parent=self)
+                return
+
+            if collection.total_records == 0:
+                messagebox.showwarning(
+                    "Export Validator",
+                    "No records were found for this config type using the configured rule.",
+                    parent=self,
+                )
+                return
+
+            existing_map = self.db.get_export_validator_record_keys(self.current_instance_id, item_type)
+            incoming = sorted(collection.records.items(), key=lambda pair: " | ".join(pair[0]))
+            conflicts: list[tuple[str, str, list[object]]] = []
+            for key_values, records_for_key in incoming:
+                key_token = self._record_key_token(item_type, key_values)
+                if key_token in existing_map:
+                    conflicts.append((key_token, records_for_key[0].key_display, records_for_key))
+
+            if conflicts and not replace:
+                preview = "\n".join(f"- {entry[1]}" for entry in conflicts[:10])
+                if len(conflicts) > 10:
+                    preview = f"{preview}\n...and {len(conflicts) - 10} more"
+                overwrite_existing = messagebox.askyesno(
+                    "Overwrite Existing Config Records?",
+                    (
+                        f"{len(conflicts)} matching record key(s) already exist.\n\n"
+                        "Import will continue either way.\n"
+                        "Choose Yes to overwrite matching records, or No to skip them.\n\n"
+                        f"{preview}"
+                    ),
+                    parent=self,
+                )
+
+            if replace:
+                self.db.delete_export_validator_config_records_for_item_type(
+                    self.current_instance_id, item_type
+                )
+                overwrite_existing = True
+
+            for key_values, records_for_key in incoming:
+                key_token = self._record_key_token(item_type, key_values)
+                if not key_token.strip():
+                    records_invalid += 1
+                    continue
+                exists = key_token in existing_map
+                if exists and not overwrite_existing:
+                    records_skipped += 1
+                    continue
+                payload = {
+                    "compare_fields": rule.compare_fields,
+                    "records": [record.fields for record in records_for_key],
+                }
+                try:
+                    self.db.upsert_export_validator_config_record(
+                        instance_id=self.current_instance_id,
+                        item_type=item_type,
+                        record_key=key_token,
+                        key_display=records_for_key[0].key_display,
+                        record_payload=json.dumps(payload, ensure_ascii=True),
+                        source_filename=source_name,
+                    )
+                    records_saved += 1
+                except Exception:
+                    records_failed += 1
+
         try:
+            if replace:
+                self.db.delete_export_validator_configs_for_item_type(
+                    self.current_instance_id, item_type
+                )
             self.db.upsert_export_validator_config(
                 instance_id=self.current_instance_id,
                 item_type=item_type,
                 source_filename=Path(path).name,
-                xml_content=xml_text,
+                xml_content=file_text,
             )
         except Exception as exc:
             messagebox.showerror("Export Validator", f"Could not save configuration: {exc}", parent=self)
             return
         self._sync_instance_state()
-        messagebox.showinfo("Export Validator", "Configuration saved.", parent=self)
+        if file_type == "xml":
+            messagebox.showinfo(
+                "Export Validator",
+                (
+                    f"Configuration imported.\n"
+                    f"Records saved: {records_saved}\n"
+                    f"Records skipped (existing): {records_skipped}\n"
+                    f"Records skipped (invalid key): {records_invalid}\n"
+                    f"Records failed to save: {records_failed}"
+                ),
+                parent=self,
+            )
+        else:
+            messagebox.showinfo("Export Validator", "Configuration saved.", parent=self)
 
     def _validate_export(self) -> None:
         if self.current_instance_id is None:
@@ -357,27 +1153,41 @@ class ExportValidatorView(ttk.Frame):
         if not item_type:
             messagebox.showinfo("Export Validator", "Select an item type first.", parent=self)
             return
-        config = self.configs.get(item_type)
-        if not config:
+        configs_for_type = self.configs.get(item_type, [])
+        if not configs_for_type:
             messagebox.showinfo(
                 "Export Validator",
                 "Load a configuration for this item type before validating.",
                 parent=self,
             )
             return
+        config = configs_for_type[0]
+        if len(configs_for_type) > 1:
+            messagebox.showinfo(
+                "Export Validator",
+                (
+                    "Multiple configuration files are loaded for this type. "
+                    "Current validation uses the most recently imported config. "
+                    "Aggregation across all files is the next step."
+                ),
+                parent=self,
+            )
+        file_type = self._picker_file_type(item_type)
         path = filedialog.askopenfilename(
             parent=self,
-            title="Select XML Export to Validate",
-            filetypes=[("XML files", "*.xml"), ("All files", "*.*")],
+            title=f"Select {'CSV' if file_type == 'csv' else 'XML'} Export to Validate",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+            if file_type == "csv"
+            else [("XML files", "*.xml"), ("All files", "*.*")],
         )
         if not path:
             return
-        candidate_xml = self._read_xml_file(path)
-        if candidate_xml is None:
+        candidate_text = self._read_file_text(path)
+        if candidate_text is None:
             return
-        if not self._parse_xml(candidate_xml):
+        if file_type == "xml" and not self._parse_xml(candidate_text):
             return
-        report = self._build_validation_report(config, Path(path).name, candidate_xml)
+        report = self._build_validation_report(config, Path(path).name, candidate_text)
         self._set_report_text(report)
 
     def _scan_samples_folder(self) -> None:
@@ -394,17 +1204,17 @@ class ExportValidatorView(ttk.Frame):
         self._set_report_text(report)
 
     # ------------------------------------------------------------------ Validation helpers
-    def _read_xml_file(self, path: str) -> Optional[str]:
+    def _read_file_text(self, path: str) -> Optional[str]:
         try:
             return Path(path).read_text(encoding="utf-8")
         except UnicodeDecodeError:
             try:
                 return Path(path).read_text(encoding="utf-16")
             except Exception as exc:
-                messagebox.showerror("Export Validator", f"Could not read XML file: {exc}", parent=self)
+                messagebox.showerror("Export Validator", f"Could not read file: {exc}", parent=self)
                 return None
         except Exception as exc:
-            messagebox.showerror("Export Validator", f"Could not read XML file: {exc}", parent=self)
+            messagebox.showerror("Export Validator", f"Could not read file: {exc}", parent=self)
             return None
 
     def _parse_xml(self, xml_text: str) -> bool:
@@ -463,7 +1273,7 @@ class ExportValidatorView(ttk.Frame):
         ]
         for path in xml_files:
             lines.append(f"File: {path.name}")
-            xml_text = self._read_xml_file(str(path))
+            xml_text = self._read_file_text(str(path))
             if xml_text is None:
                 lines.append("  ERROR: Could not read file.")
                 lines.append("")
@@ -493,75 +1303,56 @@ class ExportValidatorView(ttk.Frame):
         self,
         config: ExportValidatorConfig,
         candidate_filename: str,
-        candidate_xml: str,
+        candidate_content: str,
     ) -> str:
-        if config.item_type == "data_quality_tests":
-            return self._build_data_quality_tests_report(config, candidate_filename, candidate_xml)
-        if config.item_type == "agreement_choices":
-            return self._build_agreement_choices_report(config, candidate_filename, candidate_xml)
-        now = utils.format_datetime(datetime.now())
-        config_updated = utils.format_datetime(config.stored_at)
-        lines = [
-            "Export Validator Report",
-            f"Generated: {now}",
-            f"Item Type: {self._label_for_item(config.item_type)}",
-            f"Config File: {config.source_filename or 'Stored XML'}",
-            f"Config Updated: {config_updated}",
-            f"Candidate File: {candidate_filename}",
-            "",
-        ]
+        item_label = self._label_for_item(config.item_type)
+        rule_name = self._rule_name_for_item_type(config.item_type)
+        if not self._export_rules:
+            self._load_export_rules()
+        if not self._export_rules:
+            return (
+                "Core Export Validator Notes\n"
+                "===========================\n"
+                f"Export type: {item_label}\n"
+                "Result: FAIL\n"
+                f"Rules file not available: {self._rules_path}"
+            )
         try:
-            config_summary = self._summarize_xml(config.xml_content)
-            candidate_summary = self._summarize_xml(candidate_xml)
+            output = run_validation(
+                export_types=self._export_rules,
+                export_type=rule_name,
+                baseline_content=config.xml_content,
+                candidate_content=candidate_content,
+                baseline_name=config.source_filename or "Stored configuration",
+                candidate_name=candidate_filename,
+                rules_name=str(self._rules_path),
+                mode=self._validation_mode(),
+            )
+            return output.report_text
+        except ExportValidationError as exc:
+            return (
+                "Core Export Validator Notes\n"
+                "===========================\n"
+                f"Export type: {item_label}\n"
+                "Result: FAIL\n"
+                f"Validation setup error: {exc}"
+            )
         except ET.ParseError as exc:
-            lines.append(f"Validation failed: {exc}")
-            return "\n".join(lines)
-
-        all_paths = sorted(set(config_summary) | set(candidate_summary))
-        added = []
-        removed = []
-        changed = []
-        for path in all_paths:
-            base_count = config_summary.get(path)
-            cand_count = candidate_summary.get(path)
-            if base_count is None:
-                added.append((path, cand_count or 0))
-            elif cand_count is None:
-                removed.append((path, base_count))
-            elif base_count != cand_count:
-                changed.append((path, base_count, cand_count))
-
-        if not added and not removed and not changed:
-            lines.append("No structural differences detected (tag path counts match).")
-        else:
-            lines.append("Structural differences detected:")
-            if added:
-                lines.append("")
-                lines.append("Added paths:")
-                for path, count in added[:25]:
-                    lines.append(f"  + {path} (count {count})")
-                if len(added) > 25:
-                    lines.append(f"  ...and {len(added) - 25} more")
-            if removed:
-                lines.append("")
-                lines.append("Removed paths:")
-                for path, count in removed[:25]:
-                    lines.append(f"  - {path} (count {count})")
-                if len(removed) > 25:
-                    lines.append(f"  ...and {len(removed) - 25} more")
-            if changed:
-                lines.append("")
-                lines.append("Count changes:")
-                for path, base_count, cand_count in changed[:25]:
-                    lines.append(f"  * {path} ({base_count} -> {cand_count})")
-                if len(changed) > 25:
-                    lines.append(f"  ...and {len(changed) - 25} more")
-
-        lines.append("")
-        lines.append(
-            "Note: This is a structural comparison. Field-level validation will be added once field mappings are set."
-        )
-        return "\n".join(lines)
+            return (
+                "Core Export Validator Notes\n"
+                "===========================\n"
+                f"Export type: {item_label}\n"
+                "Result: FAIL\n"
+                f"XML parse error: {exc}"
+            )
+        except Exception as exc:
+            return (
+                "Core Export Validator Notes\n"
+                "===========================\n"
+                f"Export type: {item_label}\n"
+                "Result: FAIL\n"
+                f"Unexpected error: {exc}"
+            )
 
     def _build_data_quality_tests_report(
         self,

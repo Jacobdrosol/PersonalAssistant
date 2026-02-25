@@ -358,3 +358,15 @@ class ExportValidatorConfig:
     source_filename: Optional[str]
     xml_content: str
     stored_at: datetime
+
+
+@dataclass(slots=True)
+class ExportValidatorConfigRecord:
+    id: int
+    instance_id: int
+    item_type: str
+    record_key: str
+    key_display: str
+    record_payload: str
+    source_filename: Optional[str]
+    stored_at: datetime

@@ -1,0 +1,495 @@
+﻿{
+    "export_types":  {
+                         "Agreement Choices":  {
+                                                   "record_xpath":  ".//AgreementChoice/RowImage",
+                                                   "key_fields":  [
+                                                                      "AGR_CHC"
+                                                                  ],
+                                                   "compare_fields":  [
+                                                                          "ACHN_CDE",
+                                                                          "ACPT_CDE",
+                                                                          "AC_VALID",
+                                                                          "AGR_CHC",
+                                                                          "AGR_COMP",
+                                                                          "AGR_REN",
+                                                                          "ALW_BILM",
+                                                                          "BIL_PRD",
+                                                                          "CHC_DSC",
+                                                                          "CHC_STS",
+                                                                          "CK_VALID",
+                                                                          "DD_VALID",
+                                                                          "DP_VALID",
+                                                                          "GC_VALID",
+                                                                          "ITM_NUM",
+                                                                          "MC_VALID",
+                                                                          "PRC_MTD",
+                                                                          "PRC_PRD",
+                                                                          "PRIC_CDE",
+                                                                          "PRM_SET",
+                                                                          "QTY_ORD",
+                                                                          "SRV_PRD",
+                                                                          "VAL_DTE"
+                                                                      ],
+                                                   "options":  {
+                                                                   "strip_whitespace":  true,
+                                                                   "collapse_internal_whitespace":  false,
+                                                                   "case_sensitive":  true
+                                                               }
+                                               },
+                         "DQT":  {
+                                     "record_xpath":  ".//AutomatedTest/RowImage",
+                                     "key_fields":  [
+                                                        "SQL_ID"
+                                                    ],
+                                     "compare_fields":  [
+                                                            "@RecordType",
+                                                            "TST_ID",
+                                                            "TST_TYPE",
+                                                            "TST_DESC",
+                                                            "TST_ENBL",
+                                                            "SUC_CON",
+                                                            "CSV_OUT",
+                                                            "ADD_USR",
+                                                            "SQL_QRY",
+                                                            "SQL_EDT"
+                                                        ],
+                                     "options":  {
+                                                     "strip_whitespace":  true,
+                                                     "collapse_internal_whitespace":  false,
+                                                     "case_sensitive":  true
+                                                 }
+                                 },
+                         "Extended Distribution Staging Tables":  {
+                                                                      "record_xpath":  ".//ExtendedDistributionStagingTable/RowImage",
+                                                                      "key_fields":  [
+                                                                                         "DST_TBL"
+                                                                                     ],
+                                                                      "compare_fields":  [
+                                                                                             "@RecordType",
+                                                                                             "DST_TBL",
+                                                                                             "DTC_CAP",
+                                                                                             "ALIAS",
+                                                                                             "FLD_NME",
+                                                                                             "ACTL_NME",
+                                                                                             "DSX_NAME"
+                                                                                         ],
+                                                                      "options":  {
+                                                                                      "strip_whitespace":  true,
+                                                                                      "collapse_internal_whitespace":  false,
+                                                                                      "case_sensitive":  true
+                                                                                  }
+                                                                  },
+                         "HTTP Endpoints":  {
+                                                "record_xpath":  ".//HttpEndpoint/RowImage",
+                                                "key_fields":  [
+                                                                   "HTTP_EPT"
+                                                               ],
+                                                "compare_fields":  [
+                                                                       "@RecordType",
+                                                                       "HTTP_EPT",
+                                                                       "HTTP_DES",
+                                                                       "AREA_TYP",
+                                                                       "HTTP_HDR",
+                                                                       "HTTP_URL"
+                                                                   ],
+                                                "options":  {
+                                                                "strip_whitespace":  true,
+                                                                "collapse_internal_whitespace":  false,
+                                                                "case_sensitive":  true
+                                                            }
+                                            },
+                         "Item Choices":  {
+                                              "record_xpath":  ".//ItemChoice/RowImage",
+                                              "key_fields":  [
+                                                                 "ITM_CHC"
+                                                             ],
+                                              "compare_fields":  [
+                                                                     "@RecordType",
+                                                                     "ACHN_CDE",
+                                                                     "ACPT_CDE",
+                                                                     "AC_VALID",
+                                                                     "AGR_REN",
+                                                                     "ALW_BILM",
+                                                                     "BEG_QTY",
+                                                                     "BIL_CUR",
+                                                                     "BIL_PRD",
+                                                                     "CHC_DSC",
+                                                                     "CHC_STS",
+                                                                     "CK_VALID",
+                                                                     "CPT_CDE",
+                                                                     "DD_VALID",
+                                                                     "DEF_QTY",
+                                                                     "DP_VALID",
+                                                                     "EFF_DTE",
+                                                                     "EFF_QTY1",
+                                                                     "GC_VALID",
+                                                                     "GEOR_REQ",
+                                                                     "ITM_CHC",
+                                                                     "ITM_NUM",
+                                                                     "MC_VALID",
+                                                                     "PRC_PRD",
+                                                                     "PRM_SET",
+                                                                     "RGN_NBR",
+                                                                     "SRV_PRD",
+                                                                     "UNIT_PRC",
+                                                                     "UPD_BSHD",
+                                                                     "VAL_DTE"
+                                                                 ],
+                                              "options":  {
+                                                              "strip_whitespace":  true,
+                                                              "collapse_internal_whitespace":  false,
+                                                              "case_sensitive":  true
+                                                          }
+                                          },
+                         "Jobstreams":  {
+                                            "parent_xpath":  ".//Jobstream",
+                                            "parent_key_fields":  [
+                                                                      "RowImage[@RecordType=\u0027CDSJSH-D\u0027]/JOB_STM"
+                                                                  ],
+                                            "record_xpath":  "RowImage",
+                                            "key_fields":  [
+
+                                                           ],
+                                            "compare_fields":  [
+                                                                   "@RecordType",
+                                                                   "ACTL_NME",
+                                                                   "DFT_VAL",
+                                                                   "DSEC_ID",
+                                                                   "ERR_OPT",
+                                                                   "GEN_RPT",
+                                                                   "JOB_STM",
+                                                                   "JSM_BKP",
+                                                                   "JSM_DSC",
+                                                                   "JSM_SEQ",
+                                                                   "JSM_TYP",
+                                                                   "LST_SEQ",
+                                                                   "MOD_IDN",
+                                                                   "OPT_PMT",
+                                                                   "OPT_SHR",
+                                                                   "OWN_IDN",
+                                                                   "PAGE_BY1",
+                                                                   "PAGE_BY2",
+                                                                   "PDF_MONO",
+                                                                   "PDF_OUT",
+                                                                   "PRC_QUE",
+                                                                   "PRT_DST",
+                                                                   "REF_NME",
+                                                                   "REQ_NME",
+                                                                   "REQ_TYP",
+                                                                   "REQ_UTC",
+                                                                   "RPT_CPY",
+                                                                   "RPT_OUT",
+                                                                   "SEL_KEY",
+                                                                   "SEL_NME",
+                                                                   "SEQN_BY1",
+                                                                   "SEQN_BY2",
+                                                                   "SET_NBR",
+                                                                   "SRT_ORD",
+                                                                   "STP_VAL",
+                                                                   "STR_VAL",
+                                                                   "TLS_SEQ",
+                                                                   "TOTL_BY1",
+                                                                   "TOT_LVL",
+                                                                   "TOT_ONL",
+                                                                   "USEL_IF",
+                                                                   "USR_IDN",
+                                                                   "XPOR_OUT"
+                                                               ],
+                                            "options":  {
+                                                            "strip_whitespace":  true,
+                                                            "collapse_internal_whitespace":  false,
+                                                            "case_sensitive":  true
+                                                        }
+                                        },
+                         "Promotion":  {
+                                           "record_xpath":  "",
+                                           "key_fields":  [
+
+                                                          ],
+                                           "compare_fields":  [
+
+                                                              ],
+                                           "options":  {
+                                                           "strip_whitespace":  true,
+                                                           "collapse_internal_whitespace":  false,
+                                                           "case_sensitive":  true
+                                                       }
+                                       },
+                         "Promotion Offers":  {
+                                                  "record_xpath":  "",
+                                                  "key_fields":  [
+
+                                                                 ],
+                                                  "compare_fields":  [
+
+                                                                     ],
+                                                  "options":  {
+                                                                  "strip_whitespace":  true,
+                                                                  "collapse_internal_whitespace":  false,
+                                                                  "case_sensitive":  true
+                                                              }
+                                              },
+                         "Scripts":  {
+                                         "parent_xpath":  ".//Script",
+                                         "parent_key_fields":  [
+                                                                   "RowImage[@RecordType=\u0027CDSDES-D\u0027]/DES_CTX",
+                                                                   "RowImage[@RecordType=\u0027CDSDES-D\u0027]/DES_NAME"
+                                                               ],
+                                         "record_xpath":  "RowImage",
+                                         "key_fields":  [
+
+                                                        ],
+                                         "compare_fields":  [
+                                                                "@RecordType",
+                                                                "AMB_SCR",
+                                                                "ATN_DES",
+                                                                "AUTO_CLC",
+                                                                "AUTO_TAB",
+                                                                "BIL_PAR",
+                                                                "BRDR_TYP",
+                                                                "CAP_BOLD",
+                                                                "CAP_FCLD",
+                                                                "CAP_FCLR",
+                                                                "CON_FCLD",
+                                                                "CON_FCLR",
+                                                                "DEE_OPTN",
+                                                                "DEE_OPTV",
+                                                                "DES_CTX",
+                                                                "DES_DESC",
+                                                                "DES_DVAL",
+                                                                "DES_ELEM",
+                                                                "DES_LAY",
+                                                                "DES_NAME",
+                                                                "DES_PRMP",
+                                                                "DES_SEQ",
+                                                                "DES_VAL",
+                                                                "DSEC_ID",
+                                                                "END_ROW",
+                                                                "GRP_COLS",
+                                                                "IS_FILL",
+                                                                "MODE_ADD",
+                                                                "MODE_CHG",
+                                                                "MODE_INQ",
+                                                                "REC_STA",
+                                                                "ROUT_SEL",
+                                                                "SHO_CAN",
+                                                                "SHO_COLS",
+                                                                "SHO_DSC",
+                                                                "SHO_DROP",
+                                                                "SHO_SMY",
+                                                                "SHOW_CHG",
+                                                                "SHOW_COU",
+                                                                "SHOW_INQ",
+                                                                "SHOW_PTR",
+                                                                "SHOW_ROU",
+                                                                "SHOW_RSF",
+                                                                "SHOW_SRC",
+                                                                "SHP_PAR",
+                                                                "STRH_ELE",
+                                                                "STR_ROW",
+                                                                "SUP_AMBD",
+                                                                "SUP_LOOP"
+                                                            ],
+                                         "options":  {
+                                                         "strip_whitespace":  true,
+                                                         "collapse_internal_whitespace":  false,
+                                                         "case_sensitive":  true
+                                                     }
+                                     },
+                         "Select Sets":  {
+                                             "parent_xpath":  ".//SelectSet",
+                                             "parent_key_fields":  [
+                                                                       "RowImage[@RecordType=\u0027TLSSLH-D\u0027]/SEL_NME",
+                                                                       "RowImage[@RecordType=\u0027TLSSLH-D\u0027]/DS_GUID"
+                                                                   ],
+                                             "record_xpath":  "RowImage",
+                                             "key_fields":  [
+
+                                                            ],
+                                             "compare_fields":  [
+                                                                    "@RecordType",
+                                                                    "ACHN_CDE",
+                                                                    "AGR_CHC",
+                                                                    "AGR_CSEQ",
+                                                                    "ASM_PGM",
+                                                                    "AssemblyProgramId",
+                                                                    "Assemblyprogramid",
+                                                                    "BCT_CDE",
+                                                                    "BCT_DSC",
+                                                                    "BEFT_NBR",
+                                                                    "BIL_SUS",
+                                                                    "BPMO_MOD",
+                                                                    "DNR_DNE",
+                                                                    "DSEC_ID",
+                                                                    "DST_TYP",
+                                                                    "DS_DESC",
+                                                                    "DS_GUID",
+                                                                    "DS_NAME",
+                                                                    "DUP_INS",
+                                                                    "EML_MSG",
+                                                                    "EML_SBJ",
+                                                                    "HLD_LNE",
+                                                                    "INC_EFT",
+                                                                    "IN_ERROR",
+                                                                    "KEY_MOD",
+                                                                    "NPY_CAN",
+                                                                    "OFR_CDE",
+                                                                    "PITM_HND",
+                                                                    "PMO_CDE",
+                                                                    "PackageId",
+                                                                    "PullCode",
+                                                                    "REFT_NBR",
+                                                                    "RPMO_MOD",
+                                                                    "RPT_DST",
+                                                                    "RPT_FMT",
+                                                                    "SBST_DSC_1",
+                                                                    "SEL_DSC",
+                                                                    "SEL_IF",
+                                                                    "SEL_JSON",
+                                                                    "SEL_NME",
+                                                                    "SEL_STS",
+                                                                    "SEL_TYPE",
+                                                                    "SET_DSC",
+                                                                    "SET_LEV1",
+                                                                    "SET_LEV2",
+                                                                    "SET_NBR",
+                                                                    "SMB_STA",
+                                                                    "SND_NTC",
+                                                                    "SQL_EDT",
+                                                                    "SQL_ID",
+                                                                    "SQL_QRY",
+                                                                    "SRT_ORD",
+                                                                    "SSJ_ID",
+                                                                    "SVC_RSN",
+                                                                    "TRN_MTHD"
+                                                                ],
+                                             "options":  {
+                                                             "strip_whitespace":  true,
+                                                             "collapse_internal_whitespace":  false,
+                                                             "case_sensitive":  true
+                                                         }
+                                         },
+                         "Subscription Choices":  {
+                                                      "record_xpath":  ".//SubscriptionChoice/RowImage",
+                                                      "key_fields":  [
+                                                                         "SUB_CHC"
+                                                                     ],
+                                                      "compare_fields":  [
+                                                                             "AC_VALID",
+                                                                             "ALW_BILM",
+                                                                             "BIL_CUR",
+                                                                             "CHC_DSC",
+                                                                             "CHC_STS",
+                                                                             "CK_VALID",
+                                                                             "CPT_CDE",
+                                                                             "DD_VALID",
+                                                                             "DLV_CDE",
+                                                                             "DP_VALID",
+                                                                             "GC_VALID",
+                                                                             "MC_VALID",
+                                                                             "PRM_SET",
+                                                                             "PUB_CDE",
+                                                                             "RATE",
+                                                                             "RAT_STRC",
+                                                                             "RN_FLG",
+                                                                             "SCHN_CDE",
+                                                                             "SUB_CHC",
+                                                                             "SUB_CLS",
+                                                                             "TERM",
+                                                                             "VAL_DTE"
+                                                                         ],
+                                                      "options":  {
+                                                                      "strip_whitespace":  true,
+                                                                      "collapse_internal_whitespace":  false,
+                                                                      "case_sensitive":  true
+                                                                  }
+                                                  },
+                         "System Option Values":  {
+                                                      "parent_xpath":  ".//SystemOptionValue",
+                                                      "parent_key_fields":  [
+                                                                                "RowImage[@RecordType=\u0027TLSOPT-D\u0027]/OPT_CLS",
+                                                                                "RowImage[@RecordType=\u0027TLSOPT-D\u0027]/OPT_OWN",
+                                                                                "RowImage[@RecordType=\u0027TLSOPT-D\u0027]/OPT_NME"
+                                                                            ],
+                                                      "record_xpath":  "RowImage",
+                                                      "key_fields":  [
+
+                                                                     ],
+                                                      "compare_fields":  [
+                                                                             "@RecordType",
+                                                                             "OPT_CLS",
+                                                                             "OPT_OWN",
+                                                                             "OPT_NME",
+                                                                             "OPT_VAL",
+                                                                             "OPT_OWD"
+                                                                         ],
+                                                      "options":  {
+                                                                      "strip_whitespace":  true,
+                                                                      "collapse_internal_whitespace":  false,
+                                                                      "case_sensitive":  true
+                                                                  }
+                                                  },
+                         "Workflow Rules":  {
+                                                "parent_xpath":  ".//WorkflowRule",
+                                                "parent_key_fields":  [
+                                                                          "RowImage[@RecordType=\u0027CDSWFR-T\u0027]/WFR_CDE",
+                                                                          "RowImage[@RecordType=\u0027CDSWFR-T\u0027]/WFE_TYPE"
+                                                                      ],
+                                                "record_xpath":  "RowImage",
+                                                "key_fields":  [
+
+                                                               ],
+                                                "compare_fields":  [
+                                                                       "@RecordType",
+                                                                       "DISP_SEQ",
+                                                                       "DSEC_ID",
+                                                                       "NTV_SQL",
+                                                                       "PARM_VTP",
+                                                                       "REC_UNQ",
+                                                                       "SQH_DSC",
+                                                                       "SQH_ID",
+                                                                       "SQH_LFT",
+                                                                       "SQH_LVL",
+                                                                       "SQH_OPR",
+                                                                       "SQH_RHT",
+                                                                       "SQL_EDT",
+                                                                       "SQL_ID",
+                                                                       "SQL_QRY",
+                                                                       "SQV_ADD",
+                                                                       "SQV_COL",
+                                                                       "SQV_OPR",
+                                                                       "SQV_VAL1",
+                                                                       "SQV_VAL2",
+                                                                       "TBL_NMEV",
+                                                                       "WAP_NAME",
+                                                                       "WAP_VAL",
+                                                                       "WAT_CDE",
+                                                                       "WFA_ENBL",
+                                                                       "WFA_ID",
+                                                                       "WFA_PRE",
+                                                                       "WFE_TYPE",
+                                                                       "WFR_CDE",
+                                                                       "WFR_DSC",
+                                                                       "WFR_STS"
+                                                                   ],
+                                                "options":  {
+                                                                "strip_whitespace":  true,
+                                                                "collapse_internal_whitespace":  false,
+                                                                "case_sensitive":  true
+                                                            }
+                                            },
+                         "Data Source Definitions":  {
+                                                         "file_type":  "csv",
+                                                         "csv_has_header":  true,
+                                                         "csv_ignore_column_contains":  [
+                                                                                            "upd_dte",
+                                                                                            "upd_usr"
+                                                                                        ],
+                                                         "options":  {
+                                                                         "strip_whitespace":  true,
+                                                                         "collapse_internal_whitespace":  false,
+                                                                         "case_sensitive":  true
+                                                                     }
+                                                     }
+                     }
+}
