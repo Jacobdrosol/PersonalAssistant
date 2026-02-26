@@ -292,6 +292,8 @@ class ExportValidatorView(ttk.Frame):
             self.status_var.set("Select or create an instance to begin.")
             self._refresh_config_tree()
             return
+        self.db.cleanup_export_validator_config_records(self.current_instance_id)
+        self.db.prune_export_validator_config_sources(self.current_instance_id)
         configs = self.db.get_export_validator_configs(self.current_instance_id)
         grouped: dict[str, list[ExportValidatorConfig]] = {}
         for config in configs:
@@ -602,7 +604,13 @@ class ExportValidatorView(ttk.Frame):
 
         label_for_type = {key: label for key, label in ITEM_TYPES}
         type_label = label_for_type.get(item_type, item_type)
-        records = self.db.get_export_validator_config_records(self.current_instance_id, item_type)
+        records: list[ExportValidatorConfigRecord] = []
+
+        def load_records() -> None:
+            nonlocal records
+            records = self.db.get_export_validator_config_records(self.current_instance_id or 0, item_type)
+
+        load_records()
 
         overlay = tk.Frame(self, bg="#111219")
         overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
@@ -643,10 +651,53 @@ class ExportValidatorView(ttk.Frame):
                 return
             self._export_config_source_file(item_type, record.source_filename)
 
+        def delete_selected() -> None:
+            selection = config_tree.selection()
+            if not selection:
+                messagebox.showinfo(
+                    "Export Validator",
+                    "Select a config first.",
+                    parent=self,
+                )
+                return
+            record = row_map.get(selection[0])
+            if record is None:
+                messagebox.showerror(
+                    "Export Validator",
+                    "Could not resolve selected config.",
+                    parent=self,
+                )
+                return
+            typed = simpledialog.askstring(
+                "Delete Config",
+                (
+                    f"Delete config '{record.key_display}' from {type_label}.\n\n"
+                    "Type YES to confirm.\n"
+                    "Any other value (or Cancel) keeps it."
+                ),
+                parent=overlay,
+            )
+            if typed is None or typed.strip().upper() != "YES":
+                messagebox.showinfo(
+                    "Export Validator",
+                    "Delete cancelled.",
+                    parent=overlay,
+                )
+                return
+            self.db.delete_export_validator_config_record(record.id)
+            self.db.cleanup_export_validator_config_records(self.current_instance_id or 0, item_type)
+            self.db.prune_export_validator_config_sources(self.current_instance_id or 0, item_type)
+            self._sync_instance_state()
+            load_records()
+            refresh_rows()
+
         ttk.Button(header, text="Export Selected...", command=export_selected).grid(
             row=0, column=1, sticky="e", padx=(0, 8)
         )
-        ttk.Button(header, text="Close", command=close_modal).grid(row=0, column=2, sticky="e")
+        ttk.Button(header, text="Delete Selected...", command=delete_selected).grid(
+            row=0, column=2, sticky="e", padx=(0, 8)
+        )
+        ttk.Button(header, text="Close", command=close_modal).grid(row=0, column=3, sticky="e")
 
         search_row = ttk.Frame(card, style="ExportValidator.Card.TFrame")
         search_row.grid(row=1, column=0, sticky="ew", pady=(8, 10))
@@ -1116,16 +1167,21 @@ class ExportValidatorView(ttk.Frame):
                     records_failed += 1
 
         try:
+            should_save_source = True
+            if file_type == "xml":
+                should_save_source = records_saved > 0
             if replace:
                 self.db.delete_export_validator_configs_for_item_type(
                     self.current_instance_id, item_type
                 )
-            self.db.upsert_export_validator_config(
-                instance_id=self.current_instance_id,
-                item_type=item_type,
-                source_filename=Path(path).name,
-                xml_content=file_text,
-            )
+            if should_save_source:
+                self.db.upsert_export_validator_config(
+                    instance_id=self.current_instance_id,
+                    item_type=item_type,
+                    source_filename=Path(path).name,
+                    xml_content=file_text,
+                )
+            self.db.prune_export_validator_config_sources(self.current_instance_id, item_type)
         except Exception as exc:
             messagebox.showerror("Export Validator", f"Could not save configuration: {exc}", parent=self)
             return

@@ -3678,6 +3678,14 @@ class Database:
             )
             self._conn.commit()
 
+    def delete_export_validator_config_record(self, record_id: int) -> None:
+        with self._lock:
+            self._conn.execute(
+                "DELETE FROM export_validator_config_records WHERE id = ?",
+                (record_id,),
+            )
+            self._conn.commit()
+
     def delete_export_validator_configs_for_item_type(self, instance_id: int, item_type: str) -> None:
         trimmed_type = item_type.strip()
         if not trimmed_type:
@@ -3698,6 +3706,76 @@ class Database:
                 "DELETE FROM export_validator_config_records WHERE instance_id = ? AND item_type = ?",
                 (instance_id, trimmed_type),
             )
+            self._conn.commit()
+
+    def prune_export_validator_config_sources(
+        self, instance_id: int, item_type: Optional[str] = None
+    ) -> None:
+        with self._lock:
+            if item_type:
+                self._conn.execute(
+                    """
+                    DELETE FROM export_validator_configs
+                    WHERE instance_id = ?
+                      AND item_type = ?
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM export_validator_config_records r
+                          WHERE r.instance_id = export_validator_configs.instance_id
+                            AND r.item_type = export_validator_configs.item_type
+                            AND COALESCE(r.source_filename, '') = COALESCE(export_validator_configs.source_filename, '')
+                      )
+                    """,
+                    (instance_id, item_type),
+                )
+            else:
+                self._conn.execute(
+                    """
+                    DELETE FROM export_validator_configs
+                    WHERE instance_id = ?
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM export_validator_config_records r
+                          WHERE r.instance_id = export_validator_configs.instance_id
+                            AND r.item_type = export_validator_configs.item_type
+                            AND COALESCE(r.source_filename, '') = COALESCE(export_validator_configs.source_filename, '')
+                      )
+                    """,
+                    (instance_id,),
+                )
+            self._conn.commit()
+
+    def cleanup_export_validator_config_records(
+        self, instance_id: int, item_type: Optional[str] = None
+    ) -> None:
+        with self._lock:
+            if item_type:
+                self._conn.execute(
+                    """
+                    DELETE FROM export_validator_config_records
+                    WHERE instance_id = ?
+                      AND item_type = ?
+                      AND (
+                          TRIM(COALESCE(record_key, '')) = ''
+                          OR TRIM(COALESCE(key_display, '')) = ''
+                          OR TRIM(COALESCE(record_payload, '')) = ''
+                      )
+                    """,
+                    (instance_id, item_type),
+                )
+            else:
+                self._conn.execute(
+                    """
+                    DELETE FROM export_validator_config_records
+                    WHERE instance_id = ?
+                      AND (
+                          TRIM(COALESCE(record_key, '')) = ''
+                          OR TRIM(COALESCE(key_display, '')) = ''
+                          OR TRIM(COALESCE(record_payload, '')) = ''
+                      )
+                    """,
+                    (instance_id,),
+                )
             self._conn.commit()
 
 
