@@ -36,8 +36,11 @@ class LogTab(ttk.Frame):
         return
 
     def _build_ui(self) -> None:
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(1, weight=1)
+
         header = ttk.Frame(self)
-        header.pack(fill=tk.X, pady=(0, 12))
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 12))
 
         title = ttk.Label(header, text="Daily Update Log", style="SidebarHeading.TLabel")
         title.pack(side=tk.LEFT)
@@ -48,23 +51,25 @@ class LogTab(ttk.Frame):
         self.copy_btn.pack(side=tk.RIGHT)
 
         tree_frame = ttk.Frame(self)
-        tree_frame.pack(fill=tk.BOTH, expand=True)
+        tree_frame.grid(row=1, column=0, sticky="nsew")
+        tree_frame.columnconfigure(0, weight=1)
+        tree_frame.rowconfigure(0, weight=1)
 
         self.tree = ttk.Treeview(tree_frame, show="tree", selectmode="browse")
         self.tree.heading("#0", text="Entries")
         self.tree.column("#0", width=680, minwidth=480, stretch=True)
-        self.tree.pack(fill=tk.BOTH, expand=True, side=tk.LEFT)
+        self.tree.grid(row=0, column=0, sticky="nsew")
         self.tree.bind("<Double-1>", lambda e: self.edit_entry())
         self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
         self.tree.bind("<Configure>", self._on_tree_resize)
         self.after_idle(lambda: self._on_tree_resize())
 
         scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.tree.yview)
-        scrollbar.pack(fill=tk.Y, side=tk.RIGHT)
+        scrollbar.grid(row=0, column=1, sticky="ns")
         self.tree.configure(yscrollcommand=scrollbar.set)
 
         buttons = ttk.Frame(self)
-        buttons.pack(fill=tk.X, pady=(12, 0))
+        buttons.grid(row=2, column=0, sticky="ew", pady=(12, 0))
 
         self.add_entry_btn = ttk.Button(buttons, text="Add Entry", command=self.add_entry)
         self.add_entry_btn.pack(side=tk.LEFT)
@@ -223,15 +228,12 @@ class LogTab(ttk.Frame):
         children: Dict[Optional[int], List[LogEntry]] = {}
         for entry in self.entries:
             children.setdefault(entry.parent_id, []).append(entry)
-        max_lines = 1
 
         def insert_children(parent_id: Optional[int], tree_parent: str) -> None:
-            nonlocal max_lines
             for entry in children.get(parent_id, []):
                 iid = str(entry.id)
                 wrapped_lines = self._wrap_entry_content(entry.content)
                 bullet_lines = [f"- {wrapped_lines[0]}"] + [f"  {line}" for line in wrapped_lines[1:]]
-                max_lines = max(max_lines, len(bullet_lines))
                 self.tree.insert(tree_parent, tk.END, iid=iid, text=bullet_lines[0])
                 self.tree_items[entry.id] = iid
                 for index, continuation in enumerate(bullet_lines[1:], start=1):
@@ -242,7 +244,7 @@ class LogTab(ttk.Frame):
                 insert_children(entry.id, iid)
 
         insert_children(None, "")
-        self._update_row_height(max_lines)
+        self._update_row_height(1)
         self._restore_tree_state(open_entries, selected_entry)
 
     def _resolve_entry_id(self, item_id: str) -> Optional[int]:
