@@ -4,17 +4,6 @@ from dataclasses import dataclass
 import re
 from typing import Callable, Iterable, Optional, Sequence, TYPE_CHECKING
 
-from .plugins import EmailIngestManager
-from .ui.views.email_ingest import EmailIngestView
-from .ui.views.export_validator import ExportValidatorView
-from .ui.views.jira_tab import JiraTabView
-from .ui.views.knowledge_bank import KnowledgeBankView
-from .ui.views.production_log import ProductionLogView
-from .ui.views.select_builder import SelectBuilderView
-from .ui.views.sql_builder import SqlBuilderView
-from .ui.views.sql_assist import SqlAssistView
-from .issue_calendar_tab import IssueCalendarTab
-
 if TYPE_CHECKING:
     from .app import PersonalAssistantApp
 
@@ -33,10 +22,14 @@ class SpecialFeature:
 
 
 def _build_sql_assist(app: "PersonalAssistantApp") -> object:
+    from .ui.views.sql_assist import SqlAssistView
+
     return SqlAssistView(app.notebook, app.db)
 
 
 def _build_jira(app: "PersonalAssistantApp") -> object:
+    from .ui.views.jira_tab import JiraTabView
+
     return JiraTabView(
         app.notebook,
         service=app.jira_service,
@@ -46,31 +39,46 @@ def _build_jira(app: "PersonalAssistantApp") -> object:
 
 
 def _build_email_ingest(app: "PersonalAssistantApp") -> object:
+    from .plugins import EmailIngestManager
+    from .ui.views.email_ingest import EmailIngestView
+
     manager = EmailIngestManager(app.data_root)
     return EmailIngestView(app.notebook, manager)
 
 
 def _build_issue_calendar(app: "PersonalAssistantApp") -> object:
+    from .issue_calendar_tab import IssueCalendarTab
+
     return IssueCalendarTab(app.notebook, app.db, app.theme)
 
 
 def _build_production_log(app: "PersonalAssistantApp") -> object:
+    from .ui.views.production_log import ProductionLogView
+
     return ProductionLogView(app.notebook, app.db, app.theme)
 
 
 def _build_sql_builder(app: "PersonalAssistantApp") -> object:
+    from .ui.views.sql_builder import SqlBuilderView
+
     return SqlBuilderView(app.notebook)
 
 
 def _build_select_builder(app: "PersonalAssistantApp") -> object:
+    from .ui.views.select_builder import SelectBuilderView
+
     return SelectBuilderView(app.notebook)
 
 
 def _build_export_validator(app: "PersonalAssistantApp") -> object:
+    from .ui.views.export_validator import ExportValidatorView
+
     return ExportValidatorView(app.notebook, app.db, app.theme)
 
 
 def _build_knowledge_bank(app: "PersonalAssistantApp") -> object:
+    from .ui.views.knowledge_bank import KnowledgeBankView
+
     return KnowledgeBankView(app.notebook)
 
 

@@ -14,7 +14,6 @@ from email.message import EmailMessage
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
-import requests
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
@@ -419,6 +418,8 @@ class ContactTab(ttk.Frame):
                 raise RuntimeError(f"Unable to read attachment '{path.name}': {exc}") from exc
             files.append(("attachments", (path.name, payload, f"{maintype}/{subtype}")))
             self._log(f"Attachment prepared for HTTP upload: {path} ({len(payload)} bytes)")
+        import requests
+
         response = requests.post(
             endpoint.url,
             data=data,

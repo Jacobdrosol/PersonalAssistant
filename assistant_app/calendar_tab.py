@@ -4,7 +4,7 @@ import calendar as cal
 import json
 from collections import defaultdict
 from textwrap import shorten
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta, date, time as dt_time
 from pathlib import Path
 import tkinter as tk
@@ -37,15 +37,6 @@ class DayOccurrence:
     override: Optional[EventOverride]
 
 
-@dataclass
-class DayCell:
-    frame: tk.Frame
-    day_label: tk.Label
-    events_canvas: tk.Canvas
-    date: Optional[date] = None
-    event_regions: List[tuple[int, int, DayOccurrence]] = field(default_factory=list)
-
-
 class CalendarTab(ttk.Frame):
     def __init__(self, master: tk.Misc, db: Database, theme: ThemePalette):
         super().__init__(master)
@@ -59,10 +50,12 @@ class CalendarTab(ttk.Frame):
         self.calendars: List[Calendar] = []
         self.visible_calendar_ids: set[int] = set()
         self.events: List[Event] = []
-        self.occurrences_by_day: Dict[date, List[Tuple[datetime, Event]]] = defaultdict(list)
+        self.occurrences_by_day: Dict[date, List[DayOccurrence]] = defaultdict(list)
         self.calendar_vars: Dict[int, tk.BooleanVar] = {}
-        self.day_cells: List[DayCell] = []
-        self.selected_cell: Optional[DayCell] = None
+        self._calendar_days: List[date] = []
+        self._calendar_cell_regions: List[tuple[int, int, int, int, date]] = []
+        self._calendar_event_regions: List[tuple[int, int, int, int, DayOccurrence]] = []
+        self._calendar_resize_after_id: Optional[str] = None
         self._suspend_production_callback = False
         self._modal_overlay: tk.Frame | None = None
         self._modal_panel: tk.Frame | None = None
@@ -113,6 +106,12 @@ class CalendarTab(ttk.Frame):
     # ------------------------------------------------------------------ UI
     def _build_ui(self) -> None:
         self._destroy_search_popup()
+        if self._calendar_resize_after_id is not None:
+            try:
+                self.after_cancel(self._calendar_resize_after_id)
+            except tk.TclError:
+                pass
+            self._calendar_resize_after_id = None
         for child in self.winfo_children():
             child.destroy()
 
@@ -180,58 +179,16 @@ class CalendarTab(ttk.Frame):
         )
         self.manual_schedule_button.grid(row=0, column=6, padx=(6, 0))
 
-        grid_frame = ttk.Frame(left)
-        grid_frame.grid(row=1, column=0, sticky="nsew")
-        for c in range(7):
-            grid_frame.columnconfigure(c, weight=1, uniform="day")
-        for r in range(6):
-            grid_frame.rowconfigure(r + 1, weight=1, uniform="dayrow")
-
-        # Header row with weekday names
-        for col, name in enumerate(WEEKDAY_NAMES):
-            header = tk.Label(
-                grid_frame,
-                text=name,
-                bg=self.bg_color,
-                fg=self.secondary_text_color,
-                padx=4,
-                pady=4,
-                font=("Segoe UI", 10, "bold"),
-            )
-            header.grid(row=0, column=col, sticky="nsew", padx=1, pady=1)
-
-        # Create day cells (6x7)
-        self.day_cells = []
-        for row in range(6):
-            for col in range(7):
-                frame = tk.Frame(grid_frame, bg=self.cell_bg, bd=0, highlightthickness=0)
-                frame.grid(row=row + 1, column=col, sticky="nsew", padx=1, pady=1)
-                frame.bind("<Button-1>", lambda e, idx=len(self.day_cells): self._on_cell_click(idx))
-
-                day_label = tk.Label(
-                    frame,
-                    text="",
-                    anchor="nw",
-                    bg=self.cell_bg,
-                    fg=self.text_color,
-                    font=("Segoe UI", 11, "bold"),
-                    padx=6,
-                    pady=4,
-                )
-                day_label.pack(fill=tk.X)
-                day_label.bind("<Button-1>", lambda e, idx=len(self.day_cells): self._on_cell_click(idx))
-
-                events_canvas = tk.Canvas(frame, bg=self.cell_bg, bd=0, highlightthickness=0)
-                events_canvas.pack(fill=tk.BOTH, expand=True, padx=4, pady=(0, 4))
-
-                events_canvas.bind("<Button-1>", lambda e, idx=len(self.day_cells): self._on_cell_click(idx))
-                events_canvas.bind(
-                    "<Double-1>",
-                    lambda e, idx=len(self.day_cells): self._on_event_canvas_double_click(idx, e),
-                )
-
-                cell = DayCell(frame=frame, day_label=day_label, events_canvas=events_canvas)
-                self.day_cells.append(cell)
+        self.calendar_canvas = tk.Canvas(
+            left,
+            bg=self.bg_color,
+            bd=0,
+            highlightthickness=0,
+        )
+        self.calendar_canvas.grid(row=1, column=0, sticky="nsew")
+        self.calendar_canvas.bind("<Configure>", self._on_calendar_canvas_configure)
+        self.calendar_canvas.bind("<Button-1>", self._on_calendar_canvas_click)
+        self.calendar_canvas.bind("<Double-1>", self._on_calendar_canvas_double_click)
 
         sidebar = ttk.Frame(sidebar_outer, padding=(12, 0))
         sidebar.grid(row=0, column=0, sticky="nsew")
@@ -784,17 +741,10 @@ class CalendarTab(ttk.Frame):
         self.events = events
 
     def _populate_calendar(self) -> None:
-        for cell in self.day_cells:
-            cell.date = None
-            cell.day_label.configure(text="", fg=self.text_color, bg=self.cell_bg)
-            cell.events_canvas.delete("all")
-            cell.event_regions.clear()
-            cell.frame.configure(bg=self.cell_bg)
-            cell.events_canvas.configure(bg=self.cell_bg)
-
         month_start = self.current_month
         cal_obj = cal.Calendar(firstweekday=6)
         weeks = cal_obj.monthdatescalendar(month_start.year, month_start.month)
+        self._calendar_days = [day for week in weeks for day in week]
         if self.month_label is not None:
             self.month_label.configure(text=month_start.strftime("%B %Y"))
         self.occurrences_by_day = defaultdict(list)
@@ -820,32 +770,99 @@ class CalendarTab(ttk.Frame):
             for occs in self.occurrences_by_day.values():
                 occs.sort(key=lambda item: item.occurrence)
 
-        for idx, day in enumerate(d for week in weeks for d in week):
-            if idx >= len(self.day_cells):
-                break
-            cell = self.day_cells[idx]
-            cell.date = day
-            in_month = day.month == month_start.month
-            fg_color = self.text_color if in_month else self.outside_month_color
-            bg_color = self.cell_bg
-            cell.day_label.configure(text=str(day.day), fg=fg_color, bg=bg_color)
-            cell.frame.configure(bg=bg_color)
-            cell.events_canvas.configure(bg=bg_color)
-            cell.events_canvas.delete("all")
-            cell.event_regions.clear()
+        self._redraw_calendar_canvas()
 
-            occurrences = self.occurrences_by_day.get(day, [])
-            self._draw_day_occurrences(cell, occurrences)
+    def _on_calendar_canvas_configure(self, _event: tk.Event) -> None:
+        self._schedule_calendar_resize_redraw()
 
-        self._highlight_selected_day()
+    def _schedule_calendar_resize_redraw(self) -> None:
+        if self._calendar_resize_after_id is not None:
+            try:
+                self.after_cancel(self._calendar_resize_after_id)
+            except tk.TclError:
+                pass
+        self._calendar_resize_after_id = self.after(80, self._redraw_calendar_canvas)
 
-    def _draw_day_occurrences(self, cell: DayCell, occurrences: List[DayOccurrence]) -> None:
-        canvas = cell.events_canvas
-        y = 2
+    def _redraw_calendar_canvas(self) -> None:
+        self._calendar_resize_after_id = None
+        canvas = getattr(self, "calendar_canvas", None)
+        if canvas is None:
+            return
+        try:
+            canvas.configure(bg=self.bg_color)
+            canvas.delete("all")
+        except tk.TclError:
+            return
+        self._calendar_cell_regions = []
+        self._calendar_event_regions = []
+        if not self._calendar_days:
+            return
+        width = max(canvas.winfo_width(), 1)
+        height = max(canvas.winfo_height(), 1)
+        if width <= 1 or height <= 1:
+            return
+
+        header_height = 28
+        grid_height = max(1, height - header_height)
+        cell_width = width / 7
+        cell_height = grid_height / 6
+        border = self.theme.border
+
+        for col, name in enumerate(WEEKDAY_NAMES):
+            x0 = int(round(col * cell_width))
+            x1 = int(round((col + 1) * cell_width))
+            canvas.create_rectangle(x0, 0, x1, header_height, fill=self.bg_color, outline=border)
+            canvas.create_text(
+                (x0 + x1) // 2,
+                header_height // 2,
+                text=name,
+                fill=self.secondary_text_color,
+                font=("Segoe UI", 10, "bold"),
+            )
+
+        for idx, day in enumerate(self._calendar_days):
+            row = idx // 7
+            col = idx % 7
+            x0 = int(round(col * cell_width))
+            x1 = int(round((col + 1) * cell_width))
+            y0 = int(round(header_height + row * cell_height))
+            y1 = int(round(header_height + (row + 1) * cell_height))
+            selected = day == self.selected_day
+            in_month = day.month == self.current_month.month
+            bg = self.cell_selected_bg if selected else self.cell_bg
+            fg = self.text_color if in_month else self.outside_month_color
+            canvas.create_rectangle(x0, y0, x1, y1, fill=bg, outline=border)
+            canvas.create_text(
+                x0 + 6,
+                y0 + 5,
+                text=str(day.day),
+                anchor="nw",
+                fill=fg,
+                font=("Segoe UI", 11, "bold"),
+            )
+            self._calendar_cell_regions.append((x0, y0, x1, y1, day))
+            self._draw_canvas_day_occurrences(canvas, day, x0, y0, x1, y1)
+
+    def _draw_canvas_day_occurrences(
+        self,
+        canvas: tk.Canvas,
+        day: date,
+        x0: int,
+        y0: int,
+        x1: int,
+        y1: int,
+    ) -> None:
+        occurrences = self.occurrences_by_day.get(day, [])
+        if not occurrences:
+            return
         row_height = 18
         gap = 2
-        bar_width = 4096
-        for occ_entry in occurrences[:4]:
+        event_y = y0 + 28
+        max_bottom = y1 - 4
+        available_rows = max(0, int((max_bottom - event_y + gap) // (row_height + gap)))
+        visible_count = min(4, available_rows, len(occurrences))
+        text_width = max(12, int((x1 - x0 - 14) / 7))
+        for occ_entry in occurrences[:visible_count]:
             occurrence = occ_entry.occurrence
             event = occ_entry.event
             override = occ_entry.override
@@ -861,25 +878,26 @@ class CalendarTab(ttk.Frame):
             text = f"{time_str} {display_title}" if occurrence.time() != datetime.min.time() else display_title
             if self._is_customized_occurrence(occ_entry):
                 text += f" {CUSTOMIZED_OCCURRENCE_MARK}"
-            display_text = shorten(text, width=32, placeholder="...")
-            bottom = y + row_height
-            canvas.create_rectangle(0, y, bar_width, bottom, fill=label_bg, outline="")
+            display_text = shorten(text, width=text_width, placeholder="...")
+            bottom = event_y + row_height
+            canvas.create_rectangle(x0 + 4, event_y, x1 - 4, bottom, fill=label_bg, outline="")
             canvas.create_text(
-                4,
-                y + row_height // 2,
+                x0 + 8,
+                event_y + row_height // 2,
                 text=display_text,
                 anchor="w",
                 fill=fg,
                 font=("Segoe UI", 9, "bold"),
             )
-            cell.event_regions.append((y, bottom, occ_entry))
-            y = bottom + gap
+            self._calendar_event_regions.append((x0 + 4, event_y, x1 - 4, bottom, occ_entry))
+            event_y = bottom + gap
 
-        if len(occurrences) > 4:
+        remaining = len(occurrences) - visible_count
+        if remaining > 0 and event_y + row_height <= max_bottom + row_height:
             canvas.create_text(
-                4,
-                y + row_height // 2,
-                text=f"+{len(occurrences) - 4}",
+                x0 + 8,
+                min(event_y + row_height // 2, max_bottom),
+                text=f"+{remaining}",
                 anchor="w",
                 fill=self.secondary_text_color,
                 font=("Segoe UI", 9, "italic"),
@@ -973,14 +991,7 @@ class CalendarTab(ttk.Frame):
         return False
 
     def _highlight_selected_day(self) -> None:
-        if not self.day_cells:
-            return
-        for cell in self.day_cells:
-            bg = self.cell_selected_bg if cell.date == self.selected_day else self.cell_bg
-            fg = self.text_color if cell.date and cell.date.month == self.current_month.month else self.outside_month_color
-            cell.frame.configure(bg=bg)
-            cell.day_label.configure(bg=bg, fg=fg)
-            cell.events_canvas.configure(bg=bg)
+        self._redraw_calendar_canvas()
 
     def _update_selected_day_label(self) -> None:
         label = getattr(self, "day_value_label", None)
@@ -989,23 +1000,29 @@ class CalendarTab(ttk.Frame):
         label.configure(text=self.selected_day.strftime("%A, %B %d, %Y"))
 
     # ---------------------------------------------------------------- Events
-    def _on_cell_click(self, index: int) -> None:
-        if index >= len(self.day_cells):
-            return
-        cell = self.day_cells[index]
-        if cell.date:
-            self.select_day(cell.date)
-
-    def _on_event_canvas_double_click(self, index: int, event: tk.Event) -> str | None:
-        if index >= len(self.day_cells):
+    def _on_calendar_canvas_click(self, event: tk.Event) -> str | None:
+        day = self._calendar_day_at(event.x, event.y)
+        if day is None:
             return None
-        cell = self.day_cells[index]
-        if cell.date:
-            self.select_day(cell.date)
-        for top, bottom, occ_entry in cell.event_regions:
-            if top <= event.y <= bottom:
+        self.select_day(day)
+        return "break"
+
+    def _on_calendar_canvas_double_click(self, event: tk.Event) -> str | None:
+        for x0, y0, x1, y1, occ_entry in self._calendar_event_regions:
+            if x0 <= event.x <= x1 and y0 <= event.y <= y1:
+                self.select_day(occ_entry.occurrence.date())
                 self._open_occurrence_customizer(occ_entry)
                 return "break"
+        day = self._calendar_day_at(event.x, event.y)
+        if day is not None:
+            self.select_day(day)
+            return "break"
+        return None
+
+    def _calendar_day_at(self, x: int, y: int) -> Optional[date]:
+        for x0, y0, x1, y1, day in self._calendar_cell_regions:
+            if x0 <= x <= x1 and y0 <= y <= y1:
+                return day
         return None
 
     def select_day(self, day: date) -> None:
