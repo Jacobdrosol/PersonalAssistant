@@ -4,7 +4,7 @@ import calendar as cal
 import json
 from collections import defaultdict
 from textwrap import shorten
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, date, time as dt_time
 from pathlib import Path
 import tkinter as tk
@@ -31,18 +31,19 @@ CUSTOMIZED_OCCURRENCE_MARK = "\u270E"  # matches the calendar grid indicator
 
 
 @dataclass
-class DayCell:
-    frame: tk.Frame
-    day_label: tk.Label
-    events_container: tk.Frame
-    date: Optional[date] = None
-
-
-@dataclass
 class DayOccurrence:
     occurrence: datetime
     event: Event
     override: Optional[EventOverride]
+
+
+@dataclass
+class DayCell:
+    frame: tk.Frame
+    day_label: tk.Label
+    events_canvas: tk.Canvas
+    date: Optional[date] = None
+    event_regions: List[tuple[int, int, DayOccurrence]] = field(default_factory=list)
 
 
 class CalendarTab(ttk.Frame):
@@ -220,12 +221,16 @@ class CalendarTab(ttk.Frame):
                 day_label.pack(fill=tk.X)
                 day_label.bind("<Button-1>", lambda e, idx=len(self.day_cells): self._on_cell_click(idx))
 
-                events_container = tk.Frame(frame, bg=self.cell_bg)
-                events_container.pack(fill=tk.BOTH, expand=True, padx=4, pady=(0, 4))
+                events_canvas = tk.Canvas(frame, bg=self.cell_bg, bd=0, highlightthickness=0)
+                events_canvas.pack(fill=tk.BOTH, expand=True, padx=4, pady=(0, 4))
 
-                events_container.bind("<Button-1>", lambda e, idx=len(self.day_cells): self._on_cell_click(idx))
+                events_canvas.bind("<Button-1>", lambda e, idx=len(self.day_cells): self._on_cell_click(idx))
+                events_canvas.bind(
+                    "<Double-1>",
+                    lambda e, idx=len(self.day_cells): self._on_event_canvas_double_click(idx, e),
+                )
 
-                cell = DayCell(frame=frame, day_label=day_label, events_container=events_container)
+                cell = DayCell(frame=frame, day_label=day_label, events_canvas=events_canvas)
                 self.day_cells.append(cell)
 
         sidebar = ttk.Frame(sidebar_outer, padding=(12, 0))
@@ -782,10 +787,10 @@ class CalendarTab(ttk.Frame):
         for cell in self.day_cells:
             cell.date = None
             cell.day_label.configure(text="", fg=self.text_color, bg=self.cell_bg)
-            for widget in cell.events_container.winfo_children():
-                widget.destroy()
+            cell.events_canvas.delete("all")
+            cell.event_regions.clear()
             cell.frame.configure(bg=self.cell_bg)
-            cell.events_container.configure(bg=self.cell_bg)
+            cell.events_canvas.configure(bg=self.cell_bg)
 
         month_start = self.current_month
         cal_obj = cal.Calendar(firstweekday=6)
@@ -825,56 +830,60 @@ class CalendarTab(ttk.Frame):
             bg_color = self.cell_bg
             cell.day_label.configure(text=str(day.day), fg=fg_color, bg=bg_color)
             cell.frame.configure(bg=bg_color)
-            cell.events_container.configure(bg=bg_color)
-
-            for widget in cell.events_container.winfo_children():
-                widget.destroy()
+            cell.events_canvas.configure(bg=bg_color)
+            cell.events_canvas.delete("all")
+            cell.event_regions.clear()
 
             occurrences = self.occurrences_by_day.get(day, [])
-            for occ_entry in occurrences[:4]:
-                occurrence = occ_entry.occurrence
-                event = occ_entry.event
-                override = occ_entry.override
-                label_bg = (
-                    override.calendar_color
-                    if override and override.calendar_color
-                    else event.calendar_color
-                    or "#607D8B"
-                )
-                fg = utils.ideal_text_color(label_bg)
-                display_title = override.title if override and override.title else event.title
-                time_str = utils.format_time(occurrence)
-                text = f"{time_str} {display_title}" if occurrence.time() != datetime.min.time() else display_title
-                if self._is_customized_occurrence(occ_entry):
-                    text += f" {CUSTOMIZED_OCCURRENCE_MARK}"
-                display_text = shorten(text, width=32, placeholder="...")
-                ev_label = tk.Label(
-                    cell.events_container,
-                    text=display_text,
-                    anchor="w",
-                    bg=label_bg,
-                    fg=fg,
-                    font=("Segoe UI", 9, "bold"),
-                    padx=4,
-                    pady=1,
-                )
-                ev_label.pack(fill=tk.X, pady=1)
-                ev_label.bind("<Button-1>", lambda e, date_obj=day: self.select_day(date_obj))
-                ev_label.bind("<Double-1>", lambda e, entry=occ_entry: self._open_occurrence_customizer(entry))
-
-            if len(occurrences) > 4:
-                more_label = tk.Label(
-                    cell.events_container,
-                    text=f"+{len(occurrences) - 4}",
-                    anchor="w",
-                    bg=bg_color,
-                    fg=self.secondary_text_color,
-                    font=("Segoe UI", 9, "italic"),
-                )
-                more_label.pack(fill=tk.X, pady=1)
-                more_label.bind("<Button-1>", lambda e, date_obj=day: self.select_day(date_obj))
+            self._draw_day_occurrences(cell, occurrences)
 
         self._highlight_selected_day()
+
+    def _draw_day_occurrences(self, cell: DayCell, occurrences: List[DayOccurrence]) -> None:
+        canvas = cell.events_canvas
+        y = 2
+        row_height = 18
+        gap = 2
+        bar_width = 4096
+        for occ_entry in occurrences[:4]:
+            occurrence = occ_entry.occurrence
+            event = occ_entry.event
+            override = occ_entry.override
+            label_bg = (
+                override.calendar_color
+                if override and override.calendar_color
+                else event.calendar_color
+                or "#607D8B"
+            )
+            fg = utils.ideal_text_color(label_bg)
+            display_title = override.title if override and override.title else event.title
+            time_str = utils.format_time(occurrence)
+            text = f"{time_str} {display_title}" if occurrence.time() != datetime.min.time() else display_title
+            if self._is_customized_occurrence(occ_entry):
+                text += f" {CUSTOMIZED_OCCURRENCE_MARK}"
+            display_text = shorten(text, width=32, placeholder="...")
+            bottom = y + row_height
+            canvas.create_rectangle(0, y, bar_width, bottom, fill=label_bg, outline="")
+            canvas.create_text(
+                4,
+                y + row_height // 2,
+                text=display_text,
+                anchor="w",
+                fill=fg,
+                font=("Segoe UI", 9, "bold"),
+            )
+            cell.event_regions.append((y, bottom, occ_entry))
+            y = bottom + gap
+
+        if len(occurrences) > 4:
+            canvas.create_text(
+                4,
+                y + row_height // 2,
+                text=f"+{len(occurrences) - 4}",
+                anchor="w",
+                fill=self.secondary_text_color,
+                font=("Segoe UI", 9, "italic"),
+            )
 
     def _rebuild_calendar_filters(self) -> None:
         if self.calendars_frame is None:
@@ -971,10 +980,7 @@ class CalendarTab(ttk.Frame):
             fg = self.text_color if cell.date and cell.date.month == self.current_month.month else self.outside_month_color
             cell.frame.configure(bg=bg)
             cell.day_label.configure(bg=bg, fg=fg)
-            cell.events_container.configure(bg=bg)
-            for child in cell.events_container.winfo_children():
-                if isinstance(child, tk.Label) and child.cget("text").startswith("+"):
-                    child.configure(bg=bg)
+            cell.events_canvas.configure(bg=bg)
 
     def _update_selected_day_label(self) -> None:
         label = getattr(self, "day_value_label", None)
@@ -989,6 +995,18 @@ class CalendarTab(ttk.Frame):
         cell = self.day_cells[index]
         if cell.date:
             self.select_day(cell.date)
+
+    def _on_event_canvas_double_click(self, index: int, event: tk.Event) -> str | None:
+        if index >= len(self.day_cells):
+            return None
+        cell = self.day_cells[index]
+        if cell.date:
+            self.select_day(cell.date)
+        for top, bottom, occ_entry in cell.event_regions:
+            if top <= event.y <= bottom:
+                self._open_occurrence_customizer(occ_entry)
+                return "break"
+        return None
 
     def select_day(self, day: date) -> None:
         self.selected_day = day

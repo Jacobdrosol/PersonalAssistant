@@ -24,6 +24,7 @@ class LogTab(ttk.Frame):
         self._column_pixel_width = 680
         self._entries_with_wrap: Set[int] = set()
         self._pending_resize_refresh = False
+        self._resize_refresh_after_id: Optional[str] = None
         self._editor_panel: TextEditorPanel | None = None
 
         self._configure_styles()
@@ -121,12 +122,16 @@ class LogTab(ttk.Frame):
         self._current_row_height = target
 
     def _schedule_tree_refresh(self) -> None:
-        if self._pending_resize_refresh:
-            return
         self._pending_resize_refresh = True
-        self.after_idle(self._perform_resize_refresh)
+        if self._resize_refresh_after_id is not None:
+            try:
+                self.after_cancel(self._resize_refresh_after_id)
+            except tk.TclError:
+                pass
+        self._resize_refresh_after_id = self.after(150, self._perform_resize_refresh)
 
     def _perform_resize_refresh(self) -> None:
+        self._resize_refresh_after_id = None
         if not self._pending_resize_refresh:
             return
         self._pending_resize_refresh = False
@@ -276,6 +281,8 @@ class LogTab(ttk.Frame):
         if raw_width <= 1:
             return
         width = max(520, raw_width - 24)
+        if abs(width - self._column_pixel_width) < 8:
+            return
         try:
             self.tree.column("#0", width=width)
         except Exception:

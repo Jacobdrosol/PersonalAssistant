@@ -55,7 +55,6 @@ class ScrumTab(ttk.Frame):
         if not hasattr(self, "_board_canvas"):
             return
         container = self._columns_container  # type: ignore[attr-defined]
-        container.update_idletasks()
         children = container.winfo_children()
         required = 0
         gap = 12

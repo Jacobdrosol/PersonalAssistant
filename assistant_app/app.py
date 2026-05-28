@@ -905,11 +905,6 @@ class PersonalAssistantApp(tk.Tk):
     def _place_settings_overlay(self) -> None:
         if not self._settings_visible:
             return
-        try:
-            self.notebook.update_idletasks()
-            self.settings_tab_frame.update_idletasks()
-        except tk.TclError:
-            pass
         offset = self._compute_notebook_content_offset()
         height = max(0, self.notebook.winfo_height() - offset)
         params = {
