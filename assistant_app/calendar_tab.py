@@ -13,6 +13,12 @@ from tkinter import ttk
 from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 from .database import Database
+from .calendar_pdf import (
+    CalendarPdfEntry,
+    create_month_calendar_pdf,
+    downloads_pdf_path,
+    open_in_default_viewer,
+)
 from .models import Calendar, Event, EventOverride, ProductionCalendar
 from . import utils
 from .theme import ThemePalette
@@ -129,7 +135,12 @@ class CalendarTab(ttk.Frame):
 
         ttk.Button(selector, text="New...", command=self.add_production_calendar).pack(side=tk.LEFT, padx=(12, 0))
         ttk.Button(selector, text="Edit...", command=self.edit_current_production_calendar).pack(side=tk.LEFT, padx=(6, 0))
-        ttk.Button(selector, text="Export...", command=self.export_current_production_calendar).pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Button(selector, text="Export PDF", command=self.export_current_production_calendar).pack(
+            side=tk.LEFT, padx=(6, 0)
+        )
+        ttk.Button(selector, text="Backup...", command=self.backup_current_production_calendar).pack(
+            side=tk.LEFT, padx=(6, 0)
+        )
         ttk.Button(selector, text="Import...", command=self.import_production_calendar).pack(side=tk.LEFT, padx=(6, 0))
         self._create_search_bar(selector)
 
@@ -671,9 +682,82 @@ class CalendarTab(ttk.Frame):
         if production is None:
             messagebox.showinfo("Export Production Calendar", "Select a production calendar first.", parent=self)
             return
+        self._export_month_pdf(
+            production.name,
+            [calendar.id for calendar in self.calendars],
+            include_calendar_name=True,
+        )
+
+    def export_calendar(self, calendar_model: Calendar) -> None:
+        self._export_month_pdf(calendar_model.name, [calendar_model.id], include_calendar_name=False)
+
+    def _export_month_pdf(
+        self,
+        calendar_name: str,
+        calendar_ids: List[int],
+        *,
+        include_calendar_name: bool,
+    ) -> None:
+        try:
+            events = self.db.get_events(calendar_ids=calendar_ids) if calendar_ids else []
+            month_start = self.current_month
+            next_month = utils.add_months(datetime.combine(month_start, datetime.min.time()), 1)
+            month_end = next_month - timedelta(microseconds=1)
+            overrides = self.db.get_event_overrides(
+                (event.id for event in events),
+                month_start,
+                month_end.date(),
+            )
+            dated_entries: List[tuple[datetime, CalendarPdfEntry]] = []
+            for event in events:
+                for occurrence in event.occurrences_between(
+                    datetime.combine(month_start, datetime.min.time()),
+                    month_end,
+                ):
+                    override = overrides.get((event.id, occurrence.date()))
+                    title = override.title if override and override.title else event.title
+                    time_prefix = "" if occurrence.time() == datetime.min.time() else f"{utils.format_time(occurrence)} "
+                    calendar_suffix = f" | {event.calendar_name}" if include_calendar_name else ""
+                    dated_entries.append(
+                        (
+                            occurrence,
+                            CalendarPdfEntry(
+                                day=occurrence.date(),
+                                text=f"{time_prefix}{title}{calendar_suffix}",
+                                color=(
+                                    override.calendar_color
+                                    if override and override.calendar_color
+                                    else event.calendar_color
+                                )
+                                or "#607D8B",
+                            ),
+                        )
+                    )
+            entries = [entry for _, entry in sorted(dated_entries, key=lambda item: item[0])]
+            output_path = downloads_pdf_path(calendar_name, month_start)
+            create_month_calendar_pdf(output_path, month_start, calendar_name, entries)
+            open_in_default_viewer(output_path)
+        except Exception as exc:
+            messagebox.showerror("Export Failed", str(exc), parent=self)
+            return
+        messagebox.showinfo(
+            "Export Complete",
+            f"Saved the calendar PDF to:\n{output_path}",
+            parent=self,
+        )
+
+    def backup_current_production_calendar(self) -> None:
+        production = self._current_production()
+        if production is None:
+            messagebox.showinfo(
+                "Backup Production Calendar",
+                "Select a production calendar first.",
+                parent=self,
+            )
+            return
         path = filedialog.asksaveasfilename(
             parent=self,
-            title="Export Production Calendar",
+            title="Back Up Production Calendar",
             defaultextension=".json",
             filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
             initialfile=f"{production.name.replace(' ', '_')}.json",
@@ -683,13 +767,13 @@ class CalendarTab(ttk.Frame):
         try:
             payload = self.db.export_production_calendar(production.id)
         except Exception as exc:
-            messagebox.showerror("Export Failed", str(exc), parent=self)
+            messagebox.showerror("Backup Failed", str(exc), parent=self)
             return
         try:
             Path(path).write_text(json.dumps(payload, indent=2), encoding="utf-8")
-            messagebox.showinfo("Export Complete", f"Exported '{production.name}'.", parent=self)
+            messagebox.showinfo("Backup Complete", f"Backed up '{production.name}'.", parent=self)
         except Exception as exc:
-            messagebox.showerror("Export Failed", str(exc), parent=self)
+            messagebox.showerror("Backup Failed", str(exc), parent=self)
 
     def import_production_calendar(self) -> None:
         path = filedialog.askopenfilename(
@@ -940,6 +1024,15 @@ class CalendarTab(ttk.Frame):
             )
             edit_btn.grid(row=idx, column=2, padx=(6, 0), pady=2, sticky="e")
             self._calendar_edit_buttons.append(edit_btn)
+
+            export_btn = ttk.Button(
+                self.calendars_frame,
+                text="Export",
+                width=7,
+                command=lambda cal=calendar_model: self.export_calendar(cal),
+            )
+            export_btn.grid(row=idx, column=3, padx=(6, 0), pady=2, sticky="e")
+            self._calendar_edit_buttons.append(export_btn)
 
             self.calendar_vars[calendar_model.id] = var
 
