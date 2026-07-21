@@ -15,6 +15,7 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple
 from .database import Database
 from .calendar_pdf import (
     CalendarPdfEntry,
+    CalendarPdfMode,
     create_month_calendar_pdf,
     downloads_pdf_path,
     open_in_default_viewer,
@@ -698,6 +699,32 @@ class CalendarTab(ttk.Frame):
         *,
         include_calendar_name: bool,
     ) -> None:
+        def select_mode(mode: CalendarPdfMode) -> None:
+            self._close_modal()
+            self._create_month_pdf(
+                calendar_name,
+                calendar_ids,
+                include_calendar_name=include_calendar_name,
+                mode=mode,
+            )
+
+        def builder(parent: tk.Frame) -> tk.Frame:
+            return CalendarExportPanel(
+                parent,
+                on_select=select_mode,
+                on_cancel=self._close_modal,
+            )
+
+        self._open_modal(builder)
+
+    def _create_month_pdf(
+        self,
+        calendar_name: str,
+        calendar_ids: List[int],
+        *,
+        include_calendar_name: bool,
+        mode: CalendarPdfMode,
+    ) -> None:
         try:
             events = self.db.get_events(calendar_ids=calendar_ids) if calendar_ids else []
             month_start = self.current_month
@@ -730,12 +757,14 @@ class CalendarTab(ttk.Frame):
                                     else event.calendar_color
                                 )
                                 or "#607D8B",
+                                overview_text=f"{title}{calendar_suffix}",
                             ),
                         )
                     )
             entries = [entry for _, entry in sorted(dated_entries, key=lambda item: item[0])]
-            output_path = downloads_pdf_path(calendar_name, month_start)
-            create_month_calendar_pdf(output_path, month_start, calendar_name, entries)
+            output_name = f"{calendar_name}_Large_Format" if mode == "large_format" else calendar_name
+            output_path = downloads_pdf_path(output_name, month_start)
+            create_month_calendar_pdf(output_path, month_start, calendar_name, entries, mode=mode)
             open_in_default_viewer(output_path)
         except Exception as exc:
             messagebox.showerror("Export Failed", str(exc), parent=self)
@@ -1703,6 +1732,55 @@ class CalendarTab(ttk.Frame):
             return
         self._close_modal()
         self.refresh()
+
+
+class CalendarExportPanel(tk.Frame):
+    def __init__(
+        self,
+        parent: tk.Misc,
+        *,
+        on_select: Callable[[CalendarPdfMode], None],
+        on_cancel: Callable[[], None],
+    ) -> None:
+        super().__init__(parent, bg="#1d1e2c", bd=1, relief="ridge")
+        self._on_select = on_select
+        self._on_cancel = on_cancel
+        self.place(relx=0.5, rely=0.5, anchor="center")
+
+        container = ttk.Frame(self, padding=18)
+        container.grid(row=0, column=0, sticky="nsew")
+        container.columnconfigure(0, weight=1)
+
+        header = ttk.Frame(container)
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 16))
+        ttk.Label(header, text="Export Calendar", style="SidebarHeading.TLabel").pack(side=tk.LEFT)
+        ttk.Button(header, text="Close", command=self._on_cancel).pack(side=tk.RIGHT)
+
+        ttk.Button(
+            container,
+            text="Standard Calendar with Weekly Pages",
+            command=lambda: self._on_select("adaptive"),
+            width=42,
+        ).grid(row=1, column=0, sticky="ew")
+        ttk.Label(
+            container,
+            text="A month overview with weekly detail pages for crowded dates.",
+            foreground="#9FA8DA",
+        ).grid(row=2, column=0, sticky="w", pady=(4, 14))
+
+        ttk.Button(
+            container,
+            text="Full Calendar on One Large Page",
+            command=lambda: self._on_select("large_format"),
+            width=42,
+        ).grid(row=3, column=0, sticky="ew")
+        ttk.Label(
+            container,
+            text="One oversized sheet containing every item for large-format printing.",
+            foreground="#9FA8DA",
+        ).grid(row=4, column=0, sticky="w", pady=(4, 16))
+
+        ttk.Button(container, text="Cancel", command=self._on_cancel).grid(row=5, column=0, sticky="e")
 
 
 class CalendarEditorPanel(tk.Frame):
