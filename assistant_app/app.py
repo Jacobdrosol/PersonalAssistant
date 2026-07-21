@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ctypes
 import shutil
 import subprocess
 import sys
@@ -8,6 +9,7 @@ from datetime import datetime, time as dt_time
 from pathlib import Path
 from typing import Callable, List, Optional
 import tkinter as tk
+from ctypes import wintypes
 from tkinter import messagebox, ttk
 
 from .calendar_tab import CalendarTab
@@ -41,6 +43,18 @@ from .version import __version__
 from . import updater
 from . import utils
 from .theme import ThemePalette, get_theme, THEMES
+
+
+def _desktop_work_area(default_width: int, default_height: int) -> tuple[int, int, int, int]:
+    if sys.platform == "win32":
+        rect = wintypes.RECT()
+        try:
+            success = ctypes.windll.user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(rect), 0)
+            if success:
+                return rect.left, rect.top, rect.right, rect.bottom
+        except (AttributeError, OSError):
+            pass
+    return 0, 0, default_width, default_height
 
 
 class PersonalAssistantApp(tk.Tk):
@@ -965,17 +979,25 @@ class PersonalAssistantApp(tk.Tk):
     def _rearrange_notifications(self) -> None:
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
+        work_left, work_top, work_right, work_bottom = _desktop_work_area(screen_width, screen_height)
+        work_height = work_bottom - work_top
         padding = 20
         window_width = 320
-        window_height = 140
+        bottom_offset = padding
 
-        for index, window in enumerate(list(self.notifications)):
+        for window in list(self.notifications):
             if not window.winfo_exists():
                 self.notifications.remove(window)
                 continue
-            x = screen_width - window_width - padding
-            y = screen_height - (index + 1) * (window_height + 10) - padding
+            window.update_idletasks()
+            window_height = min(
+                max(160, window.winfo_reqheight()),
+                work_height - (2 * padding),
+            )
+            x = max(work_left + padding, work_right - window_width - padding)
+            y = work_bottom - window_height - bottom_offset
             window.geometry(f"{window_width}x{window_height}+{x}+{y}")
+            bottom_offset += window_height + 10
 
     def _position_settings_button(self, event: Optional[tk.Event] = None) -> None:
         if self._settings_visible:
@@ -1206,7 +1228,8 @@ class NotificationWindow(tk.Toplevel):
             self._body_label = ttk.Label(frame, text=body_text, wraplength=280, foreground=self.theme.notification_body)
             self._body_label.pack(anchor="w")
 
-        ttk.Button(frame, text="Dismiss", command=self.dismiss).pack(anchor="e", pady=(10, 0))
+        self._dismiss_button = ttk.Button(frame, text="Dismiss", command=self.dismiss)
+        self._dismiss_button.pack(anchor="e", pady=(10, 0))
         self.after(1000 * 15, self.dismiss)
 
     def _derive_time_text(self, payload: NotificationPayload) -> str:
