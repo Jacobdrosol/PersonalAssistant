@@ -1531,7 +1531,7 @@ class CalendarTab(ttk.Frame):
         occ_entry = self._get_selected_occurrence()
         if occ_entry is None:
             return
-        self.edit_event(occ_entry.event)
+        self.edit_event(occ_entry.event, occurrence_date=occ_entry.occurrence.date())
 
     def customize_selected_occurrence(self) -> None:
         occ_entry = self._get_selected_occurrence()
@@ -1594,19 +1594,21 @@ class CalendarTab(ttk.Frame):
         self.refresh()
         self.select_day(occurrence_date)
 
-    def edit_event(self, event: Event) -> None:
-        self._open_event_editor(event=event)
+    def edit_event(self, event: Event, occurrence_date: Optional[date] = None) -> None:
+        self._open_event_editor(event=event, default_date=occurrence_date)
 
     def _open_event_editor(self, *, event: Optional[Event] = None, default_date: Optional[date] = None) -> None:
         if not self.calendars:
             messagebox.showinfo("No Calendars", "Please add a calendar first.")
             return
+        editor_date = default_date or (event.start_time.date() if event else self.selected_day)
+
         def builder(parent: tk.Frame) -> tk.Frame:
             return EventEditorPanel(
                 parent,
                 calendars=self.calendars,
                 event=event,
-                default_date=default_date or self.selected_day,
+                default_date=editor_date,
                 on_submit=lambda payload: self._handle_event_submission(event, payload),
                 on_cancel=self._close_modal,
             )
@@ -2119,7 +2121,7 @@ class EventEditorPanel(tk.Frame):
         self.calendar_combo.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(0, 8))
 
         ttk.Label(container, text="Date (YYYY-MM-DD)").grid(row=5, column=0, sticky="w")
-        self.date_var = tk.StringVar(value=(event.start_time.strftime("%Y-%m-%d") if event else default_date.strftime("%Y-%m-%d")))
+        self.date_var = tk.StringVar(value=default_date.strftime("%Y-%m-%d"))
         ttk.Entry(container, textvariable=self.date_var).grid(row=6, column=0, sticky="ew", pady=(0, 8))
 
         ttk.Label(container, text="Time").grid(row=5, column=1, sticky="w")
