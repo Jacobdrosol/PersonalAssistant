@@ -25,6 +25,10 @@ class ProductionLogViewValidationTests(unittest.TestCase):
         view = self._view_with_rows("10", "11")
         self.assertEqual(view._sheet_row_numbers(), (10, 11))
 
+    def test_production_log_has_no_secondary_pin_lock(self) -> None:
+        view = ProductionLogView.__new__(ProductionLogView)
+        self.assertFalse(view.is_locked())
+
     def test_data_start_must_follow_header(self) -> None:
         view = self._view_with_rows("10", "10")
         with self.assertRaisesRegex(ValueError, "after the header"):

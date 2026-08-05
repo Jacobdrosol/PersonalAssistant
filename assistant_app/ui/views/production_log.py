@@ -900,7 +900,6 @@ class SheetMappingManager(tk.Toplevel):
 
 
 class ProductionLogView(ttk.Frame):
-    _PIN_CODE = "12345"
     _HEADER_ROW = 5
     _DATA_START_ROW = 6
     _PREVIEW_ROWS = 10
@@ -909,11 +908,9 @@ class ProductionLogView(ttk.Frame):
         super().__init__(master, padding=(16, 16))
         self.db = db
         self.theme = theme
-        self._locked = True
-        self._lock_overlay: Optional[tk.Frame] = None
-        self._pin_entry: Optional[ttk.Entry] = None
-        self._pin_var = tk.StringVar(value="")
-        self._lock_error_var = tk.StringVar(value="")
+        # Feature visibility is controlled by the Settings tab. Once enabled,
+        # Production Log is immediately available and has no secondary PIN gate.
+        self._locked = False
         self._accent_strip: Optional[tk.Frame] = None
 
         self.clients: list[ProductionLogClient] = []
@@ -977,7 +974,6 @@ class ProductionLogView(ttk.Frame):
         self.configure(style="ProdLog.Root.TFrame")
         self._build_ui()
         self._load_clients()
-        self.after(0, self._show_lock_overlay)
 
     # ------------------------------------------------------------------ UI
     def _build_ui(self) -> None:
@@ -2188,75 +2184,6 @@ class ProductionLogView(ttk.Frame):
         finally:
             workbook.close()
 
-    # ------------------------------------------------------------------ Lock overlay
-    def _show_lock_overlay(self) -> None:
-        if not self._locked or self._lock_overlay is not None:
-            return
-        overlay = tk.Frame(self, bg="#111219")
-        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
-        self._lock_overlay = overlay
-        card = ttk.Frame(overlay, padding=24)
-        card.place(relx=0.5, rely=0.5, anchor="center")
-        ttk.Label(
-            card,
-            text="Production Log tab is under development.",
-            style="SidebarHeading.TLabel",
-            wraplength=420,
-            justify="center",
-        ).pack(anchor="center")
-        ttk.Label(
-            card,
-            text=(
-                "For tracking production counts, updating the client's log spreadsheet, "
-                "and keeping consistent formatting of the spreadsheet."
-            ),
-            wraplength=420,
-            justify="center",
-        ).pack(anchor="center", pady=(12, 20))
-        ttk.Label(card, text="Enter PIN to unlock:", justify="center").pack(anchor="center")
-        self._pin_var.set("")
-        validate = (self.register(self._validate_pin), "%P")
-        entry = ttk.Entry(
-            card,
-            show="*",
-            textvariable=self._pin_var,
-            justify="center",
-            width=12,
-            validate="key",
-            validatecommand=validate,
-        )
-        entry.pack(anchor="center", pady=(6, 0))
-        entry.bind("<Return>", self._attempt_unlock)
-        entry.focus_set()
-        self._pin_entry = entry
-        ttk.Button(card, text="Unlock", command=self._attempt_unlock).pack(anchor="center", pady=(10, 0))
-        ttk.Label(card, textvariable=self._lock_error_var, foreground="#F36C6C").pack(anchor="center", pady=(8, 0))
-
-    def _validate_pin(self, proposed: str) -> bool:
-        if not proposed:
-            return True
-        if not proposed.isdigit():
-            return False
-        return len(proposed) <= len(self._PIN_CODE)
-
-    def _attempt_unlock(self, event: Optional[tk.Event] = None) -> Optional[str]:
-        value = self._pin_var.get()
-        if value == self._PIN_CODE:
-            self._unlock()
-            return "break"
-        self._lock_error_var.set("Incorrect PIN. Try again.")
-        self._pin_var.set("")
-        if self._pin_entry is not None:
-            self._pin_entry.focus_set()
-        return "break"
-
-    def _unlock(self) -> None:
-        self._locked = False
-        if self._lock_overlay is not None:
-            self._lock_overlay.destroy()
-            self._lock_overlay = None
-        self._lock_error_var.set("")
-
     def apply_theme(self, theme: ThemePalette) -> None:
         self.theme = theme
         self._configure_styles()
@@ -2331,12 +2258,10 @@ class ProductionLogView(ttk.Frame):
         )
 
     def is_locked(self) -> bool:
-        return self._locked
+        return False
 
     def focus_lock_entry(self) -> None:
-        if self._pin_entry is not None:
-            self._pin_entry.focus_set()
+        return None
 
     def notify_locked(self) -> None:
-        messagebox.showinfo("Production Log", "Enter the PIN to unlock this tab.", parent=self)
-        self.focus_lock_entry()
+        return None
