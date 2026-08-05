@@ -91,7 +91,8 @@ $pyInstallerArgs = @(
     "--clean",
     "--noconfirm",
     "--icon", $iconPath,
-    "--add-data", "$iconPath;."
+    "--add-data", "$iconPath;.",
+    "--add-data", "docs/production-log-setup-guide.md;docs"
 )
 
 & $Python -m PyInstaller @pyInstallerArgs

@@ -16,6 +16,7 @@ def make_automation(**overrides) -> ProductionLogAutomation:
         "id": 1,
         "client_id": 1,
         "name": "Morning import",
+        "outlook_source": "auto",
         "email_folder": "Mailbox/Inbox",
         "email_subject_contains": "Daily",
         "email_subject_exact": False,

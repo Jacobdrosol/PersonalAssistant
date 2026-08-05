@@ -11,6 +11,7 @@ import posixpath
 import re
 import shutil
 import tempfile
+import time
 from typing import Callable, Iterable, Optional, Sequence
 from xml.etree import ElementTree
 from xml.sax.saxutils import escape as xml_escape
@@ -696,6 +697,14 @@ class OutlookCsvSource:
             folder = self._resolve_folder(namespace, folder_path)
             if folder is None:
                 raise ProductionLogError(f"Outlook folder not found: {folder_path}")
+            self._start_outlook_sync(namespace)
+            # A newly opened Classic Outlook/MAPI folder can initially report
+            # zero items even though its messages appear a few seconds later.
+            # Explicitly start the configured send/receive groups, then wait for
+            # a minimum sync window and a stable item count before deciding
+            # whether there is mail to process. Users do not need to open the
+            # configured folder manually before the scheduled automation.
+            self._wait_for_folder_sync(folder)
             items = folder.Items
             items.Sort("[ReceivedTime]", True)
             matches: list[OutlookAttachment] = []
@@ -775,6 +784,51 @@ class OutlookCsvSource:
         except Exception:
             return None
 
+    @staticmethod
+    def _wait_for_folder_sync(
+        folder,
+        *,
+        minimum_wait_seconds: float = 10.0,
+        timeout_seconds: float = 30.0,
+        poll_seconds: float = 0.5,
+    ) -> None:
+        started = time.monotonic()
+        deadline = started + max(minimum_wait_seconds, timeout_seconds)
+        previous_count: Optional[int] = None
+        stable_samples = 0
+        while True:
+            try:
+                current_count = int(folder.Items.Count)
+            except Exception:
+                current_count = -1
+            if current_count == previous_count:
+                stable_samples += 1
+            else:
+                previous_count = current_count
+                stable_samples = 0
+            elapsed = time.monotonic() - started
+            if elapsed >= minimum_wait_seconds and stable_samples >= 2:
+                return
+            if time.monotonic() >= deadline:
+                return
+            time.sleep(poll_seconds)
+
+    @staticmethod
+    def _start_outlook_sync(namespace) -> None:
+        """Start every configured Classic Outlook send/receive group."""
+        if bool(getattr(namespace, "Offline", False)):
+            raise ProductionLogError(
+                "Classic Outlook is offline. Connect Outlook before running the production-log automation."
+            )
+        try:
+            sync_objects = namespace.SyncObjects
+            for index in range(1, int(sync_objects.Count) + 1):
+                sync_objects.Item(index).Start()
+        except ProductionLogError:
+            raise
+        except Exception as exc:
+            raise ProductionLogError(f"Classic Outlook could not start mailbox synchronization: {exc}") from exc
+
     def mark_message_updated(
         self,
         message_id: str,
@@ -797,6 +851,10 @@ class OutlookCsvSource:
             if add_category and add_category.casefold() not in {value.casefold() for value in categories}:
                 categories.append(add_category)
             item.Categories = ", ".join(categories)
+            # Keep the Classic Outlook fallback consistent with the New Outlook
+            # adapter: an email is marked read only after its workbook update has
+            # completed and the pending/completed categories are replaced.
+            item.UnRead = False
             item.Save()
         except Exception as exc:
             raise ProductionLogError(f"Workbook updated, but Outlook categories could not be changed: {exc}") from exc

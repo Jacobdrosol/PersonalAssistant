@@ -673,6 +673,7 @@ class Database:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 client_id INTEGER NOT NULL REFERENCES production_log_clients(id) ON DELETE CASCADE,
                 name TEXT NOT NULL,
+                outlook_source TEXT NOT NULL DEFAULT 'auto',
                 email_folder TEXT NOT NULL DEFAULT '',
                 email_subject_contains TEXT NOT NULL DEFAULT '',
                 email_sender_contains TEXT NOT NULL DEFAULT '',
@@ -724,6 +725,7 @@ class Database:
         self._ensure_column("production_log_sheet_configs", "source_mappings", "TEXT NOT NULL DEFAULT '{}'")
         self._ensure_column("production_log_sheet_configs", "route_values", "TEXT NOT NULL DEFAULT '[]'")
         self._ensure_column("production_log_automations", "email_subject_exact", "INTEGER NOT NULL DEFAULT 0")
+        self._ensure_column("production_log_automations", "outlook_source", "TEXT NOT NULL DEFAULT 'auto'")
         self._ensure_column("production_log_automations", "email_body_contains", "TEXT NOT NULL DEFAULT ''")
         self._ensure_column("production_log_automations", "required_category", "TEXT NOT NULL DEFAULT ''")
         self._ensure_column("production_log_automations", "completed_category", "TEXT NOT NULL DEFAULT ''")
@@ -1184,6 +1186,11 @@ class Database:
         if default_instance is None:
             return
         self._conn.execute("DROP TABLE IF EXISTS sql_saved_queries_old")
+        # A named composite index follows the table when SQLite renames it.
+        # Drop it first so the rebuilt table can recreate the same index name.
+        # The legacy UNIQUE(name) auto-index is managed by SQLite and disappears
+        # with the old table after the migration completes.
+        self._conn.execute("DROP INDEX IF EXISTS idx_sql_saved_queries_instance_name")
         self._conn.execute("ALTER TABLE sql_saved_queries RENAME TO sql_saved_queries_old")
         self._conn.execute(
             """
@@ -3594,7 +3601,7 @@ class Database:
         self, client_id: Optional[int] = None
     ) -> List[ProductionLogAutomation]:
         query = """
-            SELECT id, client_id, name, email_folder, email_subject_contains,
+            SELECT id, client_id, name, outlook_source, email_folder, email_subject_contains,
                    email_subject_exact, email_sender_contains, email_body_contains,
                    attachment_pattern, required_category, completed_category, routing_column,
                    update_mode, source_sort_column, source_date_column, target_date_column,
@@ -3623,6 +3630,7 @@ class Database:
                     id=int(row["id"]),
                     client_id=int(row["client_id"]),
                     name=str(row["name"]),
+                    outlook_source=str(row["outlook_source"] or "auto"),
                     email_folder=str(row["email_folder"] or ""),
                     email_subject_contains=str(row["email_subject_contains"] or ""),
                     email_subject_exact=bool(row["email_subject_exact"]),
@@ -3678,6 +3686,7 @@ class Database:
         automation_id: int,
         *,
         name: str,
+        outlook_source: str = "auto",
         email_folder: str,
         email_subject_contains: str,
         email_sender_contains: str,
@@ -3709,7 +3718,7 @@ class Database:
                 self._conn.execute(
                     """
                     UPDATE production_log_automations
-                    SET name = ?, email_folder = ?, email_subject_contains = ?, email_subject_exact = ?,
+                    SET name = ?, outlook_source = ?, email_folder = ?, email_subject_contains = ?, email_subject_exact = ?,
                         email_sender_contains = ?, email_body_contains = ?, attachment_pattern = ?,
                         required_category = ?, completed_category = ?, routing_column = ?,
                         update_mode = ?, source_sort_column = ?, source_date_column = ?, target_date_column = ?,
@@ -3719,6 +3728,7 @@ class Database:
                     """,
                     (
                         trimmed,
+                        outlook_source.strip() or "auto",
                         email_folder.strip(),
                         email_subject_contains.strip(),
                         1 if email_subject_exact else 0,

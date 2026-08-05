@@ -12,10 +12,40 @@ from openpyxl.styles import PatternFill
 
 from assistant_app.production_log_engine import (
     DateMatchedProductionLogUpdater,
+    OutlookCsvSource,
     ProductionLogUpdater,
     SheetImportRule,
     read_csv_bytes,
 )
+
+
+class ClassicOutlookSynchronizationTests(unittest.TestCase):
+    def test_starts_every_configured_send_receive_group(self) -> None:
+        class Group:
+            def __init__(self) -> None:
+                self.started = False
+
+            def Start(self) -> None:
+                self.started = True
+
+        groups = [Group(), Group()]
+
+        class SyncObjects:
+            Count = 2
+
+            @staticmethod
+            def Item(index: int):
+                return groups[index - 1]
+
+        class Namespace:
+            Offline = False
+
+        namespace = Namespace()
+        namespace.SyncObjects = SyncObjects()
+
+        OutlookCsvSource._start_outlook_sync(namespace)
+
+        self.assertTrue(all(group.started for group in groups))
 
 
 class ProductionLogUpdaterTests(unittest.TestCase):

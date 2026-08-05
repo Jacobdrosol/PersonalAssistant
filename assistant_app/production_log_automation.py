@@ -16,6 +16,7 @@ from .production_log_engine import (
     ProductionLogUpdater,
     SheetImportRule,
 )
+from .new_outlook_ui import NewOutlookUiSource
 
 
 @dataclass(slots=True)
@@ -163,7 +164,17 @@ class ProductionLogAutomationRunner:
                 )
             window_start = source_window_start(automation, scheduled_for)
             window_end = datetime.now()
-            outlook_source = OutlookCsvSource()
+            # New Outlook has no Classic Outlook COM API. In auto mode, use its
+            # Windows accessibility adapter when New Outlook is open; otherwise
+            # retain Classic Outlook COM as a legacy fallback. The New Outlook
+            # adapter requires an unlocked interactive Windows session.
+            source_kind = (automation.outlook_source or "auto").strip().casefold()
+            if source_kind == "new_outlook" or (
+                source_kind == "auto" and NewOutlookUiSource.is_available()
+            ):
+                outlook_source = NewOutlookUiSource()
+            else:
+                outlook_source = OutlookCsvSource()
             attachments = outlook_source.fetch_pending(
                 folder_path=automation.email_folder,
                 subject_contains=automation.email_subject_contains,
@@ -204,11 +215,19 @@ class ProductionLogAutomationRunner:
                     processed += 1
                     _merge_results(combined, result)
                 if automation.required_category or automation.completed_category:
-                    outlook_source.mark_message_updated(
-                        message_id,
-                        remove_category=automation.required_category,
-                        add_category=automation.completed_category,
-                    )
+                    if isinstance(outlook_source, NewOutlookUiSource):
+                        outlook_source.mark_message_updated(
+                            message_id,
+                            folder_path=automation.email_folder,
+                            remove_category=automation.required_category,
+                            add_category=automation.completed_category,
+                        )
+                    else:
+                        outlook_source.mark_message_updated(
+                            message_id,
+                            remove_category=automation.required_category,
+                            add_category=automation.completed_category,
+                        )
                 for attachment, result in message_results:
                     self.db.mark_production_log_automation_attachment_processed(
                         automation.id,

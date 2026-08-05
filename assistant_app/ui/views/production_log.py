@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime
 import json
+import os
 from pathlib import Path
 import re
+import sys
 import threading
 from typing import Optional
 
@@ -77,6 +79,8 @@ FIELD_LABELS = {
     "select_set": "Select Set",
     "jobstream": "Jobstream",
 }
+
+SETUP_GUIDE_FILENAME = "production-log-setup-guide.md"
 
 SHEET_TEMPLATES: list[tuple[str, str, list[str]]] = [
     (
@@ -500,6 +504,401 @@ TEMPLATE_PLACEHOLDER = "Select sheet type..."
 CUSTOM_TEMPLATE_KEY = "custom_generic"
 
 
+class SheetMappingManager(tk.Toplevel):
+    """Manage routing and arbitrary CSV-to-workbook mappings by worksheet."""
+
+    def __init__(self, owner: "ProductionLogView") -> None:
+        super().__init__(owner)
+        self.owner = owner
+        self.db = owner.db
+        self.client_id = owner.current_client_id
+        self.title("Sheet Routing & Column Mappings")
+        self.geometry("1180x760")
+        self.minsize(960, 620)
+        self.transient(owner.winfo_toplevel())
+        self.configure(background=owner.theme.window_bg)
+        self.sheet_name_var = tk.StringVar(value="")
+        self.header_row_var = tk.StringVar(value="5")
+        self.data_start_row_var = tk.StringVar(value="6")
+        self.routes_var = tk.StringVar(value="")
+        self.mapping_rows: list[dict[str, object]] = []
+        self.destination_choices: list[str] = []
+        self.configs: dict[str, ProductionLogSheetConfig] = {}
+        self._build()
+        self._reload_configs()
+        self.protocol("WM_DELETE_WINDOW", self.destroy)
+
+    def _build(self) -> None:
+        outer = ttk.Frame(self, padding=14, style="ProdLog.Root.TFrame")
+        outer.pack(fill=tk.BOTH, expand=True)
+        ttk.Label(outer, text="Sheet Routing & Column Mappings", style="ProdLog.Title.TLabel").pack(anchor="w")
+        ttk.Label(
+            outer,
+            text=(
+                "Select a worksheet, assign the CSV route values that send rows to it, and add every "
+                "CSV-header → workbook-column mapping required by that sheet. Each worksheet is independent."
+            ),
+            style="ProdLog.BodyMuted.TLabel",
+            wraplength=1080,
+            justify="left",
+        ).pack(anchor="w", pady=(4, 10))
+
+        split = ttk.Panedwindow(outer, orient=tk.HORIZONTAL)
+        split.pack(fill=tk.BOTH, expand=True)
+        left = ttk.Frame(split, padding=(0, 0, 10, 0), style="ProdLog.Root.TFrame")
+        right = ttk.Frame(split, padding=(10, 0, 0, 0), style="ProdLog.Root.TFrame")
+        split.add(left, weight=1)
+        split.add(right, weight=2)
+
+        ttk.Label(left, text="Workbook sheets", style="ProdLog.Section.TLabel").pack(anchor="w")
+        self.sheet_tree = ttk.Treeview(
+            left,
+            columns=("status", "routes", "mappings", "rows"),
+            show="tree headings",
+            height=24,
+            style="ProdLog.Treeview",
+        )
+        self.sheet_tree.heading("#0", text="Sheet")
+        self.sheet_tree.heading("status", text="Status")
+        self.sheet_tree.heading("routes", text="Routes")
+        self.sheet_tree.heading("mappings", text="Maps")
+        self.sheet_tree.heading("rows", text="Rows")
+        self.sheet_tree.column("#0", width=210, stretch=True)
+        self.sheet_tree.column("status", width=85, anchor="center")
+        self.sheet_tree.column("routes", width=55, anchor="center")
+        self.sheet_tree.column("mappings", width=55, anchor="center")
+        self.sheet_tree.column("rows", width=70, anchor="center")
+        self.sheet_tree.pack(fill=tk.BOTH, expand=True, pady=(6, 0))
+        self.sheet_tree.bind("<<TreeviewSelect>>", self._on_sheet_selected)
+
+        editor = ttk.Frame(right, style="ProdLog.Card.TFrame", padding=12)
+        editor.pack(fill=tk.BOTH, expand=True)
+        ttk.Label(editor, textvariable=self.sheet_name_var, style="ProdLog.Section.TLabel").grid(
+            row=0, column=0, columnspan=4, sticky="w"
+        )
+        ttk.Label(editor, text="Header row", style="ProdLog.Card.TLabel").grid(
+            row=1, column=0, sticky="w", pady=(8, 2)
+        )
+        ttk.Entry(editor, textvariable=self.header_row_var, width=7).grid(row=1, column=1, sticky="w", pady=(8, 2))
+        ttk.Label(editor, text="Data starts row", style="ProdLog.Card.TLabel").grid(
+            row=1, column=2, sticky="w", padx=(18, 6), pady=(8, 2)
+        )
+        ttk.Entry(editor, textvariable=self.data_start_row_var, width=7).grid(row=1, column=3, sticky="w", pady=(8, 2))
+
+        ttk.Label(editor, text="CSV route values", style="ProdLog.Card.TLabel").grid(
+            row=2, column=0, sticky="nw", pady=(8, 2)
+        )
+        ttk.Entry(editor, textvariable=self.routes_var).grid(
+            row=2, column=1, columnspan=3, sticky="ew", pady=(8, 2)
+        )
+        ttk.Label(
+            editor,
+            text="Separate multiple values with commas or semicolons. Blank uses the worksheet name.",
+            style="ProdLog.BodyMuted.TLabel",
+        ).grid(row=3, column=1, columnspan=3, sticky="w")
+
+        header = ttk.Frame(editor, style="ProdLog.Card.TFrame")
+        header.grid(row=4, column=0, columnspan=4, sticky="ew", pady=(12, 4))
+        header.columnconfigure(0, weight=1)
+        header.columnconfigure(1, weight=1)
+        ttk.Label(header, text="CSV header", style="ProdLog.Card.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(header, text="Workbook destination column", style="ProdLog.Card.TLabel").grid(
+            row=0, column=1, sticky="w", padx=(10, 0)
+        )
+
+        mapping_holder = ttk.Frame(editor, style="ProdLog.Card.TFrame")
+        mapping_holder.grid(row=5, column=0, columnspan=4, sticky="nsew")
+        mapping_holder.rowconfigure(0, weight=1)
+        mapping_holder.columnconfigure(0, weight=1)
+        self.mapping_canvas = tk.Canvas(
+            mapping_holder,
+            highlightthickness=0,
+            height=360,
+            bg=self.owner.theme.card_bg,
+        )
+        mapping_scroll = ttk.Scrollbar(mapping_holder, orient=tk.VERTICAL, command=self.mapping_canvas.yview)
+        self.mapping_canvas.configure(yscrollcommand=mapping_scroll.set)
+        self.mapping_canvas.grid(row=0, column=0, sticky="nsew")
+        mapping_scroll.grid(row=0, column=1, sticky="ns")
+        self.mapping_frame = ttk.Frame(self.mapping_canvas, style="ProdLog.Card.TFrame")
+        self.mapping_window = self.mapping_canvas.create_window((0, 0), window=self.mapping_frame, anchor="nw")
+        self.mapping_frame.bind(
+            "<Configure>",
+            lambda _event: self.mapping_canvas.configure(scrollregion=self.mapping_canvas.bbox("all")),
+        )
+        self.mapping_canvas.bind(
+            "<Configure>",
+            lambda event: self.mapping_canvas.itemconfigure(self.mapping_window, width=event.width),
+        )
+
+        actions = ttk.Frame(editor, style="ProdLog.Card.TFrame")
+        actions.grid(row=6, column=0, columnspan=4, sticky="ew", pady=(10, 0))
+        ttk.Button(actions, text="Add Mapping Row", command=self._add_mapping_row).pack(side=tk.LEFT)
+        ttk.Button(actions, text="Load Sample CSV...", command=self._load_sample_csv).pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Button(actions, text="Save Selected Sheet", command=self._save_selected_sheet).pack(side=tk.RIGHT)
+        editor.columnconfigure(1, weight=1)
+        editor.columnconfigure(3, weight=1)
+        editor.rowconfigure(5, weight=1)
+
+    def _sheet_names(self) -> list[str]:
+        values = [str(item) for item in self.owner.sheet_combo.cget("values")]
+        return values
+
+    def _reload_configs(self, select_sheet: str = "") -> None:
+        if self.client_id is None:
+            return
+        self.configs = {
+            item.sheet_name: item for item in self.db.get_production_log_sheet_configs(self.client_id)
+        }
+        self.sheet_tree.delete(*self.sheet_tree.get_children())
+        for sheet_name in self._sheet_names():
+            config = self.configs.get(sheet_name)
+            mapping_count = 0
+            route_count = 0
+            rows = "—"
+            status = "Not set"
+            if config is not None:
+                mapping_count = sum(
+                    1
+                    for key, destination in config.column_mappings.items()
+                    if destination and config.source_mappings.get(key)
+                )
+                route_count = len(config.route_values) or 1
+                rows = f"{config.header_row}/{config.data_start_row}"
+                status = "Ready" if mapping_count else "Incomplete"
+            self.sheet_tree.insert(
+                "",
+                tk.END,
+                iid=sheet_name,
+                text=sheet_name,
+                values=(status, route_count, mapping_count, rows),
+            )
+        target = select_sheet or self.owner.sheet_var.get().strip()
+        if target and self.sheet_tree.exists(target):
+            self.sheet_tree.selection_set(target)
+            self.sheet_tree.see(target)
+            self._load_sheet(target)
+        elif self.sheet_tree.get_children():
+            first = str(self.sheet_tree.get_children()[0])
+            self.sheet_tree.selection_set(first)
+            self._load_sheet(first)
+
+    def _on_sheet_selected(self, _event: object | None = None) -> None:
+        selected = self.sheet_tree.selection()
+        if selected:
+            self._load_sheet(str(selected[0]))
+
+    def _load_sheet(self, sheet_name: str) -> None:
+        self.sheet_name_var.set(sheet_name)
+        config = self.configs.get(sheet_name)
+        self.header_row_var.set(str(config.header_row if config else 5))
+        self.data_start_row_var.set(str(config.data_start_row if config else 6))
+        self.routes_var.set(", ".join(config.route_values) if config else "")
+        self._load_destination_choices(sheet_name)
+        self._clear_mapping_rows()
+        if config is not None:
+            for key, destination in config.column_mappings.items():
+                source = config.source_mappings.get(key, "").strip()
+                if source and destination:
+                    self._add_mapping_row(source, destination)
+        if not self.mapping_rows:
+            self._add_mapping_row()
+
+    def _load_destination_choices(self, sheet_name: str) -> None:
+        self.destination_choices = []
+        path = Path(self.owner.workbook_var.get().strip())
+        if load_workbook is None or not path.exists():
+            return
+        try:
+            header_row = max(1, int(self.header_row_var.get()))
+            workbook = load_workbook(path, read_only=True, data_only=True)
+            try:
+                if sheet_name not in workbook.sheetnames:
+                    return
+                sheet = workbook[sheet_name]
+                values = next(
+                    sheet.iter_rows(min_row=header_row, max_row=header_row, values_only=True),
+                    (),
+                )
+                max_column = max(int(sheet.max_column), len(values), 1)
+                for index in range(1, max_column + 1):
+                    letter = get_column_letter(index) if get_column_letter else str(index)
+                    header = str(values[index - 1]).strip() if index <= len(values) and values[index - 1] else ""
+                    self.destination_choices.append(f"{letter} - {header}" if header else letter)
+            finally:
+                workbook.close()
+        except Exception:
+            self.destination_choices = []
+
+    def _clear_mapping_rows(self) -> None:
+        for child in self.mapping_frame.winfo_children():
+            child.destroy()
+        self.mapping_rows = []
+
+    def _add_mapping_row(self, source: str = "", destination: str = "") -> None:
+        row_index = len(self.mapping_rows)
+        source_var = tk.StringVar(value=source)
+        destination_var = tk.StringVar(value=self._display_destination(destination))
+        row = ttk.Frame(self.mapping_frame, style="ProdLog.Card.TFrame")
+        row.grid(row=row_index, column=0, sticky="ew", pady=2)
+        row.columnconfigure(0, weight=1)
+        row.columnconfigure(1, weight=1)
+        source_combo = ttk.Combobox(
+            row,
+            textvariable=source_var,
+            state="normal",
+            values=self.owner._csv_headers,
+        )
+        source_combo.grid(row=0, column=0, sticky="ew")
+        destination_combo = ttk.Combobox(
+            row,
+            textvariable=destination_var,
+            state="normal",
+            values=self.destination_choices,
+        )
+        destination_combo.grid(row=0, column=1, sticky="ew", padx=(10, 6))
+        entry: dict[str, object] = {
+            "frame": row,
+            "source": source_var,
+            "destination": destination_var,
+        }
+        ttk.Button(row, text="Remove", command=lambda item=entry: self._remove_mapping_row(item)).grid(
+            row=0, column=2
+        )
+        self.mapping_rows.append(entry)
+
+    def _remove_mapping_row(self, entry: dict[str, object]) -> None:
+        frame = entry["frame"]
+        if isinstance(frame, ttk.Frame):
+            frame.destroy()
+        if entry in self.mapping_rows:
+            self.mapping_rows.remove(entry)
+        for index, item in enumerate(self.mapping_rows):
+            item_frame = item["frame"]
+            if isinstance(item_frame, ttk.Frame):
+                item_frame.grid_configure(row=index)
+        if not self.mapping_rows:
+            self._add_mapping_row()
+
+    def _display_destination(self, column: str) -> str:
+        target = str(column or "").strip().upper()
+        for display in self.destination_choices:
+            if display.split(" - ", 1)[0].upper() == target:
+                return display
+        return target
+
+    @staticmethod
+    def _destination_column(value: str) -> str:
+        return str(value or "").split(" - ", 1)[0].strip().upper()
+
+    def _load_sample_csv(self) -> None:
+        self.owner._choose_sample_csv()
+        headers = tuple(self.owner._csv_headers)
+        for item in self.mapping_rows:
+            frame = item["frame"]
+            if not isinstance(frame, ttk.Frame):
+                continue
+            for child in frame.winfo_children():
+                if isinstance(child, ttk.Combobox) and str(child.cget("textvariable")) == str(item["source"]):
+                    child.configure(values=headers)
+
+    def _parse_rows(self) -> tuple[int, int]:
+        try:
+            header_row = int(self.header_row_var.get())
+            data_start_row = int(self.data_start_row_var.get())
+        except ValueError as exc:
+            raise ValueError("Header row and data-start row must be whole numbers.") from exc
+        if header_row < 1 or data_start_row <= header_row:
+            raise ValueError("Data-start row must be after a positive header row.")
+        return header_row, data_start_row
+
+    def _save_selected_sheet(self) -> None:
+        if self.client_id is None:
+            return
+        sheet_name = self.sheet_name_var.get().strip()
+        if not sheet_name:
+            messagebox.showinfo("Sheet Mapping", "Select a worksheet first.", parent=self)
+            return
+        try:
+            header_row, data_start_row = self._parse_rows()
+        except ValueError as exc:
+            messagebox.showerror("Sheet Mapping", str(exc), parent=self)
+            return
+        pairs: list[tuple[str, str]] = []
+        for item in self.mapping_rows:
+            source_var = item["source"]
+            destination_var = item["destination"]
+            source = source_var.get().strip() if isinstance(source_var, tk.StringVar) else ""
+            destination = (
+                self._destination_column(destination_var.get())
+                if isinstance(destination_var, tk.StringVar)
+                else ""
+            )
+            if not source and not destination:
+                continue
+            if not source or not destination:
+                messagebox.showerror(
+                    "Sheet Mapping",
+                    "Every mapping row must contain both a CSV header and a destination column.",
+                    parent=self,
+                )
+                return
+            pairs.append((source, destination))
+        if not pairs:
+            messagebox.showerror("Sheet Mapping", "Add at least one complete mapping row.", parent=self)
+            return
+        destinations = [destination for _source, destination in pairs]
+        duplicate_destinations = sorted({item for item in destinations if destinations.count(item) > 1})
+        if duplicate_destinations:
+            messagebox.showerror(
+                "Sheet Mapping",
+                "A destination column can be mapped only once: " + ", ".join(duplicate_destinations),
+                parent=self,
+            )
+            return
+        route_values = [
+            item.strip() for item in re.split(r"[,;\n]+", self.routes_var.get()) if item.strip()
+        ]
+        if self._route_conflicts(sheet_name, route_values):
+            return
+        column_mappings = {f"mapping_{index:03d}": destination for index, (_source, destination) in enumerate(pairs, 1)}
+        source_mappings = {f"mapping_{index:03d}": source for index, (source, _destination) in enumerate(pairs, 1)}
+        self.db.upsert_production_log_sheet_config(
+            client_id=self.client_id,
+            sheet_name=sheet_name,
+            template_key=CUSTOM_TEMPLATE_KEY,
+            header_row=header_row,
+            data_start_row=data_start_row,
+            column_mappings=column_mappings,
+            source_mappings=source_mappings,
+            route_values=route_values,
+        )
+        self.owner.sheet_configs = {
+            item.sheet_name: item for item in self.db.get_production_log_sheet_configs(self.client_id)
+        }
+        if self.owner.sheet_var.get().strip() == sheet_name:
+            self.owner._on_sheet_selected()
+        self._reload_configs(select_sheet=sheet_name)
+        messagebox.showinfo("Sheet Mapping", f"Saved routing and mappings for '{sheet_name}'.", parent=self)
+
+    def _route_conflicts(self, sheet_name: str, route_values: list[str]) -> bool:
+        candidates = route_values or [sheet_name]
+        normalized = {re.sub(r"[^a-z0-9]+", "", item.casefold()) for item in candidates}
+        for other_name, config in self.configs.items():
+            if other_name == sheet_name:
+                continue
+            other_values = config.route_values or [other_name]
+            for value in other_values:
+                if re.sub(r"[^a-z0-9]+", "", value.casefold()) in normalized:
+                    messagebox.showerror(
+                        "Sheet Mapping",
+                        f"Route value '{value}' is already assigned to worksheet '{other_name}'.",
+                        parent=self,
+                    )
+                    return True
+        return False
+
+
 class ProductionLogView(ttk.Frame):
     _PIN_CODE = "12345"
     _HEADER_ROW = 5
@@ -549,10 +948,14 @@ class ProductionLogView(ttk.Frame):
         self.source_date_column_var = tk.StringVar(value="")
         self.target_date_column_var = tk.StringVar(value="A")
         self.route_values_var = tk.StringVar(value="")
+        self.header_row_var = tk.StringVar(value=str(self._HEADER_ROW))
+        self.data_start_row_var = tk.StringVar(value=str(self._DATA_START_ROW))
+        self.preview_caption_var = tk.StringVar(value="")
         self.sample_csv_var = tk.StringVar(value="No sample CSV selected.")
         self.import_status_var = tk.StringVar(value="Configure an email source or load a sample CSV.")
         self.automation_var = tk.StringVar(value="")
         self.automation_name_var = tk.StringVar(value="")
+        self.outlook_source_var = tk.StringVar(value="auto")
         self.scheduled_time_var = tk.StringVar(value="08:00")
         self.lookback_days_var = tk.StringVar(value="1")
         self.retry_minutes_var = tk.StringVar(value="15")
@@ -599,6 +1002,7 @@ class ProductionLogView(ttk.Frame):
         ttk.Label(hero, textvariable=self.status_var, style="ProdLog.Badge.TLabel").pack(
             side=tk.RIGHT, padx=(12, 0)
         )
+        ttk.Button(hero, text="Setup Guide", command=self._open_setup_guide).pack(side=tk.RIGHT)
 
         body = ttk.Frame(self, style="ProdLog.Root.TFrame")
         body.pack(fill=tk.BOTH, expand=True, pady=(14, 0))
@@ -655,17 +1059,25 @@ class ProductionLogView(ttk.Frame):
         mapping_card.columnconfigure(2, weight=1)
         ttk.Label(
             mapping_card,
-            text=f"Column Mapping (header row {self._HEADER_ROW}, data starts row {self._DATA_START_ROW})",
+            text="Column Mapping (configured separately for each worksheet)",
             style="ProdLog.Section.TLabel",
-        ).grid(row=0, column=0, columnspan=2, sticky="w")
+        ).grid(row=0, column=0, columnspan=3, sticky="w")
         ttk.Label(
             mapping_card,
             text="For each field, select its CSV source header and spreadsheet destination column.",
             style="ProdLog.BodyMuted.TLabel",
-        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(4, 8))
+        ).grid(row=1, column=0, columnspan=3, sticky="w", pady=(4, 8))
+
+        layout_row = ttk.Frame(mapping_card, style="ProdLog.Card.TFrame")
+        layout_row.grid(row=2, column=0, columnspan=3, sticky="ew", pady=2)
+        ttk.Label(layout_row, text="Header row", style="ProdLog.Card.TLabel").pack(side=tk.LEFT)
+        ttk.Entry(layout_row, textvariable=self.header_row_var, width=5).pack(side=tk.LEFT, padx=(6, 12))
+        ttk.Label(layout_row, text="Data starts row", style="ProdLog.Card.TLabel").pack(side=tk.LEFT)
+        ttk.Entry(layout_row, textvariable=self.data_start_row_var, width=5).pack(side=tk.LEFT, padx=(6, 12))
+        ttk.Button(layout_row, text="Reload Columns", command=self._reload_selected_sheet_layout).pack(side=tk.LEFT)
 
         ttk.Label(mapping_card, text="Sheet Type", style="ProdLog.Card.TLabel").grid(
-            row=2, column=0, sticky="w", pady=2, padx=(0, 8)
+            row=3, column=0, sticky="w", pady=2, padx=(0, 8)
         )
         self.template_combo = ttk.Combobox(
             mapping_card,
@@ -676,17 +1088,31 @@ class ProductionLogView(ttk.Frame):
         self.template_combo["values"] = [TEMPLATE_PLACEHOLDER] + [
             label for _key, label, _fields in SHEET_TEMPLATES
         ]
-        self.template_combo.grid(row=2, column=1, sticky="w", pady=2)
+        self.template_combo.grid(row=3, column=1, sticky="w", pady=2)
         self.template_combo.bind("<<ComboboxSelected>>", self._on_template_selected)
 
         self._mapping_field_frame = ttk.Frame(mapping_card, style="ProdLog.Card.TFrame")
-        self._mapping_field_frame.grid(row=3, column=0, columnspan=2, sticky="nsew", pady=(6, 0))
+        self._mapping_field_frame.grid(row=4, column=0, columnspan=3, sticky="nsew", pady=(6, 0))
         self._mapping_field_frame.columnconfigure(1, weight=1)
         self._mapping_field_frame.columnconfigure(2, weight=1)
         self._render_mapping_fields()
 
+        ttk.Label(mapping_card, text="CSV route values", style="ProdLog.Card.TLabel").grid(
+            row=5, column=0, sticky="w", pady=(8, 2), padx=(0, 8)
+        )
+        ttk.Entry(mapping_card, textvariable=self.route_values_var).grid(
+            row=5, column=1, columnspan=2, sticky="ew", pady=(8, 2)
+        )
+        ttk.Label(
+            mapping_card,
+            text="Comma-separated values from the automation's routing CSV column; blank defaults to this sheet name.",
+            style="ProdLog.BodyMuted.TLabel",
+            wraplength=540,
+            justify="left",
+        ).grid(row=6, column=0, columnspan=3, sticky="w", pady=(0, 2))
+
         button_row = ttk.Frame(mapping_card, style="ProdLog.Card.TFrame")
-        button_row.grid(row=4, column=0, columnspan=2, sticky="e", pady=(10, 0))
+        button_row.grid(row=7, column=0, columnspan=3, sticky="e", pady=(10, 0))
         ttk.Button(button_row, text="Clear Mapping", command=self._clear_mapping).pack(side=tk.LEFT, padx=(0, 6))
         ttk.Button(button_row, text="Save Mapping", command=self._save_mapping).pack(side=tk.LEFT)
 
@@ -708,7 +1134,7 @@ class ProductionLogView(ttk.Frame):
         self.preview_tree.configure(yscrollcommand=scroll.set, xscrollcommand=scroll_x.set)
         ttk.Label(
             preview_card,
-            text="Showing the first 10 rows starting at row 6.",
+            textvariable=self.preview_caption_var,
             style="ProdLog.BodyMuted.TLabel",
         ).grid(row=3, column=0, sticky="w", pady=(8, 0))
 
@@ -744,11 +1170,16 @@ class ProductionLogView(ttk.Frame):
             row=3, column=0, sticky="w", pady=2, padx=(0, 8)
         )
         ttk.Entry(automation_card, textvariable=self.email_folder_var).grid(row=3, column=1, sticky="ew", pady=2)
-        ttk.Label(
+        ttk.Label(automation_card, text="Outlook access", style="ProdLog.Card.TLabel").grid(
+            row=3, column=2, sticky="w", padx=(12, 8), pady=2
+        )
+        ttk.Combobox(
             automation_card,
-            text="Example: Mailbox Name/Inbox/Production",
-            style="ProdLog.BodyMuted.TLabel",
-        ).grid(row=3, column=2, columnspan=2, sticky="w", padx=(8, 0), pady=2)
+            textvariable=self.outlook_source_var,
+            state="readonly",
+            values=("classic_outlook", "new_outlook", "auto"),
+            width=24,
+        ).grid(row=3, column=3, sticky="ew", pady=2)
         ttk.Label(automation_card, text="Email subject", style="ProdLog.Card.TLabel").grid(
             row=4, column=0, sticky="w", pady=2, padx=(0, 8)
         )
@@ -816,27 +1247,59 @@ class ProductionLogView(ttk.Frame):
         ttk.Label(days_frame, text="Run on", style="ProdLog.Card.TLabel").pack(side=tk.LEFT, padx=(0, 8))
         for index, label in enumerate(("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")):
             ttk.Checkbutton(days_frame, text=label, variable=self.weekday_vars[index]).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Label(automation_card, text="Route values for selected sheet", style="ProdLog.Card.TLabel").grid(
-            row=11, column=0, sticky="w", pady=2, padx=(0, 8)
-        )
-        ttk.Entry(automation_card, textvariable=self.route_values_var).grid(row=11, column=1, sticky="ew", pady=2)
-        ttk.Label(automation_card, text="Comma-separated; defaults to sheet name", style="ProdLog.BodyMuted.TLabel").grid(
-            row=11, column=2, columnspan=2, sticky="w", padx=(8, 0), pady=2
-        )
         ttk.Label(automation_card, textvariable=self.sample_csv_var, style="ProdLog.BodyMuted.TLabel").grid(
-            row=12, column=0, columnspan=4, sticky="w", pady=(5, 2)
+            row=11, column=0, columnspan=4, sticky="w", pady=(5, 2)
         )
         actions = ttk.Frame(automation_card, style="ProdLog.Card.TFrame")
-        actions.grid(row=13, column=0, columnspan=4, sticky="ew", pady=(6, 0))
+        actions.grid(row=12, column=0, columnspan=4, sticky="ew", pady=(6, 0))
+        ttk.Button(
+            actions,
+            text="Configure Sheet Mappings...",
+            command=self._open_sheet_mapping_manager,
+        ).pack(side=tk.LEFT)
         ttk.Button(actions, text="Load Sample CSV...", command=self._choose_sample_csv).pack(side=tk.LEFT)
         ttk.Button(actions, text="Save Automation", command=self._save_automation).pack(side=tk.LEFT, padx=(6, 0))
         ttk.Button(actions, text="Import Sample Now", command=self._import_sample).pack(side=tk.RIGHT)
         ttk.Button(actions, text="Run Automation Now", command=self._run_automation_now).pack(side=tk.RIGHT, padx=(0, 6))
         ttk.Label(automation_card, textvariable=self.import_status_var, style="ProdLog.BodyMuted.TLabel").grid(
-            row=14, column=0, columnspan=4, sticky="w", pady=(8, 0)
+            row=13, column=0, columnspan=4, sticky="w", pady=(8, 0)
         )
         right_pane.add(preview_card, weight=1)
         right_pane.add(automation_card, weight=1)
+
+    def _open_setup_guide(self) -> None:
+        candidates = []
+        bundle_root = getattr(sys, "_MEIPASS", None)
+        if bundle_root:
+            candidates.append(Path(bundle_root) / "docs" / SETUP_GUIDE_FILENAME)
+        candidates.append(Path(__file__).resolve().parents[3] / "docs" / SETUP_GUIDE_FILENAME)
+        guide_path = next((path for path in candidates if path.exists()), None)
+        if guide_path is None:
+            messagebox.showerror(
+                "Production Log Setup Guide",
+                "The Production Log setup guide is missing from this installation.",
+                parent=self,
+            )
+            return
+        try:
+            os.startfile(str(guide_path))  # type: ignore[attr-defined]
+        except OSError as exc:
+            messagebox.showerror(
+                "Production Log Setup Guide",
+                f"Unable to open the setup guide:\n{exc}",
+                parent=self,
+            )
+
+    def _open_sheet_mapping_manager(self) -> None:
+        if self.current_client_id is None:
+            messagebox.showinfo("Sheet Mappings", "Create or select a client first.", parent=self)
+            return
+        if not self.workbook_var.get().strip():
+            messagebox.showinfo("Sheet Mappings", "Select the client's workbook first.", parent=self)
+            return
+        manager = SheetMappingManager(self)
+        manager.lift()
+        manager.focus_force()
 
     # ------------------------------------------------------------------ Client management
     def _load_clients(self) -> None:
@@ -994,8 +1457,43 @@ class ProductionLogView(ttk.Frame):
             self._update_mapping_inputs([])
             self._clear_preview()
             return
+        self._load_sheet_row_settings(sheet_name)
         self._load_column_choices(sheet_name)
         self._load_sheet_mapping(sheet_name)
+        self._load_sheet_preview(sheet_name)
+
+    def _load_sheet_row_settings(self, sheet_name: str) -> None:
+        config = self.sheet_configs.get(sheet_name)
+        if config is None and self.current_client_id is not None:
+            config = self.db.get_production_log_sheet_config(self.current_client_id, sheet_name)
+        self.header_row_var.set(str(config.header_row if config else self._HEADER_ROW))
+        self.data_start_row_var.set(str(config.data_start_row if config else self._DATA_START_ROW))
+
+    def _sheet_row_numbers(self) -> tuple[int, int]:
+        try:
+            header_row = int(self.header_row_var.get())
+            data_start_row = int(self.data_start_row_var.get())
+        except ValueError as exc:
+            raise ValueError("Header row and data-start row must be whole numbers.") from exc
+        if header_row < 1:
+            raise ValueError("Header row must be at least 1.")
+        if data_start_row <= header_row:
+            raise ValueError("Data-start row must be after the header row.")
+        return header_row, data_start_row
+
+    def _reload_selected_sheet_layout(self) -> None:
+        sheet_name = self.sheet_var.get().strip()
+        if not sheet_name:
+            messagebox.showinfo("Column Mapping", "Select a worksheet first.", parent=self)
+            return
+        try:
+            self._sheet_row_numbers()
+        except ValueError as exc:
+            messagebox.showerror("Column Mapping", str(exc), parent=self)
+            return
+        self._load_column_choices(sheet_name)
+        if self._active_template_key == CUSTOM_TEMPLATE_KEY:
+            self._set_active_template(CUSTOM_TEMPLATE_KEY)
         self._load_sheet_preview(sheet_name)
 
     def _load_column_choices(self, sheet_name: str) -> None:
@@ -1015,18 +1513,22 @@ class ProductionLogView(ttk.Frame):
                 self._update_mapping_inputs([])
                 return
             sheet = workbook[sheet_name]
+            try:
+                header_row, data_start_row = self._sheet_row_numbers()
+            except ValueError:
+                header_row, data_start_row = self._HEADER_ROW, self._DATA_START_ROW
             header_rows = list(
                 sheet.iter_rows(
-                    min_row=self._HEADER_ROW,
-                    max_row=self._HEADER_ROW,
+                    min_row=header_row,
+                    max_row=header_row,
                     values_only=True,
                 )
             )
             header_values = list(header_rows[0]) if header_rows else []
             preview_rows = list(
                 sheet.iter_rows(
-                    min_row=self._DATA_START_ROW,
-                    max_row=self._DATA_START_ROW + self._PREVIEW_ROWS - 1,
+                    min_row=data_start_row,
+                    max_row=data_start_row + self._PREVIEW_ROWS - 1,
                     values_only=True,
                 )
             )
@@ -1156,6 +1658,8 @@ class ProductionLogView(ttk.Frame):
             config = self.db.get_production_log_sheet_config(self.current_client_id, sheet_name)
         if config is None:
             return
+        self.header_row_var.set(str(config.header_row))
+        self.data_start_row_var.set(str(config.data_start_row))
         self._select_template(config.template_key)
         for key, column in config.column_mappings.items():
             display = self._display_for_column(column)
@@ -1190,6 +1694,11 @@ class ProductionLogView(ttk.Frame):
         if not self._active_template_key:
             messagebox.showinfo("Mapping", "Select a sheet type first.", parent=self)
             return
+        try:
+            header_row, data_start_row = self._sheet_row_numbers()
+        except ValueError as exc:
+            messagebox.showerror("Mapping", str(exc), parent=self)
+            return
         mapping: dict[str, str] = {}
         source_mapping: dict[str, str] = {}
         duplicates: dict[str, list[str]] = {}
@@ -1223,8 +1732,8 @@ class ProductionLogView(ttk.Frame):
             client_id=self.current_client_id,
             sheet_name=sheet_name,
             template_key=self._active_template_key,
-            header_row=self._HEADER_ROW,
-            data_start_row=self._DATA_START_ROW,
+            header_row=header_row,
+            data_start_row=data_start_row,
             column_mappings=mapping,
             source_mappings=source_mapping,
             route_values=self._parse_route_values(),
@@ -1253,6 +1762,7 @@ class ProductionLogView(ttk.Frame):
 
     def _load_automation_form(self, automation: Optional[ProductionLogAutomation]) -> None:
         self.automation_name_var.set(automation.name if automation else "")
+        self.outlook_source_var.set(automation.outlook_source if automation else "auto")
         self.email_folder_var.set(automation.email_folder if automation else "")
         self.email_subject_var.set(automation.email_subject_contains if automation else "")
         self.email_subject_exact_var.set(automation.email_subject_exact if automation else False)
@@ -1365,6 +1875,7 @@ class ProductionLogView(ttk.Frame):
             self.db.update_production_log_automation(
                 self.current_automation_id,
                 name=self.automation_name_var.get(),
+                outlook_source=self.outlook_source_var.get(),
                 email_folder=self.email_folder_var.get(),
                 email_subject_contains=self.email_subject_var.get(),
                 email_subject_exact=self.email_subject_exact_var.get(),
@@ -1608,6 +2119,7 @@ class ProductionLogView(ttk.Frame):
     def _clear_preview(self) -> None:
         self.preview_tree.delete(*self.preview_tree.get_children())
         self.preview_tree["columns"] = []
+        self.preview_caption_var.set("")
 
     def _load_sheet_preview(self, sheet_name: str) -> None:
         self._clear_preview()
@@ -1622,18 +2134,25 @@ class ProductionLogView(ttk.Frame):
             if sheet_name not in workbook.sheetnames:
                 return
             sheet = workbook[sheet_name]
+            try:
+                header_row, data_start_row = self._sheet_row_numbers()
+            except ValueError:
+                header_row, data_start_row = self._HEADER_ROW, self._DATA_START_ROW
+            self.preview_caption_var.set(
+                f"Showing {self._PREVIEW_ROWS} rows starting at row {data_start_row}; headers from row {header_row}."
+            )
             header_rows = list(
                 sheet.iter_rows(
-                    min_row=self._HEADER_ROW,
-                    max_row=self._HEADER_ROW,
+                    min_row=header_row,
+                    max_row=header_row,
                     values_only=True,
                 )
             )
             headers = list(header_rows[0]) if header_rows else []
             data_rows = list(
                 sheet.iter_rows(
-                    min_row=self._DATA_START_ROW,
-                    max_row=self._DATA_START_ROW + self._PREVIEW_ROWS - 1,
+                    min_row=data_start_row,
+                    max_row=data_start_row + self._PREVIEW_ROWS - 1,
                     values_only=True,
                 )
             )

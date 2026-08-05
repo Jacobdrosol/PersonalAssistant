@@ -355,6 +355,7 @@ class ProductionLogAutomation:
     id: int
     client_id: int
     name: str
+    outlook_source: str
     email_folder: str
     email_subject_contains: str
     email_subject_exact: bool

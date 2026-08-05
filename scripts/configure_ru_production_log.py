@@ -55,6 +55,7 @@ def configure(database_path: Path) -> None:
         db.update_production_log_automation(
             automation_id,
             name="RU Daily Dry Runs",
+            outlook_source="classic_outlook",
             email_folder="Jacob.Derifield@cds-global.com/PRD/Daily Run Val/RU",
             email_subject_contains="RU Daily Runs",
             email_subject_exact=True,
@@ -83,6 +84,7 @@ def configure(database_path: Path) -> None:
             db.update_production_log_automation(
                 draft.id,
                 name=draft.name,
+                outlook_source=draft.outlook_source,
                 email_folder=draft.email_folder,
                 email_subject_contains=draft.email_subject_contains,
                 email_subject_exact=draft.email_subject_exact,
