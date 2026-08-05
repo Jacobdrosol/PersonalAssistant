@@ -19,6 +19,7 @@ class JiraSettings:
 class AppSettings:
     desktop_shortcut: bool = True
     start_menu_shortcut: bool = True
+    launch_at_startup: bool = False
     daily_update_notifications: bool = True
     daily_update_start: str = "08:00"
     daily_update_end: str = "17:00"
@@ -74,6 +75,7 @@ def load_settings(path: Path) -> AppSettings:
     return AppSettings(
         desktop_shortcut=bool(payload.get("desktop_shortcut", True)),
         start_menu_shortcut=bool(payload.get("start_menu_shortcut", True)),
+        launch_at_startup=bool(payload.get("launch_at_startup", False)),
         daily_update_notifications=bool(payload.get("daily_update_notifications", True)),
         daily_update_start=_coerce_time_string(payload.get("daily_update_start"), "08:00"),
         daily_update_end=_coerce_time_string(payload.get("daily_update_end"), "17:00"),

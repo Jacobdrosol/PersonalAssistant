@@ -23,6 +23,7 @@ class SettingsTab(ttk.Frame):
         *,
         desktop_enabled: bool,
         start_menu_enabled: bool,
+        startup_enabled: bool,
         daily_notifications_enabled: bool,
         daily_start: str,
         daily_end: str,
@@ -51,6 +52,7 @@ class SettingsTab(ttk.Frame):
         self._special_disable_callback = on_special_feature_disable
         self.desktop_var = tk.BooleanVar(value=desktop_enabled)
         self.start_menu_var = tk.BooleanVar(value=start_menu_enabled)
+        self.startup_var = tk.BooleanVar(value=startup_enabled)
         self.daily_notifications_var = tk.BooleanVar(value=daily_notifications_enabled)
         self._use_24_hour_time = bool(use_24_hour_time)
         self._time_format_callback = on_time_format_change
@@ -91,6 +93,12 @@ class SettingsTab(ttk.Frame):
             text="Show Start Menu shortcut",
             variable=self.start_menu_var,
             command=lambda: self._on_setting_toggled("start_menu"),
+        ).pack(anchor="w", pady=(6, 0))
+        ttk.Checkbutton(
+            body,
+            text="Start Personal Assistant when I sign in to Windows",
+            variable=self.startup_var,
+            command=lambda: self._on_setting_toggled("startup"),
         ).pack(anchor="w", pady=(6, 0))
         reminders_check = ttk.Checkbutton(
             body,
@@ -235,6 +243,8 @@ class SettingsTab(ttk.Frame):
             value = bool(self.desktop_var.get())
         elif kind == "start_menu":
             value = bool(self.start_menu_var.get())
+        elif kind == "startup":
+            value = bool(self.startup_var.get())
         else:
             value = bool(self.daily_notifications_var.get())
             self._update_daily_hours_visibility()
@@ -243,8 +253,10 @@ class SettingsTab(ttk.Frame):
     def update_shortcut_state(self, kind: str, enabled: bool) -> None:
         if kind == "desktop":
             self.desktop_var.set(enabled)
-        else:
+        elif kind == "start_menu":
             self.start_menu_var.set(enabled)
+        else:
+            self.startup_var.set(enabled)
 
     def update_daily_notification_state(self, enabled: bool) -> None:
         self.daily_notifications_var.set(enabled)

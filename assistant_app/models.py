@@ -327,6 +327,12 @@ class ProductionLogClient:
     id: int
     name: str
     workbook_path: Optional[str]
+    email_folder: str
+    email_subject_contains: str
+    email_sender_contains: str
+    attachment_pattern: str
+    routing_column: str
+    auto_import: bool
     created_at: datetime
     updated_at: Optional[datetime]
 
@@ -340,6 +346,51 @@ class ProductionLogSheetConfig:
     header_row: int
     data_start_row: int
     column_mappings: dict[str, str]
+    source_mappings: dict[str, str]
+    route_values: list[str]
+
+
+@dataclass(slots=True)
+class ProductionLogAutomation:
+    id: int
+    client_id: int
+    name: str
+    email_folder: str
+    email_subject_contains: str
+    email_subject_exact: bool
+    email_sender_contains: str
+    email_body_contains: str
+    attachment_pattern: str
+    required_category: str
+    completed_category: str
+    routing_column: str
+    update_mode: str
+    source_sort_column: str
+    source_date_column: str
+    target_date_column: str
+    scheduled_time: str
+    weekdays: list[int]
+    lookback_days: int
+    catch_up: bool
+    retry_minutes: int
+    paused: bool
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+
+@dataclass(slots=True)
+class ProductionLogAutomationRun:
+    id: int
+    automation_id: int
+    trigger_type: str
+    scheduled_for: datetime
+    status: str
+    started_at: datetime
+    completed_at: Optional[datetime]
+    attachments_processed: int
+    rows_written: int
+    cells_written: int
+    message: str
 
 
 @dataclass(slots=True)

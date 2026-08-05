@@ -38,6 +38,9 @@ from .shortcuts import (
     create_start_menu_shortcut,
     remove_start_menu_shortcut,
     start_menu_shortcut_exists,
+    create_startup_shortcut,
+    remove_startup_shortcut,
+    startup_shortcut_exists,
 )
 from .version import __version__
 from . import updater
@@ -89,6 +92,8 @@ class PersonalAssistantApp(tk.Tk):
         self._icon_path = self._ensure_icon_file()
         self.db = Database(db_path)
         self.system_notifier = SystemNotifier()
+        self._production_log_scheduler_running = False
+        self.after(5_000, self._poll_production_log_automations)
         self.configure(bg=self.theme.window_bg)
         self._configure_styles(self.theme)
         self._apply_window_icon()
@@ -321,6 +326,7 @@ class PersonalAssistantApp(tk.Tk):
             self.settings_tab_frame,
             desktop_enabled=self.settings.desktop_shortcut and manage_shortcuts,
             start_menu_enabled=self.settings.start_menu_shortcut and manage_shortcuts,
+            startup_enabled=self.settings.launch_at_startup and manage_shortcuts,
             daily_notifications_enabled=self.settings.daily_update_notifications,
             daily_start=self.settings.daily_update_start,
             daily_end=self.settings.daily_update_end,
@@ -714,6 +720,7 @@ class PersonalAssistantApp(tk.Tk):
             if self.settings_tab is not None:
                 self.settings_tab.update_shortcut_state("desktop", False)
                 self.settings_tab.update_shortcut_state("start_menu", False)
+                self.settings_tab.update_shortcut_state("startup", False)
             return
         icon = self._icon_path or self._ensure_icon_file()
         if icon is not None and icon.exists():
@@ -722,6 +729,7 @@ class PersonalAssistantApp(tk.Tk):
         target = Path(sys.executable).resolve()
         desktop_exists = desktop_shortcut_exists()
         start_exists = start_menu_shortcut_exists()
+        startup_exists = startup_shortcut_exists()
         if self.settings.desktop_shortcut and not desktop_exists:
             if self._create_shortcut("desktop", target):
                 desktop_exists = True
@@ -734,11 +742,19 @@ class PersonalAssistantApp(tk.Tk):
         elif not self.settings.start_menu_shortcut and start_exists:
             if self._remove_shortcut("start_menu"):
                 start_exists = False
+        if self.settings.launch_at_startup and not startup_exists:
+            if self._create_shortcut("startup", target):
+                startup_exists = True
+        elif not self.settings.launch_at_startup and startup_exists:
+            if self._remove_shortcut("startup"):
+                startup_exists = False
         self.settings.desktop_shortcut = desktop_exists
         self.settings.start_menu_shortcut = start_exists
+        self.settings.launch_at_startup = startup_exists
         if self.settings_tab is not None:
             self.settings_tab.update_shortcut_state("desktop", desktop_exists)
             self.settings_tab.update_shortcut_state("start_menu", start_exists)
+            self.settings_tab.update_shortcut_state("startup", startup_exists)
         save_settings(self.settings_path, self.settings)
 
     def _create_shortcut(self, kind: str, target: Path) -> bool:
@@ -746,7 +762,12 @@ class PersonalAssistantApp(tk.Tk):
         if icon is not None and icon.exists():
             self._icon_path = icon
             self._apply_window_icon()
-        label = "Desktop Shortcut" if kind == "desktop" else "Start Menu Shortcut"
+        labels = {
+            "desktop": "Desktop Shortcut",
+            "start_menu": "Start Menu Shortcut",
+            "startup": "Windows Startup",
+        }
+        label = labels.get(kind, "Shortcut")
         if icon is None or not icon.exists():
             messagebox.showerror(
                 label,
@@ -756,8 +777,10 @@ class PersonalAssistantApp(tk.Tk):
             return False
         if kind == "desktop":
             success = create_desktop_shortcut(target, icon)
-        else:
+        elif kind == "start_menu":
             success = create_start_menu_shortcut(target, icon)
+        else:
+            success = create_startup_shortcut(target, icon)
         if not success:
             messagebox.showerror(label, f"Unable to create the {label.lower()}.", parent=self)
         return success
@@ -765,7 +788,9 @@ class PersonalAssistantApp(tk.Tk):
     def _remove_shortcut(self, kind: str) -> bool:
         if kind == "desktop":
             return remove_desktop_shortcut()
-        return remove_start_menu_shortcut()
+        if kind == "start_menu":
+            return remove_start_menu_shortcut()
+        return remove_startup_shortcut()
 
     def _handle_setting_toggle(self, kind: str, enabled: bool) -> None:
         if kind == "daily_notifications":
@@ -780,7 +805,8 @@ class PersonalAssistantApp(tk.Tk):
             save_settings(self.settings_path, self.settings)
             return
 
-        label = "Desktop" if kind == "desktop" else "Start Menu"
+        labels = {"desktop": "Desktop", "start_menu": "Start Menu", "startup": "Windows Startup"}
+        label = labels.get(kind, "Application")
         if not self._should_manage_shortcut():
             messagebox.showinfo(
                 f"{label} Shortcut",
@@ -796,8 +822,10 @@ class PersonalAssistantApp(tk.Tk):
             if success:
                 if kind == "desktop":
                     self.settings.desktop_shortcut = True
-                else:
+                elif kind == "start_menu":
                     self.settings.start_menu_shortcut = True
+                else:
+                    self.settings.launch_at_startup = True
         else:
             success = self._remove_shortcut(kind)
             if not success:
@@ -808,16 +836,21 @@ class PersonalAssistantApp(tk.Tk):
                 )
                 if kind == "desktop":
                     self.settings.desktop_shortcut = True
-                else:
+                elif kind == "start_menu":
                     self.settings.start_menu_shortcut = True
+                else:
+                    self.settings.launch_at_startup = True
             else:
                 if kind == "desktop":
                     self.settings.desktop_shortcut = False
-                else:
+                elif kind == "start_menu":
                     self.settings.start_menu_shortcut = False
+                else:
+                    self.settings.launch_at_startup = False
         if self.settings_tab is not None:
             self.settings_tab.update_shortcut_state("desktop", desktop_shortcut_exists())
             self.settings_tab.update_shortcut_state("start_menu", start_menu_shortcut_exists())
+            self.settings_tab.update_shortcut_state("startup", startup_shortcut_exists())
         save_settings(self.settings_path, self.settings)
 
     def _handle_daily_hours_change(self, start_text: str, end_text: str) -> None:
@@ -968,6 +1001,55 @@ class PersonalAssistantApp(tk.Tk):
         self.after(0, lambda: self.show_notification(payload))
 
     # ---------------------------------------------------------------- Events
+    def _poll_production_log_automations(self) -> None:
+        try:
+            if self._production_log_scheduler_running or "production_log" not in self._special_feature_keys:
+                return
+            from .production_log_automation import (
+                ProductionLogAutomationRunner,
+                find_due_automations,
+            )
+
+            decisions = find_due_automations(self.db, datetime.now())
+            if not decisions:
+                return
+            self._production_log_scheduler_running = True
+
+            def runner() -> None:
+                service = ProductionLogAutomationRunner(self.db)
+                successes: list[str] = []
+                failures: list[str] = []
+                for decision in decisions:
+                    try:
+                        result = service.run(
+                            decision.automation,
+                            scheduled_for=decision.scheduled_for,
+                            trigger_type="scheduled",
+                        )
+                    except Exception as exc:
+                        failures.append(f"{decision.automation.name}: {exc}")
+                    else:
+                        if result.status == "success":
+                            successes.append(f"{decision.automation.name}: {result.message}")
+                self.after(0, lambda: self._finish_production_log_scheduler(successes, failures))
+
+            threading.Thread(target=runner, name="production-log-app-scheduler", daemon=True).start()
+        finally:
+            self.after(60_000, self._poll_production_log_automations)
+
+    def _finish_production_log_scheduler(self, successes: list[str], failures: list[str]) -> None:
+        self._production_log_scheduler_running = False
+        if successes:
+            self.system_notifier.notify("Production Log Automation", " | ".join(successes))
+        if failures:
+            self.system_notifier.notify("Production Log Automation Failed", " | ".join(failures))
+        production_tab = self._special_tab_cache.get("production_log")
+        if production_tab is not None and hasattr(production_tab, "refresh_automation_status"):
+            try:
+                production_tab.refresh_automation_status()
+            except Exception:
+                pass
+
     def show_notification(self, payload: NotificationPayload) -> None:
         body_text = payload.body.strip() if payload.body else ""
         fallback = utils.format_time(payload.occurs_at)

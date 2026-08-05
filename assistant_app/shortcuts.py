@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from .environment import get_desktop_path, get_start_menu_programs_path
+from .environment import get_desktop_path, get_start_menu_programs_path, get_startup_programs_path
 
 _SHORTCUT_NAME = "Personal Assistant.lnk"
 
@@ -14,6 +14,10 @@ def desktop_shortcut_path() -> Path:
 
 def start_menu_shortcut_path() -> Path:
     return get_start_menu_programs_path() / _SHORTCUT_NAME
+
+
+def startup_shortcut_path() -> Path:
+    return get_startup_programs_path() / _SHORTCUT_NAME
 
 
 def shortcut_exists(path: Path) -> bool:
@@ -74,3 +78,15 @@ def remove_start_menu_shortcut() -> bool:
 
 def start_menu_shortcut_exists() -> bool:
     return shortcut_exists(start_menu_shortcut_path())
+
+
+def create_startup_shortcut(target: Path, icon: Optional[Path]) -> bool:
+    return create_shortcut(startup_shortcut_path(), target, icon)
+
+
+def remove_startup_shortcut() -> bool:
+    return remove_shortcut(startup_shortcut_path())
+
+
+def startup_shortcut_exists() -> bool:
+    return shortcut_exists(startup_shortcut_path())

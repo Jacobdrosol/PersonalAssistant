@@ -1,13 +1,30 @@
 from __future__ import annotations
 
+from datetime import datetime
+import json
 from pathlib import Path
+import re
+import threading
 from typing import Optional
 
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from ...database import Database
-from ...models import ProductionLogClient, ProductionLogSheetConfig
+from ...models import ProductionLogAutomation, ProductionLogClient, ProductionLogSheetConfig
+from ...production_log_automation import (
+    ProductionLogAutomationRunner,
+    latest_scheduled_occurrence,
+    normalize_scheduled_time,
+)
+from ...production_log_engine import (
+    DateMatchedProductionLogUpdater,
+    ImportResult,
+    ProductionLogError,
+    ProductionLogUpdater,
+    SheetImportRule,
+    read_csv_rows,
+)
 from ...theme import ThemePalette
 
 try:  # Optional dependency for reading Excel files.
@@ -62,6 +79,11 @@ FIELD_LABELS = {
 }
 
 SHEET_TEMPLATES: list[tuple[str, str, list[str]]] = [
+    (
+        "custom_generic",
+        "Custom / Generic",
+        [],
+    ),
     (
         "single_bills_mailed",
         "Single Bills - Mailed",
@@ -475,6 +497,7 @@ TEMPLATE_LABELS = {key: label for key, label, _fields in SHEET_TEMPLATES}
 TEMPLATE_FIELDS = {key: fields for key, _label, fields in SHEET_TEMPLATES}
 TEMPLATE_KEY_BY_LABEL = {label: key for key, label, _fields in SHEET_TEMPLATES}
 TEMPLATE_PLACEHOLDER = "Select sheet type..."
+CUSTOM_TEMPLATE_KEY = "custom_generic"
 
 
 class ProductionLogView(ttk.Frame):
@@ -501,17 +524,50 @@ class ProductionLogView(ttk.Frame):
         self._last_column_choices: list[str] = []
         self._active_template_key: Optional[str] = None
         self._active_field_keys: list[str] = []
+        self._sample_csv_path: Optional[Path] = None
+        self._csv_headers: list[str] = []
+        self._import_running = False
+        self.automations: list[ProductionLogAutomation] = []
+        self.current_automation_id: Optional[int] = None
 
         self.client_var = tk.StringVar(value="")
         self.workbook_var = tk.StringVar(value="")
         self.sheet_var = tk.StringVar(value="")
         self.template_var = tk.StringVar(value=TEMPLATE_PLACEHOLDER)
         self.status_var = tk.StringVar(value="Read-only preview mode.")
+        self.email_folder_var = tk.StringVar(value="")
+        self.email_subject_var = tk.StringVar(value="")
+        self.email_subject_exact_var = tk.BooleanVar(value=False)
+        self.email_sender_var = tk.StringVar(value="")
+        self.email_body_var = tk.StringVar(value="")
+        self.attachment_pattern_var = tk.StringVar(value="*.csv")
+        self.required_category_var = tk.StringVar(value="")
+        self.completed_category_var = tk.StringVar(value="")
+        self.routing_column_var = tk.StringVar(value="")
+        self.update_mode_var = tk.StringVar(value="append_empty")
+        self.source_sort_column_var = tk.StringVar(value="")
+        self.source_date_column_var = tk.StringVar(value="")
+        self.target_date_column_var = tk.StringVar(value="A")
+        self.route_values_var = tk.StringVar(value="")
+        self.sample_csv_var = tk.StringVar(value="No sample CSV selected.")
+        self.import_status_var = tk.StringVar(value="Configure an email source or load a sample CSV.")
+        self.automation_var = tk.StringVar(value="")
+        self.automation_name_var = tk.StringVar(value="")
+        self.scheduled_time_var = tk.StringVar(value="08:00")
+        self.lookback_days_var = tk.StringVar(value="1")
+        self.retry_minutes_var = tk.StringVar(value="15")
+        self.catch_up_var = tk.BooleanVar(value=True)
+        self.paused_var = tk.BooleanVar(value=False)
+        self.weekday_vars = [tk.BooleanVar(value=True) for _ in range(7)]
 
         self._field_vars: dict[str, tk.StringVar] = {
             key: tk.StringVar(value="") for key in FIELD_LABELS
         }
         self._mapping_inputs: dict[str, ttk.Combobox] = {}
+        self._source_mapping_inputs: dict[str, ttk.Combobox] = {}
+        self._source_field_vars: dict[str, tk.StringVar] = {
+            key: tk.StringVar(value="") for key in FIELD_LABELS
+        }
         self._mapping_field_frame: Optional[ttk.Frame] = None
 
         self._configure_styles()
@@ -533,8 +589,8 @@ class ProductionLogView(ttk.Frame):
         ttk.Label(
             hero_text,
             text=(
-                "Link a client workbook to preview and map production log columns. "
-                "Updates will run only when the workbook is not in use."
+                "Route CSV rows from Outlook into configured worksheets without overwriting existing cells. "
+                "Formatting is retained and successful updates are saved automatically."
             ),
             style="ProdLog.Body.TLabel",
             wraplength=860,
@@ -596,6 +652,7 @@ class ProductionLogView(ttk.Frame):
         mapping_card = ttk.Frame(left, style="ProdLog.Card.TFrame", padding=(16, 14))
         mapping_card.pack(fill=tk.BOTH, expand=True)
         mapping_card.columnconfigure(1, weight=1)
+        mapping_card.columnconfigure(2, weight=1)
         ttk.Label(
             mapping_card,
             text=f"Column Mapping (header row {self._HEADER_ROW}, data starts row {self._DATA_START_ROW})",
@@ -603,7 +660,7 @@ class ProductionLogView(ttk.Frame):
         ).grid(row=0, column=0, columnspan=2, sticky="w")
         ttk.Label(
             mapping_card,
-            text="Map the columns you want to fill later. Nothing is written yet.",
+            text="For each field, select its CSV source header and spreadsheet destination column.",
             style="ProdLog.BodyMuted.TLabel",
         ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(4, 8))
 
@@ -625,6 +682,7 @@ class ProductionLogView(ttk.Frame):
         self._mapping_field_frame = ttk.Frame(mapping_card, style="ProdLog.Card.TFrame")
         self._mapping_field_frame.grid(row=3, column=0, columnspan=2, sticky="nsew", pady=(6, 0))
         self._mapping_field_frame.columnconfigure(1, weight=1)
+        self._mapping_field_frame.columnconfigure(2, weight=1)
         self._render_mapping_fields()
 
         button_row = ttk.Frame(mapping_card, style="ProdLog.Card.TFrame")
@@ -654,9 +712,131 @@ class ProductionLogView(ttk.Frame):
             style="ProdLog.BodyMuted.TLabel",
         ).grid(row=3, column=0, sticky="w", pady=(8, 0))
 
-        preview_spacer = ttk.Frame(right_pane, style="ProdLog.Root.TFrame")
+        automation_card = ttk.Frame(right_pane, style="ProdLog.Card.TFrame", padding=(16, 14))
+        automation_card.columnconfigure(1, weight=1)
+        automation_card.columnconfigure(3, weight=1)
+        ttk.Label(automation_card, text="Scheduled Automations", style="ProdLog.Section.TLabel").grid(
+            row=0, column=0, columnspan=4, sticky="w"
+        )
+        ttk.Label(automation_card, text="Automation", style="ProdLog.Card.TLabel").grid(
+            row=1, column=0, sticky="w", pady=(8, 2), padx=(0, 8)
+        )
+        self.automation_combo = ttk.Combobox(
+            automation_card, textvariable=self.automation_var, state="readonly", width=28
+        )
+        self.automation_combo.grid(row=1, column=1, sticky="ew", pady=(8, 2))
+        self.automation_combo.bind("<<ComboboxSelected>>", self._on_automation_selected)
+        automation_actions = ttk.Frame(automation_card, style="ProdLog.Card.TFrame")
+        automation_actions.grid(row=1, column=2, columnspan=2, sticky="w", padx=(8, 0), pady=(8, 2))
+        ttk.Button(automation_actions, text="New...", command=self._new_automation).pack(side=tk.LEFT)
+        ttk.Button(automation_actions, text="Delete", command=self._delete_automation).pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Label(automation_card, text="Name", style="ProdLog.Card.TLabel").grid(
+            row=2, column=0, sticky="w", pady=2, padx=(0, 8)
+        )
+        ttk.Entry(automation_card, textvariable=self.automation_name_var).grid(row=2, column=1, sticky="ew", pady=2)
+        ttk.Checkbutton(automation_card, text="Paused", variable=self.paused_var).grid(
+            row=2, column=2, sticky="w", padx=(12, 0), pady=2
+        )
+        ttk.Checkbutton(automation_card, text="Catch up after missed time", variable=self.catch_up_var).grid(
+            row=2, column=3, sticky="w", pady=2
+        )
+        ttk.Label(automation_card, text="Outlook folder", style="ProdLog.Card.TLabel").grid(
+            row=3, column=0, sticky="w", pady=2, padx=(0, 8)
+        )
+        ttk.Entry(automation_card, textvariable=self.email_folder_var).grid(row=3, column=1, sticky="ew", pady=2)
+        ttk.Label(
+            automation_card,
+            text="Example: Mailbox Name/Inbox/Production",
+            style="ProdLog.BodyMuted.TLabel",
+        ).grid(row=3, column=2, columnspan=2, sticky="w", padx=(8, 0), pady=2)
+        ttk.Label(automation_card, text="Email subject", style="ProdLog.Card.TLabel").grid(
+            row=4, column=0, sticky="w", pady=2, padx=(0, 8)
+        )
+        ttk.Entry(automation_card, textvariable=self.email_subject_var).grid(row=4, column=1, sticky="ew", pady=2)
+        subject_options = ttk.Frame(automation_card, style="ProdLog.Card.TFrame")
+        subject_options.grid(row=4, column=2, sticky="w", padx=(12, 8), pady=2)
+        ttk.Checkbutton(subject_options, text="Exact subject", variable=self.email_subject_exact_var).pack(side=tk.LEFT)
+        ttk.Label(subject_options, text="Sender", style="ProdLog.Card.TLabel").pack(side=tk.LEFT, padx=(12, 0))
+        ttk.Entry(automation_card, textvariable=self.email_sender_var, width=24).grid(row=4, column=3, sticky="ew", pady=2)
+        ttk.Label(automation_card, text="Body contains", style="ProdLog.Card.TLabel").grid(
+            row=5, column=0, sticky="w", pady=2, padx=(0, 8)
+        )
+        ttk.Entry(automation_card, textvariable=self.email_body_var).grid(row=5, column=1, sticky="ew", pady=2)
+        ttk.Label(automation_card, text="Required category", style="ProdLog.Card.TLabel").grid(
+            row=5, column=2, sticky="w", pady=2, padx=(12, 8)
+        )
+        ttk.Entry(automation_card, textvariable=self.required_category_var, width=24).grid(
+            row=5, column=3, sticky="ew", pady=2
+        )
+        ttk.Label(automation_card, text="Attachment", style="ProdLog.Card.TLabel").grid(
+            row=6, column=0, sticky="w", pady=2, padx=(0, 8)
+        )
+        ttk.Entry(automation_card, textvariable=self.attachment_pattern_var).grid(row=6, column=1, sticky="ew", pady=2)
+        ttk.Label(automation_card, text="Completed category", style="ProdLog.Card.TLabel").grid(
+            row=6, column=2, sticky="w", pady=2, padx=(12, 8)
+        )
+        ttk.Entry(automation_card, textvariable=self.completed_category_var, width=24).grid(
+            row=6, column=3, sticky="ew", pady=2
+        )
+        ttk.Label(automation_card, text="Routing CSV column", style="ProdLog.Card.TLabel").grid(
+            row=7, column=0, sticky="w", pady=2, padx=(0, 8)
+        )
+        self.routing_column_combo = ttk.Combobox(
+            automation_card, textvariable=self.routing_column_var, state="normal"
+        )
+        self.routing_column_combo.grid(row=7, column=1, sticky="ew", pady=2)
+        ttk.Label(automation_card, text="Update mode", style="ProdLog.Card.TLabel").grid(
+            row=7, column=2, sticky="w", pady=2, padx=(12, 8)
+        )
+        ttk.Combobox(
+            automation_card,
+            textvariable=self.update_mode_var,
+            state="readonly",
+            values=("append_empty", "match_date"),
+            width=24,
+        ).grid(row=7, column=3, sticky="ew", pady=2)
+        date_options = ttk.Frame(automation_card, style="ProdLog.Card.TFrame")
+        date_options.grid(row=8, column=0, columnspan=4, sticky="ew", pady=2)
+        ttk.Label(date_options, text="Sort CSV by", style="ProdLog.Card.TLabel").pack(side=tk.LEFT)
+        ttk.Entry(date_options, textvariable=self.source_sort_column_var, width=22).pack(side=tk.LEFT, padx=(6, 12))
+        ttk.Label(date_options, text="CSV date", style="ProdLog.Card.TLabel").pack(side=tk.LEFT)
+        ttk.Entry(date_options, textvariable=self.source_date_column_var, width=22).pack(side=tk.LEFT, padx=(6, 12))
+        ttk.Label(date_options, text="Workbook date column", style="ProdLog.Card.TLabel").pack(side=tk.LEFT)
+        ttk.Entry(date_options, textvariable=self.target_date_column_var, width=5).pack(side=tk.LEFT, padx=(6, 0))
+        schedule_frame = ttk.Frame(automation_card, style="ProdLog.Card.TFrame")
+        schedule_frame.grid(row=9, column=0, columnspan=4, sticky="ew", pady=(5, 2))
+        ttk.Label(schedule_frame, text="Time", style="ProdLog.Card.TLabel").pack(side=tk.LEFT)
+        ttk.Entry(schedule_frame, textvariable=self.scheduled_time_var, width=7).pack(side=tk.LEFT, padx=(6, 14))
+        ttk.Label(schedule_frame, text="Prior days to include", style="ProdLog.Card.TLabel").pack(side=tk.LEFT)
+        ttk.Entry(schedule_frame, textvariable=self.lookback_days_var, width=5).pack(side=tk.LEFT, padx=(6, 14))
+        ttk.Label(schedule_frame, text="Retry every (minutes)", style="ProdLog.Card.TLabel").pack(side=tk.LEFT)
+        ttk.Entry(schedule_frame, textvariable=self.retry_minutes_var, width=5).pack(side=tk.LEFT, padx=(6, 0))
+        days_frame = ttk.Frame(automation_card, style="ProdLog.Card.TFrame")
+        days_frame.grid(row=10, column=0, columnspan=4, sticky="w", pady=2)
+        ttk.Label(days_frame, text="Run on", style="ProdLog.Card.TLabel").pack(side=tk.LEFT, padx=(0, 8))
+        for index, label in enumerate(("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")):
+            ttk.Checkbutton(days_frame, text=label, variable=self.weekday_vars[index]).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(automation_card, text="Route values for selected sheet", style="ProdLog.Card.TLabel").grid(
+            row=11, column=0, sticky="w", pady=2, padx=(0, 8)
+        )
+        ttk.Entry(automation_card, textvariable=self.route_values_var).grid(row=11, column=1, sticky="ew", pady=2)
+        ttk.Label(automation_card, text="Comma-separated; defaults to sheet name", style="ProdLog.BodyMuted.TLabel").grid(
+            row=11, column=2, columnspan=2, sticky="w", padx=(8, 0), pady=2
+        )
+        ttk.Label(automation_card, textvariable=self.sample_csv_var, style="ProdLog.BodyMuted.TLabel").grid(
+            row=12, column=0, columnspan=4, sticky="w", pady=(5, 2)
+        )
+        actions = ttk.Frame(automation_card, style="ProdLog.Card.TFrame")
+        actions.grid(row=13, column=0, columnspan=4, sticky="ew", pady=(6, 0))
+        ttk.Button(actions, text="Load Sample CSV...", command=self._choose_sample_csv).pack(side=tk.LEFT)
+        ttk.Button(actions, text="Save Automation", command=self._save_automation).pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Button(actions, text="Import Sample Now", command=self._import_sample).pack(side=tk.RIGHT)
+        ttk.Button(actions, text="Run Automation Now", command=self._run_automation_now).pack(side=tk.RIGHT, padx=(0, 6))
+        ttk.Label(automation_card, textvariable=self.import_status_var, style="ProdLog.BodyMuted.TLabel").grid(
+            row=14, column=0, columnspan=4, sticky="w", pady=(8, 0)
+        )
         right_pane.add(preview_card, weight=1)
-        right_pane.add(preview_spacer, weight=0)
+        right_pane.add(automation_card, weight=1)
 
     # ------------------------------------------------------------------ Client management
     def _load_clients(self) -> None:
@@ -680,6 +860,7 @@ class ProductionLogView(ttk.Frame):
             self.sheet_combo["values"] = []
             self.sheet_var.set("")
             self.sheet_configs = {}
+            self._load_automations()
             self._update_mapping_inputs([])
             self._clear_preview()
             self.status_var.set("Select a client to begin.")
@@ -687,6 +868,7 @@ class ProductionLogView(ttk.Frame):
         current = next((c for c in self.clients if c.id == self.current_client_id), None)
         if current:
             self.workbook_var.set(current.workbook_path or "")
+        self._load_automations()
         self.sheet_configs = {
             cfg.sheet_name: cfg
             for cfg in self.db.get_production_log_sheet_configs(self.current_client_id)
@@ -754,7 +936,7 @@ class ProductionLogView(ttk.Frame):
         path = filedialog.askopenfilename(
             parent=self,
             title="Select Production Log Workbook",
-            filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")],
+            filetypes=[("Excel files", "*.xlsx *.xlsm"), ("All files", "*.*")],
         )
         if not path:
             return
@@ -876,6 +1058,9 @@ class ProductionLogView(ttk.Frame):
         values = [""] + choices if choices else [""]
         for combo in self._mapping_inputs.values():
             combo.configure(values=values)
+        source_values = [""] + self._csv_headers if self._csv_headers else [""]
+        for combo in self._source_mapping_inputs.values():
+            combo.configure(values=source_values)
 
     def _render_mapping_fields(self) -> None:
         if self._mapping_field_frame is None:
@@ -883,6 +1068,7 @@ class ProductionLogView(ttk.Frame):
         for child in self._mapping_field_frame.winfo_children():
             child.destroy()
         self._mapping_inputs = {}
+        self._source_mapping_inputs = {}
         if not self._active_field_keys:
             ttk.Label(
                 self._mapping_field_frame,
@@ -890,24 +1076,54 @@ class ProductionLogView(ttk.Frame):
                 style="ProdLog.BodyMuted.TLabel",
             ).grid(row=0, column=0, sticky="w")
             return
-        for row_idx, key in enumerate(self._active_field_keys):
+        ttk.Label(self._mapping_field_frame, text="Field", style="ProdLog.BodyMuted.TLabel").grid(
+            row=0, column=0, sticky="w", padx=(0, 8)
+        )
+        ttk.Label(self._mapping_field_frame, text="CSV header", style="ProdLog.BodyMuted.TLabel").grid(
+            row=0, column=1, sticky="w", padx=(0, 8)
+        )
+        ttk.Label(self._mapping_field_frame, text="Spreadsheet column", style="ProdLog.BodyMuted.TLabel").grid(
+            row=0, column=2, sticky="w"
+        )
+        for row_idx, key in enumerate(self._active_field_keys, start=1):
             label = FIELD_LABELS.get(key, key)
             ttk.Label(self._mapping_field_frame, text=label, style="ProdLog.Card.TLabel").grid(
                 row=row_idx, column=0, sticky="w", pady=2, padx=(0, 8)
             )
             combo = ttk.Combobox(
                 self._mapping_field_frame,
+                textvariable=self._source_field_vars[key],
+                state="normal",
+                width=26,
+            )
+            combo.grid(row=row_idx, column=1, sticky="w", pady=2)
+            self._source_mapping_inputs[key] = combo
+            destination_combo = ttk.Combobox(
+                self._mapping_field_frame,
                 textvariable=self._field_vars[key],
                 state="readonly",
                 width=26,
             )
-            combo.grid(row=row_idx, column=1, sticky="w", pady=2)
-            self._mapping_inputs[key] = combo
+            destination_combo.grid(row=row_idx, column=2, sticky="w", pady=2)
+            self._mapping_inputs[key] = destination_combo
         self._update_mapping_inputs(self._last_column_choices)
 
     def _set_active_template(self, template_key: Optional[str]) -> None:
         self._active_template_key = template_key
-        fields = list(TEMPLATE_FIELDS.get(template_key or "", []))
+        if template_key == CUSTOM_TEMPLATE_KEY:
+            fields = []
+            for display in self._last_column_choices:
+                letter = self._column_choice_map.get(display, display).strip().upper()
+                key = f"custom_{letter}"
+                fields.append(key)
+                FIELD_LABELS[key] = display
+                if key not in self._field_vars:
+                    self._field_vars[key] = tk.StringVar(value=self._display_for_column(letter))
+                if key not in self._source_field_vars:
+                    self._source_field_vars[key] = tk.StringVar(value="")
+                self._field_vars[key].set(self._display_for_column(letter))
+        else:
+            fields = list(TEMPLATE_FIELDS.get(template_key or "", []))
         priority = ["run_date", "select_set", "jobstream"]
         ordered = [field for field in priority if field in fields]
         ordered.extend([field for field in fields if field not in ordered])
@@ -929,6 +1145,9 @@ class ProductionLogView(ttk.Frame):
     def _load_sheet_mapping(self, sheet_name: str) -> None:
         for var in self._field_vars.values():
             var.set("")
+        for var in self._source_field_vars.values():
+            var.set("")
+        self.route_values_var.set("")
         self._select_template(None)
         if self.current_client_id is None:
             return
@@ -942,6 +1161,10 @@ class ProductionLogView(ttk.Frame):
             display = self._display_for_column(column)
             if key in self._field_vars:
                 self._field_vars[key].set(display)
+        for key, source_column in config.source_mappings.items():
+            if key in self._source_field_vars:
+                self._source_field_vars[key].set(source_column)
+        self.route_values_var.set(", ".join(config.route_values))
 
     def _display_for_column(self, column: str) -> str:
         column = (column or "").strip().upper()
@@ -952,6 +1175,8 @@ class ProductionLogView(ttk.Frame):
 
     def _clear_mapping(self) -> None:
         for var in self._field_vars.values():
+            var.set("")
+        for var in self._source_field_vars.values():
             var.set("")
 
     def _save_mapping(self) -> None:
@@ -966,6 +1191,7 @@ class ProductionLogView(ttk.Frame):
             messagebox.showinfo("Mapping", "Select a sheet type first.", parent=self)
             return
         mapping: dict[str, str] = {}
+        source_mapping: dict[str, str] = {}
         duplicates: dict[str, list[str]] = {}
         used: dict[str, str] = {}
         for key in self._active_field_keys:
@@ -979,6 +1205,9 @@ class ProductionLogView(ttk.Frame):
             else:
                 used[column] = FIELD_LABELS.get(key, key)
             mapping[key] = column
+            source = self._source_field_vars[key].get().strip()
+            if source:
+                source_mapping[key] = source
         if duplicates:
             details = []
             for column, fields in duplicates.items():
@@ -997,11 +1226,383 @@ class ProductionLogView(ttk.Frame):
             header_row=self._HEADER_ROW,
             data_start_row=self._DATA_START_ROW,
             column_mappings=mapping,
+            source_mappings=source_mapping,
+            route_values=self._parse_route_values(),
         )
         self.sheet_configs[sheet_name] = self.db.get_production_log_sheet_config(
             self.current_client_id, sheet_name
         ) or self.sheet_configs.get(sheet_name)
         messagebox.showinfo("Mapping", "Column mapping saved.", parent=self)
+
+    # ------------------------------------------------------------------ CSV and Outlook import
+    def _load_automations(self) -> None:
+        if self.current_client_id is None:
+            self.automations = []
+        else:
+            self.automations = self.db.get_production_log_automations(self.current_client_id)
+        self.automation_combo.configure(values=[item.name for item in self.automations])
+        selected = next(
+            (item for item in self.automations if item.id == self.current_automation_id),
+            None,
+        )
+        if selected is None and self.automations:
+            selected = self.automations[0]
+        self.current_automation_id = selected.id if selected else None
+        self.automation_var.set(selected.name if selected else "")
+        self._load_automation_form(selected)
+
+    def _load_automation_form(self, automation: Optional[ProductionLogAutomation]) -> None:
+        self.automation_name_var.set(automation.name if automation else "")
+        self.email_folder_var.set(automation.email_folder if automation else "")
+        self.email_subject_var.set(automation.email_subject_contains if automation else "")
+        self.email_subject_exact_var.set(automation.email_subject_exact if automation else False)
+        self.email_sender_var.set(automation.email_sender_contains if automation else "")
+        self.email_body_var.set(automation.email_body_contains if automation else "")
+        self.required_category_var.set(automation.required_category if automation else "")
+        self.completed_category_var.set(automation.completed_category if automation else "")
+        self.attachment_pattern_var.set(automation.attachment_pattern if automation else "*.csv")
+        self.routing_column_var.set(automation.routing_column if automation else "")
+        self.update_mode_var.set(automation.update_mode if automation else "append_empty")
+        self.source_sort_column_var.set(automation.source_sort_column if automation else "")
+        self.source_date_column_var.set(automation.source_date_column if automation else "")
+        self.target_date_column_var.set(automation.target_date_column if automation else "A")
+        self.scheduled_time_var.set(automation.scheduled_time if automation else "08:00")
+        self.lookback_days_var.set(str(automation.lookback_days if automation else 1))
+        self.retry_minutes_var.set(str(automation.retry_minutes if automation else 15))
+        self.catch_up_var.set(automation.catch_up if automation else True)
+        self.paused_var.set(automation.paused if automation else False)
+        selected_days = set(automation.weekdays if automation else range(7))
+        for index, variable in enumerate(self.weekday_vars):
+            variable.set(index in selected_days)
+        if automation is None:
+            self.import_status_var.set("Create an automation profile to configure scheduled imports.")
+            return
+        runs = self.db.get_production_log_automation_runs(automation.id, limit=1)
+        if runs:
+            latest = runs[0]
+            self.import_status_var.set(
+                f"Last run: {latest.started_at:%Y-%m-%d %H:%M} — {latest.status}: {latest.message}"
+            )
+        else:
+            self.import_status_var.set("This automation has not run yet.")
+
+    def _on_automation_selected(self, _event: object | None = None) -> None:
+        selected = next((item for item in self.automations if item.name == self.automation_var.get()), None)
+        self.current_automation_id = selected.id if selected else None
+        self._load_automation_form(selected)
+
+    def _new_automation(self) -> None:
+        if self.current_client_id is None:
+            messagebox.showinfo("Automation", "Select a client first.", parent=self)
+            return
+        name = simpledialog.askstring("New Automation", "Automation name:", parent=self)
+        if not name:
+            return
+        try:
+            self.current_automation_id = self.db.create_production_log_automation(self.current_client_id, name)
+        except ValueError as exc:
+            messagebox.showerror("Automation", str(exc), parent=self)
+            return
+        self._load_automations()
+
+    def _delete_automation(self) -> None:
+        if self.current_automation_id is None:
+            return
+        name = self.automation_name_var.get().strip() or "this automation"
+        if not messagebox.askyesno(
+            "Delete Automation",
+            f"Delete '{name}' and its run history?",
+            parent=self,
+        ):
+            return
+        self.db.delete_production_log_automation(self.current_automation_id)
+        self.current_automation_id = None
+        self._load_automations()
+
+    def _choose_sample_csv(self) -> None:
+        path_text = filedialog.askopenfilename(
+            parent=self,
+            title="Select a Sample CSV",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+        )
+        if not path_text:
+            return
+        path = Path(path_text)
+        try:
+            headers, rows = read_csv_rows(path)
+        except ProductionLogError as exc:
+            messagebox.showerror("Sample CSV", str(exc), parent=self)
+            return
+        self._sample_csv_path = path
+        self._csv_headers = headers
+        self.sample_csv_var.set(f"Sample: {path.name} ({len(rows)} data rows)")
+        self.routing_column_combo.configure(values=headers)
+        if self.routing_column_var.get().strip() not in headers and headers:
+            self.routing_column_var.set(headers[0])
+        self._update_mapping_inputs(self._last_column_choices)
+        self.import_status_var.set("Sample CSV loaded. Map its headers, then save each worksheet mapping.")
+
+    def _save_automation(self) -> None:
+        if self.current_automation_id is None:
+            messagebox.showinfo("Automation", "Create or select an automation first.", parent=self)
+            return
+        routing_column = self.routing_column_var.get().strip()
+        if not routing_column:
+            messagebox.showerror("Automation", "Enter the routing CSV column.", parent=self)
+            return
+        if not self.email_folder_var.get().strip():
+            messagebox.showerror("Automation", "Enter the Outlook folder path.", parent=self)
+            return
+        try:
+            scheduled_time = normalize_scheduled_time(self.scheduled_time_var.get())
+            lookback_days = int(self.lookback_days_var.get())
+            retry_minutes = int(self.retry_minutes_var.get())
+            if lookback_days < 0:
+                raise ValueError("Prior days cannot be negative.")
+            if retry_minutes < 1:
+                raise ValueError("Retry minutes must be at least 1.")
+            weekdays = [index for index, variable in enumerate(self.weekday_vars) if variable.get()]
+            self.db.update_production_log_automation(
+                self.current_automation_id,
+                name=self.automation_name_var.get(),
+                email_folder=self.email_folder_var.get(),
+                email_subject_contains=self.email_subject_var.get(),
+                email_subject_exact=self.email_subject_exact_var.get(),
+                email_sender_contains=self.email_sender_var.get(),
+                email_body_contains=self.email_body_var.get(),
+                required_category=self.required_category_var.get(),
+                completed_category=self.completed_category_var.get(),
+                attachment_pattern=self.attachment_pattern_var.get(),
+                routing_column=routing_column,
+                scheduled_time=scheduled_time,
+                weekdays=weekdays,
+                lookback_days=lookback_days,
+                catch_up=self.catch_up_var.get(),
+                retry_minutes=retry_minutes,
+                paused=self.paused_var.get(),
+                update_mode=self.update_mode_var.get(),
+                source_sort_column=self.source_sort_column_var.get(),
+                source_date_column=self.source_date_column_var.get(),
+                target_date_column=self.target_date_column_var.get(),
+            )
+        except ValueError as exc:
+            messagebox.showerror("Automation", str(exc), parent=self)
+            return
+        selected_id = self.current_automation_id
+        self._load_automations()
+        self.current_automation_id = selected_id
+        messagebox.showinfo("Automation", "Automation saved.", parent=self)
+
+    def _parse_route_values(self) -> list[str]:
+        return [item.strip() for item in re.split(r"[,;\n]+", self.route_values_var.get()) if item.strip()]
+
+    def _build_import_rules(self) -> list[SheetImportRule]:
+        if self.current_client_id is None:
+            return []
+        configs = self.db.get_production_log_sheet_configs(self.current_client_id)
+        return [
+            SheetImportRule(
+                sheet_name=config.sheet_name,
+                data_start_row=config.data_start_row,
+                destination_columns=config.column_mappings,
+                source_columns=config.source_mappings,
+                route_values=config.route_values,
+            )
+            for config in configs
+        ]
+
+    def _make_updater(self) -> ProductionLogUpdater | DateMatchedProductionLogUpdater:
+        workbook_path = Path(self.workbook_var.get().strip())
+        routing_column = self.routing_column_var.get().strip()
+        if not routing_column:
+            raise ProductionLogError("Configure the routing CSV column first.")
+        if self.update_mode_var.get() == "match_date":
+            source_date = self.source_date_column_var.get().strip()
+            if not source_date:
+                raise ProductionLogError("Configure the CSV date column first.")
+            return DateMatchedProductionLogUpdater(
+                workbook_path,
+                routing_column=routing_column,
+                source_date_column=source_date,
+                source_sort_column=self.source_sort_column_var.get(),
+                target_date_column=self.target_date_column_var.get(),
+                rules=self._build_import_rules(),
+            )
+        return ProductionLogUpdater(workbook_path, routing_column, self._build_import_rules())
+
+    def _import_sample(self) -> None:
+        if self._sample_csv_path is None:
+            messagebox.showinfo("Import Sample", "Load a sample CSV first.", parent=self)
+            return
+        sample_path = self._sample_csv_path
+        try:
+            updater = self._make_updater()
+        except ProductionLogError as exc:
+            messagebox.showerror("Import Sample", str(exc), parent=self)
+            return
+
+        def work() -> ImportResult:
+            return updater.import_csv(sample_path)
+
+        self._run_import_task(work, "Importing sample CSV...", show_dialog=True)
+
+    def _run_automation_now(self) -> None:
+        if self.current_automation_id is None:
+            messagebox.showinfo("Automation", "Create or select an automation first.", parent=self)
+            return
+        automation = self.db.get_production_log_automation(self.current_automation_id)
+        if automation is None:
+            messagebox.showerror("Automation", "The selected automation no longer exists.", parent=self)
+            return
+        now = datetime.now()
+        scheduled_for = latest_scheduled_occurrence(automation, now) or now
+        self._run_automation_profiles(
+            [(automation, scheduled_for, "manual")],
+            show_dialog=True,
+        )
+
+    def _run_automation_profiles(
+        self,
+        jobs: list[tuple[ProductionLogAutomation, datetime, str]],
+        *,
+        show_dialog: bool,
+    ) -> None:
+        if self._import_running:
+            if show_dialog:
+                messagebox.showinfo("Automation", "Another import is already running.", parent=self)
+            return
+        self._import_running = True
+        names = ", ".join(item[0].name for item in jobs)
+        self.import_status_var.set(f"Running: {names}...")
+
+        def runner() -> None:
+            service = ProductionLogAutomationRunner(self.db)
+            messages: list[str] = []
+            failures: list[str] = []
+            for automation, scheduled_for, trigger_type in jobs:
+                try:
+                    result = service.run(
+                        automation,
+                        scheduled_for=scheduled_for,
+                        trigger_type=trigger_type,
+                    )
+                except Exception as exc:
+                    failures.append(f"{automation.name}: {exc}")
+                else:
+                    messages.append(f"{automation.name}: {result.message}")
+            self.after(
+                0,
+                lambda: self._finish_automation_profiles(messages, failures, show_dialog),
+            )
+
+        threading.Thread(target=runner, name="production-log-scheduler", daemon=True).start()
+
+    def _finish_automation_profiles(
+        self,
+        messages: list[str],
+        failures: list[str],
+        show_dialog: bool,
+    ) -> None:
+        self._import_running = False
+        summary_parts = messages + [f"FAILED — {item}" for item in failures]
+        summary = " | ".join(summary_parts) or "No automation ran."
+        self.import_status_var.set(summary)
+        if self.sheet_var.get().strip():
+            self._load_sheet_preview(self.sheet_var.get().strip())
+        if self.current_automation_id is not None:
+            current = self.db.get_production_log_automation(self.current_automation_id)
+            if current is not None and not show_dialog:
+                self._load_automation_form(current)
+        if show_dialog:
+            if failures:
+                messagebox.showerror("Production Log Automation", summary, parent=self)
+            else:
+                messagebox.showinfo("Production Log Automation", summary, parent=self)
+
+    def _run_import_task(
+        self,
+        work,
+        running_message: str,
+        *,
+        show_dialog: bool,
+    ) -> None:
+        if self._import_running:
+            if show_dialog:
+                messagebox.showinfo("Production Log", "An import is already running.", parent=self)
+            return
+        self._import_running = True
+        self.import_status_var.set(running_message)
+
+        def runner() -> None:
+            try:
+                result = work()
+            except Exception as exc:
+                self.after(0, lambda error=exc: self._finish_import_error(error, show_dialog))
+            else:
+                self.after(0, lambda value=result: self._finish_import_success(value, show_dialog))
+
+        threading.Thread(target=runner, name="production-log-import", daemon=True).start()
+
+    def _finish_import_success(self, result: ImportResult, show_dialog: bool) -> None:
+        self._import_running = False
+        sheets = ", ".join(sorted(result.sheets_updated)) or "none"
+        report_path = self._write_manual_issue_report(result)
+        summary = (
+            f"Wrote {result.rows_written} rows / {result.cells_written} cells; "
+            f"skipped {result.rows_skipped}; unrouted {result.unrouted_rows}; sheets: {sheets}."
+        )
+        if report_path is not None:
+            summary += f" Exception report: {report_path}"
+        if result.source_rows == 0:
+            summary = "No new matching CSV attachments were found."
+        self.import_status_var.set(summary)
+        self._refresh_status()
+        if self.sheet_var.get().strip():
+            self._load_sheet_preview(self.sheet_var.get().strip())
+        if show_dialog:
+            messagebox.showinfo("Production Log Import", summary, parent=self)
+
+    def _write_manual_issue_report(self, result: ImportResult) -> Optional[Path]:
+        if not result.issues:
+            return None
+        report_dir = self.db.path.parent / "production_log_reports" / "manual"
+        report_dir.mkdir(parents=True, exist_ok=True)
+        report_path = report_dir / f"{datetime.now():%Y%m%d_%H%M%S_%f}_exceptions.json"
+        payload = {
+            "created_at": datetime.now().isoformat(),
+            "source_file": str(self._sample_csv_path or ""),
+            "workbook": self.workbook_var.get().strip(),
+            "source_rows": result.source_rows,
+            "rows_written": result.rows_written,
+            "cells_written": result.cells_written,
+            "rows_skipped": result.rows_skipped,
+            "issues": [
+                {
+                    "reason": issue.reason,
+                    "sheet_name": issue.sheet_name,
+                    "source_row_number": issue.source_row_number,
+                    "source_row": issue.source_row,
+                    "target_row_number": issue.target_row_number,
+                    "target_values": issue.target_values,
+                    "target_row": issue.target_row,
+                }
+                for issue in result.issues
+            ],
+        }
+        report_path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+        return report_path
+
+    def _finish_import_error(self, error: Exception, show_dialog: bool) -> None:
+        self._import_running = False
+        message = str(error) or error.__class__.__name__
+        self.import_status_var.set(f"Import failed: {message}")
+        if show_dialog:
+            messagebox.showerror("Production Log Import", message, parent=self)
+
+    def refresh_automation_status(self) -> None:
+        self._load_automations()
+        if self.sheet_var.get().strip():
+            self._load_sheet_preview(self.sheet_var.get().strip())
 
     # ------------------------------------------------------------------ Preview
     def _clear_preview(self) -> None:

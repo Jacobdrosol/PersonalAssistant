@@ -84,3 +84,12 @@ def get_start_menu_programs_path() -> Path:
             return Path(appdata) / "Microsoft" / "Windows" / "Start Menu" / "Programs"
         return Path.home() / "AppData" / "Roaming" / "Microsoft" / "Windows" / "Start Menu" / "Programs"
     return Path.home()
+
+
+def get_startup_programs_path() -> Path:
+    if sys.platform.startswith("win"):
+        appdata = os.getenv("APPDATA")
+        if appdata:
+            return Path(appdata) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+        return Path.home() / "AppData" / "Roaming" / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+    return Path.home()

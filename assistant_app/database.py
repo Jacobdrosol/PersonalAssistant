@@ -34,6 +34,8 @@ from .models import (
     ExportValidatorInstance,
     ProductionLogClient,
     ProductionLogSheetConfig,
+    ProductionLogAutomation,
+    ProductionLogAutomationRun,
 )
 
 MISSING = object()
@@ -626,6 +628,20 @@ class Database:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE,
                 workbook_path TEXT,
+                email_folder TEXT NOT NULL DEFAULT '',
+                email_subject_contains TEXT NOT NULL DEFAULT '',
+                email_subject_exact INTEGER NOT NULL DEFAULT 0,
+                email_sender_contains TEXT NOT NULL DEFAULT '',
+                email_body_contains TEXT NOT NULL DEFAULT '',
+                attachment_pattern TEXT NOT NULL DEFAULT '*.csv',
+                required_category TEXT NOT NULL DEFAULT '',
+                completed_category TEXT NOT NULL DEFAULT '',
+                routing_column TEXT NOT NULL DEFAULT '',
+                update_mode TEXT NOT NULL DEFAULT 'append_empty',
+                source_sort_column TEXT NOT NULL DEFAULT '',
+                source_date_column TEXT NOT NULL DEFAULT '',
+                target_date_column TEXT NOT NULL DEFAULT 'A',
+                auto_import INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 updated_at TEXT
             );
@@ -638,13 +654,91 @@ class Database:
                 header_row INTEGER NOT NULL DEFAULT 5,
                 data_start_row INTEGER NOT NULL DEFAULT 6,
                 column_mappings TEXT NOT NULL DEFAULT '{}',
+                source_mappings TEXT NOT NULL DEFAULT '{}',
+                route_values TEXT NOT NULL DEFAULT '[]',
                 UNIQUE(client_id, sheet_name)
+            );
+
+            CREATE TABLE IF NOT EXISTS production_log_processed_attachments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_id INTEGER NOT NULL REFERENCES production_log_clients(id) ON DELETE CASCADE,
+                message_id TEXT NOT NULL,
+                attachment_name TEXT NOT NULL,
+                processed_at TEXT NOT NULL,
+                rows_written INTEGER NOT NULL DEFAULT 0,
+                UNIQUE(client_id, message_id, attachment_name)
+            );
+
+            CREATE TABLE IF NOT EXISTS production_log_automations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_id INTEGER NOT NULL REFERENCES production_log_clients(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                email_folder TEXT NOT NULL DEFAULT '',
+                email_subject_contains TEXT NOT NULL DEFAULT '',
+                email_sender_contains TEXT NOT NULL DEFAULT '',
+                attachment_pattern TEXT NOT NULL DEFAULT '*.csv',
+                routing_column TEXT NOT NULL DEFAULT '',
+                scheduled_time TEXT NOT NULL DEFAULT '08:00',
+                weekdays TEXT NOT NULL DEFAULT '[0,1,2,3,4,5,6]',
+                lookback_days INTEGER NOT NULL DEFAULT 1,
+                catch_up INTEGER NOT NULL DEFAULT 1,
+                retry_minutes INTEGER NOT NULL DEFAULT 15,
+                paused INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT,
+                UNIQUE(client_id, name)
+            );
+
+            CREATE TABLE IF NOT EXISTS production_log_automation_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                automation_id INTEGER NOT NULL REFERENCES production_log_automations(id) ON DELETE CASCADE,
+                trigger_type TEXT NOT NULL,
+                scheduled_for TEXT NOT NULL,
+                status TEXT NOT NULL,
+                started_at TEXT NOT NULL,
+                completed_at TEXT,
+                attachments_processed INTEGER NOT NULL DEFAULT 0,
+                rows_written INTEGER NOT NULL DEFAULT 0,
+                cells_written INTEGER NOT NULL DEFAULT 0,
+                message TEXT NOT NULL DEFAULT ''
+            );
+
+            CREATE TABLE IF NOT EXISTS production_log_automation_attachments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                automation_id INTEGER NOT NULL REFERENCES production_log_automations(id) ON DELETE CASCADE,
+                message_id TEXT NOT NULL,
+                attachment_name TEXT NOT NULL,
+                processed_at TEXT NOT NULL,
+                rows_written INTEGER NOT NULL DEFAULT 0,
+                UNIQUE(automation_id, message_id, attachment_name)
             );
             """
         )
+        self._ensure_column("production_log_clients", "email_folder", "TEXT NOT NULL DEFAULT ''")
+        self._ensure_column("production_log_clients", "email_subject_contains", "TEXT NOT NULL DEFAULT ''")
+        self._ensure_column("production_log_clients", "email_sender_contains", "TEXT NOT NULL DEFAULT ''")
+        self._ensure_column("production_log_clients", "attachment_pattern", "TEXT NOT NULL DEFAULT '*.csv'")
+        self._ensure_column("production_log_clients", "routing_column", "TEXT NOT NULL DEFAULT ''")
+        self._ensure_column("production_log_clients", "auto_import", "INTEGER NOT NULL DEFAULT 0")
         self._ensure_column("production_log_sheet_configs", "template_key", "TEXT")
+        self._ensure_column("production_log_sheet_configs", "source_mappings", "TEXT NOT NULL DEFAULT '{}'")
+        self._ensure_column("production_log_sheet_configs", "route_values", "TEXT NOT NULL DEFAULT '[]'")
+        self._ensure_column("production_log_automations", "email_subject_exact", "INTEGER NOT NULL DEFAULT 0")
+        self._ensure_column("production_log_automations", "email_body_contains", "TEXT NOT NULL DEFAULT ''")
+        self._ensure_column("production_log_automations", "required_category", "TEXT NOT NULL DEFAULT ''")
+        self._ensure_column("production_log_automations", "completed_category", "TEXT NOT NULL DEFAULT ''")
+        self._ensure_column("production_log_automations", "update_mode", "TEXT NOT NULL DEFAULT 'append_empty'")
+        self._ensure_column("production_log_automations", "source_sort_column", "TEXT NOT NULL DEFAULT ''")
+        self._ensure_column("production_log_automations", "source_date_column", "TEXT NOT NULL DEFAULT ''")
+        self._ensure_column("production_log_automations", "target_date_column", "TEXT NOT NULL DEFAULT 'A'")
         self._conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_prod_log_sheet_client ON production_log_sheet_configs(client_id)"
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_prod_log_automation_client ON production_log_automations(client_id)"
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_prod_log_runs_automation ON production_log_automation_runs(automation_id, scheduled_for)"
         )
         self._conn.commit()
 
@@ -3234,7 +3328,9 @@ class Database:
         with self._lock:
             rows = self._conn.execute(
                 """
-                SELECT id, name, workbook_path, created_at, updated_at
+                SELECT id, name, workbook_path, email_folder, email_subject_contains,
+                       email_sender_contains, attachment_pattern, routing_column, auto_import,
+                       created_at, updated_at
                 FROM production_log_clients
                 ORDER BY name
                 """
@@ -3248,11 +3344,20 @@ class Database:
                     id=row["id"],
                     name=row["name"],
                     workbook_path=row["workbook_path"],
+                    email_folder=str(row["email_folder"] or ""),
+                    email_subject_contains=str(row["email_subject_contains"] or ""),
+                    email_sender_contains=str(row["email_sender_contains"] or ""),
+                    attachment_pattern=str(row["attachment_pattern"] or "*.csv"),
+                    routing_column=str(row["routing_column"] or ""),
+                    auto_import=bool(row["auto_import"]),
                     created_at=created_at,
                     updated_at=updated_at,
                 )
             )
         return clients
+
+    def get_production_log_client(self, client_id: int) -> Optional[ProductionLogClient]:
+        return next((item for item in self.get_production_log_clients() if item.id == client_id), None)
 
     def create_production_log_client(self, name: str) -> int:
         trimmed = name.strip()
@@ -3290,11 +3395,44 @@ class Database:
             )
             self._conn.commit()
 
+    def update_production_log_import_settings(
+        self,
+        client_id: int,
+        *,
+        email_folder: str,
+        email_subject_contains: str,
+        email_sender_contains: str,
+        attachment_pattern: str,
+        routing_column: str,
+        auto_import: bool,
+    ) -> None:
+        with self._lock:
+            self._conn.execute(
+                """
+                UPDATE production_log_clients
+                SET email_folder = ?, email_subject_contains = ?, email_sender_contains = ?,
+                    attachment_pattern = ?, routing_column = ?, auto_import = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    email_folder.strip(),
+                    email_subject_contains.strip(),
+                    email_sender_contains.strip(),
+                    attachment_pattern.strip() or "*.csv",
+                    routing_column.strip(),
+                    1 if auto_import else 0,
+                    utils.to_iso(datetime.now()),
+                    client_id,
+                ),
+            )
+            self._conn.commit()
+
     def get_production_log_sheet_configs(self, client_id: int) -> List[ProductionLogSheetConfig]:
         with self._lock:
             rows = self._conn.execute(
                 """
-                SELECT id, client_id, sheet_name, template_key, header_row, data_start_row, column_mappings
+                SELECT id, client_id, sheet_name, template_key, header_row, data_start_row,
+                       column_mappings, source_mappings, route_values
                 FROM production_log_sheet_configs
                 WHERE client_id = ?
                 ORDER BY sheet_name
@@ -3309,6 +3447,18 @@ class Database:
                 mappings = {}
             if not isinstance(mappings, dict):
                 mappings = {}
+            try:
+                source_mappings = json.loads(row["source_mappings"] or "{}")
+            except Exception:
+                source_mappings = {}
+            if not isinstance(source_mappings, dict):
+                source_mappings = {}
+            try:
+                route_values = json.loads(row["route_values"] or "[]")
+            except Exception:
+                route_values = []
+            if not isinstance(route_values, list):
+                route_values = []
             configs.append(
                 ProductionLogSheetConfig(
                     id=row["id"],
@@ -3318,6 +3468,8 @@ class Database:
                     header_row=int(row["header_row"] or 5),
                     data_start_row=int(row["data_start_row"] or 6),
                     column_mappings={str(k): str(v) for k, v in mappings.items() if v},
+                    source_mappings={str(k): str(v) for k, v in source_mappings.items() if v},
+                    route_values=[str(item) for item in route_values if str(item).strip()],
                 )
             )
         return configs
@@ -3326,7 +3478,8 @@ class Database:
         with self._lock:
             row = self._conn.execute(
                 """
-                SELECT id, client_id, sheet_name, template_key, header_row, data_start_row, column_mappings
+                SELECT id, client_id, sheet_name, template_key, header_row, data_start_row,
+                       column_mappings, source_mappings, route_values
                 FROM production_log_sheet_configs
                 WHERE client_id = ? AND sheet_name = ?
                 """,
@@ -3340,6 +3493,18 @@ class Database:
             mappings = {}
         if not isinstance(mappings, dict):
             mappings = {}
+        try:
+            source_mappings = json.loads(row["source_mappings"] or "{}")
+        except Exception:
+            source_mappings = {}
+        if not isinstance(source_mappings, dict):
+            source_mappings = {}
+        try:
+            route_values = json.loads(row["route_values"] or "[]")
+        except Exception:
+            route_values = []
+        if not isinstance(route_values, list):
+            route_values = []
         return ProductionLogSheetConfig(
             id=row["id"],
             client_id=row["client_id"],
@@ -3348,6 +3513,8 @@ class Database:
             header_row=int(row["header_row"] or 5),
             data_start_row=int(row["data_start_row"] or 6),
             column_mappings={str(k): str(v) for k, v in mappings.items() if v},
+            source_mappings={str(k): str(v) for k, v in source_mappings.items() if v},
+            route_values=[str(item) for item in route_values if str(item).strip()],
         )
 
     def upsert_production_log_sheet_config(
@@ -3359,9 +3526,16 @@ class Database:
         header_row: int = 5,
         data_start_row: int = 6,
         column_mappings: dict[str, str],
+        source_mappings: Optional[dict[str, str]] = None,
+        route_values: Optional[list[str]] = None,
     ) -> None:
         cleaned_mappings = {str(k): str(v) for k, v in column_mappings.items() if v}
         payload = json.dumps(cleaned_mappings, ensure_ascii=False)
+        source_payload = json.dumps(
+            {str(k): str(v) for k, v in (source_mappings or {}).items() if v},
+            ensure_ascii=False,
+        )
+        route_payload = json.dumps([str(item).strip() for item in (route_values or []) if str(item).strip()])
         with self._lock:
             existing = self._conn.execute(
                 "SELECT id FROM production_log_sheet_configs WHERE client_id = ? AND sheet_name = ?",
@@ -3371,20 +3545,331 @@ class Database:
                 self._conn.execute(
                     """
                     UPDATE production_log_sheet_configs
-                    SET template_key = ?, header_row = ?, data_start_row = ?, column_mappings = ?
+                    SET template_key = ?, header_row = ?, data_start_row = ?, column_mappings = ?,
+                        source_mappings = ?, route_values = ?
                     WHERE id = ?
                     """,
-                    (template_key, header_row, data_start_row, payload, existing["id"]),
+                    (template_key, header_row, data_start_row, payload, source_payload, route_payload, existing["id"]),
                 )
             else:
                 self._conn.execute(
                     """
                     INSERT INTO production_log_sheet_configs
-                        (client_id, sheet_name, template_key, header_row, data_start_row, column_mappings)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                        (client_id, sheet_name, template_key, header_row, data_start_row,
+                         column_mappings, source_mappings, route_values)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (client_id, sheet_name, template_key, header_row, data_start_row, payload),
+                    (client_id, sheet_name, template_key, header_row, data_start_row, payload, source_payload, route_payload),
                 )
+            self._conn.commit()
+
+    def is_production_log_attachment_processed(
+        self, client_id: int, message_id: str, attachment_name: str
+    ) -> bool:
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT 1 FROM production_log_processed_attachments
+                WHERE client_id = ? AND message_id = ? AND attachment_name = ?
+                """,
+                (client_id, message_id, attachment_name),
+            ).fetchone()
+        return row is not None
+
+    def mark_production_log_attachment_processed(
+        self, client_id: int, message_id: str, attachment_name: str, rows_written: int
+    ) -> None:
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT OR IGNORE INTO production_log_processed_attachments
+                    (client_id, message_id, attachment_name, processed_at, rows_written)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (client_id, message_id, attachment_name, utils.to_iso(datetime.now()), rows_written),
+            )
+            self._conn.commit()
+
+    def get_production_log_automations(
+        self, client_id: Optional[int] = None
+    ) -> List[ProductionLogAutomation]:
+        query = """
+            SELECT id, client_id, name, email_folder, email_subject_contains,
+                   email_subject_exact, email_sender_contains, email_body_contains,
+                   attachment_pattern, required_category, completed_category, routing_column,
+                   update_mode, source_sort_column, source_date_column, target_date_column,
+                   scheduled_time, weekdays, lookback_days, catch_up,
+                   retry_minutes, paused, created_at, updated_at
+            FROM production_log_automations
+        """
+        params: tuple[object, ...] = ()
+        if client_id is not None:
+            query += " WHERE client_id = ?"
+            params = (client_id,)
+        query += " ORDER BY name"
+        with self._lock:
+            rows = self._conn.execute(query, params).fetchall()
+        automations: List[ProductionLogAutomation] = []
+        for row in rows:
+            try:
+                weekdays = json.loads(row["weekdays"] or "[]")
+            except Exception:
+                weekdays = []
+            if not isinstance(weekdays, list):
+                weekdays = []
+            cleaned_days = sorted({int(item) for item in weekdays if str(item).isdigit() and 0 <= int(item) <= 6})
+            automations.append(
+                ProductionLogAutomation(
+                    id=int(row["id"]),
+                    client_id=int(row["client_id"]),
+                    name=str(row["name"]),
+                    email_folder=str(row["email_folder"] or ""),
+                    email_subject_contains=str(row["email_subject_contains"] or ""),
+                    email_subject_exact=bool(row["email_subject_exact"]),
+                    email_sender_contains=str(row["email_sender_contains"] or ""),
+                    email_body_contains=str(row["email_body_contains"] or ""),
+                    attachment_pattern=str(row["attachment_pattern"] or "*.csv"),
+                    required_category=str(row["required_category"] or ""),
+                    completed_category=str(row["completed_category"] or ""),
+                    routing_column=str(row["routing_column"] or ""),
+                    update_mode=str(row["update_mode"] or "append_empty"),
+                    source_sort_column=str(row["source_sort_column"] or ""),
+                    source_date_column=str(row["source_date_column"] or ""),
+                    target_date_column=str(row["target_date_column"] or "A"),
+                    scheduled_time=str(row["scheduled_time"] or "08:00"),
+                    weekdays=cleaned_days or list(range(7)),
+                    lookback_days=max(0, int(row["lookback_days"] or 0)),
+                    catch_up=bool(row["catch_up"]),
+                    retry_minutes=max(1, int(row["retry_minutes"] or 15)),
+                    paused=bool(row["paused"]),
+                    created_at=utils.from_iso(row["created_at"]) or datetime.now(),
+                    updated_at=utils.from_iso(row["updated_at"]) if row["updated_at"] else None,
+                )
+            )
+        return automations
+
+    def get_production_log_automation(self, automation_id: int) -> Optional[ProductionLogAutomation]:
+        return next(
+            (item for item in self.get_production_log_automations() if item.id == automation_id),
+            None,
+        )
+
+    def create_production_log_automation(self, client_id: int, name: str) -> int:
+        trimmed = name.strip()
+        if not trimmed:
+            raise ValueError("Automation name cannot be blank.")
+        now = utils.to_iso(datetime.now())
+        try:
+            with self._lock:
+                cursor = self._conn.execute(
+                    """
+                    INSERT INTO production_log_automations (client_id, name, created_at)
+                    VALUES (?, ?, ?)
+                    """,
+                    (client_id, trimmed, now),
+                )
+                self._conn.commit()
+                return int(cursor.lastrowid)
+        except sqlite3.IntegrityError as exc:
+            raise ValueError("Automation names must be unique for this client.") from exc
+
+    def update_production_log_automation(
+        self,
+        automation_id: int,
+        *,
+        name: str,
+        email_folder: str,
+        email_subject_contains: str,
+        email_sender_contains: str,
+        attachment_pattern: str,
+        routing_column: str,
+        scheduled_time: str,
+        weekdays: list[int],
+        lookback_days: int,
+        catch_up: bool,
+        retry_minutes: int,
+        paused: bool,
+        email_subject_exact: bool = False,
+        email_body_contains: str = "",
+        required_category: str = "",
+        completed_category: str = "",
+        update_mode: str = "append_empty",
+        source_sort_column: str = "",
+        source_date_column: str = "",
+        target_date_column: str = "A",
+    ) -> None:
+        trimmed = name.strip()
+        if not trimmed:
+            raise ValueError("Automation name cannot be blank.")
+        cleaned_days = sorted({int(item) for item in weekdays if 0 <= int(item) <= 6})
+        if not cleaned_days:
+            raise ValueError("Select at least one day of the week.")
+        try:
+            with self._lock:
+                self._conn.execute(
+                    """
+                    UPDATE production_log_automations
+                    SET name = ?, email_folder = ?, email_subject_contains = ?, email_subject_exact = ?,
+                        email_sender_contains = ?, email_body_contains = ?, attachment_pattern = ?,
+                        required_category = ?, completed_category = ?, routing_column = ?,
+                        update_mode = ?, source_sort_column = ?, source_date_column = ?, target_date_column = ?,
+                        scheduled_time = ?, weekdays = ?, lookback_days = ?, catch_up = ?,
+                        retry_minutes = ?, paused = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        trimmed,
+                        email_folder.strip(),
+                        email_subject_contains.strip(),
+                        1 if email_subject_exact else 0,
+                        email_sender_contains.strip(),
+                        email_body_contains.strip(),
+                        attachment_pattern.strip() or "*.csv",
+                        required_category.strip(),
+                        completed_category.strip(),
+                        routing_column.strip(),
+                        update_mode.strip() or "append_empty",
+                        source_sort_column.strip(),
+                        source_date_column.strip(),
+                        target_date_column.strip().upper() or "A",
+                        scheduled_time,
+                        json.dumps(cleaned_days),
+                        max(0, int(lookback_days)),
+                        1 if catch_up else 0,
+                        max(1, int(retry_minutes)),
+                        1 if paused else 0,
+                        utils.to_iso(datetime.now()),
+                        automation_id,
+                    ),
+                )
+                self._conn.commit()
+        except sqlite3.IntegrityError as exc:
+            raise ValueError("Automation names must be unique for this client.") from exc
+
+    def delete_production_log_automation(self, automation_id: int) -> None:
+        with self._lock:
+            self._conn.execute("DELETE FROM production_log_automations WHERE id = ?", (automation_id,))
+            self._conn.commit()
+
+    def start_production_log_automation_run(
+        self,
+        automation_id: int,
+        *,
+        trigger_type: str,
+        scheduled_for: datetime,
+    ) -> int:
+        with self._lock:
+            cursor = self._conn.execute(
+                """
+                INSERT INTO production_log_automation_runs
+                    (automation_id, trigger_type, scheduled_for, status, started_at)
+                VALUES (?, ?, ?, 'running', ?)
+                """,
+                (
+                    automation_id,
+                    trigger_type,
+                    utils.to_iso(scheduled_for),
+                    utils.to_iso(datetime.now()),
+                ),
+            )
+            self._conn.commit()
+            return int(cursor.lastrowid)
+
+    def finish_production_log_automation_run(
+        self,
+        run_id: int,
+        *,
+        status: str,
+        attachments_processed: int = 0,
+        rows_written: int = 0,
+        cells_written: int = 0,
+        message: str = "",
+    ) -> None:
+        with self._lock:
+            self._conn.execute(
+                """
+                UPDATE production_log_automation_runs
+                SET status = ?, completed_at = ?, attachments_processed = ?,
+                    rows_written = ?, cells_written = ?, message = ?
+                WHERE id = ?
+                """,
+                (
+                    status,
+                    utils.to_iso(datetime.now()),
+                    max(0, int(attachments_processed)),
+                    max(0, int(rows_written)),
+                    max(0, int(cells_written)),
+                    message,
+                    run_id,
+                ),
+            )
+            self._conn.commit()
+
+    def get_production_log_automation_runs(
+        self, automation_id: int, limit: int = 20
+    ) -> List[ProductionLogAutomationRun]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT id, automation_id, trigger_type, scheduled_for, status, started_at,
+                       completed_at, attachments_processed, rows_written, cells_written, message
+                FROM production_log_automation_runs
+                WHERE automation_id = ?
+                ORDER BY started_at DESC
+                LIMIT ?
+                """,
+                (automation_id, max(1, int(limit))),
+            ).fetchall()
+        runs: List[ProductionLogAutomationRun] = []
+        for row in rows:
+            runs.append(
+                ProductionLogAutomationRun(
+                    id=int(row["id"]),
+                    automation_id=int(row["automation_id"]),
+                    trigger_type=str(row["trigger_type"]),
+                    scheduled_for=utils.from_iso(row["scheduled_for"]) or datetime.now(),
+                    status=str(row["status"]),
+                    started_at=utils.from_iso(row["started_at"]) or datetime.now(),
+                    completed_at=utils.from_iso(row["completed_at"]) if row["completed_at"] else None,
+                    attachments_processed=int(row["attachments_processed"] or 0),
+                    rows_written=int(row["rows_written"] or 0),
+                    cells_written=int(row["cells_written"] or 0),
+                    message=str(row["message"] or ""),
+                )
+            )
+        return runs
+
+    def is_production_log_automation_attachment_processed(
+        self, automation_id: int, message_id: str, attachment_name: str
+    ) -> bool:
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT 1 FROM production_log_automation_attachments
+                WHERE automation_id = ? AND message_id = ? AND attachment_name = ?
+                """,
+                (automation_id, message_id, attachment_name),
+            ).fetchone()
+        return row is not None
+
+    def mark_production_log_automation_attachment_processed(
+        self, automation_id: int, message_id: str, attachment_name: str, rows_written: int
+    ) -> None:
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT OR IGNORE INTO production_log_automation_attachments
+                    (automation_id, message_id, attachment_name, processed_at, rows_written)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    automation_id,
+                    message_id,
+                    attachment_name,
+                    utils.to_iso(datetime.now()),
+                    max(0, int(rows_written)),
+                ),
+            )
             self._conn.commit()
 
     # Export validator ------------------------------------------------------
